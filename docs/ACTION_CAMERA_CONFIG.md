@@ -181,6 +181,33 @@ Keeping the previous N animation camera rules because a file was rejected
 
 ## 5. 调参建议
 
+### ⚠️ `front` 与 `aim_distance` 必须平衡
+
+`setBack` 会在机位**离瞄准点小于 `min_distance`** 时把它**沿视线推回**。若 `front` 的负值远大于 `aim_distance`：
+
+```
+front=-1.7, aim_distance=2.0  →  机位被推得很远，侧向偏移在画面上被稀释
+                              →  看起来就是"纯背后视角"，被攻击者被自己挡住
+```
+
+**当前默认**（近战）：
+
+| 项 | 值 |
+| --- | --- |
+| 机位 | 右 **0.70** 格、后 **1.00** 格、高 1.57 |
+| 瞄准点 | 角色前方 **1.40** 格、高 1.62 |
+| 机位→瞄准点 | **2.50** 格（> `min_distance` 1.0，**不会被推回**） |
+| 侧向夹角 | **16.3°** |
+
+判断方法：`√(side² + (|front| + aim_distance)²) > min_distance` 才不会被推回。
+
+| 想达到的效果 | 调什么 |
+| --- | --- |
+| **想看到被攻击者（更偏侧）** | 增大 `side`（0.7 → 0.9） |
+| 想看到更多角色 | 增大 `front` 的负值，或增大 `aim_distance` |
+| 镜头太近、角色太大 | 增大 `aim_distance` |
+| 镜头太远、角色太小 | 减小 `aim_distance` |
+
 | 想达到的效果 | 调什么 |
 | --- | --- |
 | 镜头整体离角色更远 | 增大 `side`，并把 `front` 调得更负 |

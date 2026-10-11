@@ -48,7 +48,7 @@ public final class ActionAnimationDataGameTests {
                 "Per-action camera overrides were not applied");
         h.assertTrue(unknown.equals(ActionAnimationData.Camera.DEFAULT),
                 "Unconfigured animation did not fall back to the built-in default");
-        h.assertTrue(melee.minDistance() >= 1.5 && melee.side() >= 0.4,
+        h.assertTrue(melee.minDistance() >= 0.5 && melee.side() >= 0.4,
                 "Camera framing defaults are implausibly tight: " + melee);
 
         // Over-the-shoulder: the camera sits BEHIND the actor, so front must be negative, and the frame
@@ -65,9 +65,11 @@ public final class ActionAnimationDataGameTests {
         // both offsets, which for a ravager (1.95 wide) moved the camera two blocks sideways and nearly
         // cancelled its backward offset, so the attacker left the frame when attacking one. Body size now
         // only pushes the look-at point ahead.
-        double ravagerFront = melee.front();
-        h.assertTrue(ravagerFront < -1.0,
-                "The behind-the-actor offset is too small to survive a broad target: front=" + ravagerFront);
+        h.assertTrue(melee.front() < -0.5,
+                "The behind-the-actor offset is too small for an over-the-shoulder shot: front=" + melee.front());
+        h.assertTrue(melee.side() > 0.3,
+                "The camera sits almost directly behind the actor, so the actor hides the target: side="
+                        + melee.side());
         h.assertTrue(melee.side() < 1.2,
                 "The camera sits too far to the side, which pushes the attacker out of frame: side=" + melee.side());
         h.assertTrue(melee.scaleFor(0.0) < melee.scaleFor(1.95),
@@ -76,6 +78,15 @@ public final class ActionAnimationDataGameTests {
                 "The look-ahead grows so fast it would look past the fight entirely: " + melee.scaleFor(1.95));
         h.assertTrue(melee.aimDistance() > 0,
                 "Melee camera must look a fixed distance ahead so framing does not depend on target range");
+
+        // The look-ahead has to BALANCE the backward offset. setBack pushes the camera away from the aim point
+        // whenever it starts closer than minDistance, and when front is far more negative than aimDistance that
+        // push collapses the shot into a plain behind-the-back view where the actor hides the target - which is
+        // exactly how the over-the-shoulder framing was lost once already.
+        double cameraToAim = Math.hypot(melee.side(), Math.abs(melee.front()) + melee.aimDistance());
+        h.assertTrue(cameraToAim > melee.minDistance(),
+                "Framing starts inside min_distance, so it would be pushed back into a behind-the-back view: "
+                        + cameraToAim + " <= " + melee.minDistance());
         h.succeed();
     }
 

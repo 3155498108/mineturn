@@ -1,35 +1,37 @@
 {
-  "__comment": "Action camera framing. The cut and the release are both instant (blend_out_ms 0). side = blocks to the actor's right, front = blocks along its facing (NEGATIVE = behind the actor, i.e. over-the-shoulder). The CAMERA POSITION does not depend on body size; width_base/width_scale only push the LOOK-AT POINT further ahead so a broad actor does not fill the shot. Scaling the camera offsets by body width is what previously dragged the camera sideways and lost the attacker on a ravager. aim_distance = base look-ahead in blocks. blend_out_ms in milliseconds.",
+  "__comment": "Action camera framing. Cut and release are both instant (blend_out_ms 0). side = blocks to the actor's RIGHT, front = blocks along its facing (NEGATIVE = behind). aim_distance = how far ahead of the actor the camera looks; it must BALANCE front, because the min_distance clamp pushes the camera back along the sight line and, when front is far more negative than aim_distance, the shot collapses into a plain behind-the-back view where the actor hides the target. The camera position does NOT depend on body size; width_base/width_scale only push the LOOK-AT POINT further ahead. blend_out_ms in milliseconds.",
   "camera": {
-    "side": 0.9,
-    "front": -1.6,
-    "lift": 0.8,
+    "side": 0.7,
+    "front": -1.0,
+    "lift": 0.35,
     "width_base": 0.0,
     "width_scale": 0.5,
-    "min_distance": 1.6,
-    "aim_distance": 2.0,
+    "min_distance": 1.0,
+    "aim_distance": 1.4,
     "blend_out_ms": 0,
     "aim": "midpoint"
   },
   "actions": {
     "melee": {
-      "side": 0.95,
-      "front": -1.7,
-      "lift": 0.85,
+      "side": 0.7,
+      "front": -1.0,
+      "lift": 0.35,
       "width_base": 0.0,
       "width_scale": 0.5,
-      "min_distance": 1.7,
-      "aim_distance": 2.0,
+      "min_distance": 1.0,
+      "aim_distance": 1.4,
+      "blend_out_ms": 0,
       "aim": "midpoint"
     },
     "ranged": {
-      "side": 0.85,
-      "front": -1.9,
-      "lift": 0.95,
+      "side": 0.8,
+      "front": -1.1,
+      "lift": 0.45,
       "width_base": 0.0,
       "width_scale": 0.5,
-      "min_distance": 1.8,
-      "aim_distance": 3.0,
+      "min_distance": 1.0,
+      "aim_distance": 2.0,
+      "blend_out_ms": 0,
       "aim": "midpoint"
     },
     "eat": {
@@ -40,6 +42,7 @@
       "width_scale": 0.4,
       "min_distance": 1.6,
       "aim_distance": 0.5,
+      "blend_out_ms": 0,
       "aim": "actor"
     },
     "drink": {
@@ -50,16 +53,18 @@
       "width_scale": 0.4,
       "min_distance": 1.6,
       "aim_distance": 0.5,
+      "blend_out_ms": 0,
       "aim": "actor"
     },
     "generic": {
-      "side": 0.9,
-      "front": -1.6,
-      "lift": 0.8,
+      "side": 0.7,
+      "front": -1.0,
+      "lift": 0.35,
       "width_base": 0.0,
       "width_scale": 0.5,
-      "min_distance": 1.6,
-      "aim_distance": 2.0,
+      "min_distance": 1.0,
+      "aim_distance": 1.4,
+      "blend_out_ms": 0,
       "aim": "midpoint"
     }
   }
