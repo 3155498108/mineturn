@@ -10,3 +10,9 @@ gradlew text eol=lf
 
 # Data-pack functions must stay LF for vanilla's parser.
 *.mcfunction text eol=lf
+
+# Shared source and documentation use LF on every development machine.
+*.java text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.py text eol=lf

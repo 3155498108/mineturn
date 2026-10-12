@@ -138,7 +138,7 @@ public final class FunctionAi {
     private static CombatData.Action validateUse(Frame frame, String id) {
         frame.requireTurn();
         var battle = frame.battle;
-        
+
         var action = battle.definitions.actions().get(id);
         if (action == null) throw new IllegalArgumentException("动作不存在：" + id);
         battle.budget.require(action.cost());
