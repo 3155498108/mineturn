@@ -1,0 +1,37 @@
+[
+  {
+    "name": "movement",
+    "paths": ["src/main/java/com/matuvent/mineturn/battle/*Path*.java", "src/main/java/com/matuvent/mineturn/battle/*Routes.java", "src/main/java/com/matuvent/mineturn/battle/BattleRiding.java", "src/main/java/com/matuvent/mineturn/battle/BattleDisplacement.java", "src/main/java/com/matuvent/mineturn/battle/BattleTeleport.java"],
+    "docs": ["docs/MOBILITY_AND_SKILLS.md", "docs/MOUNTED_COMBAT.md", "docs/PATHFINDING_BENCHMARKS.md"]
+  },
+  {
+    "name": "native-boundary",
+    "paths": ["src/main/java/com/matuvent/mineturn/mixin/*.java", "src/main/java/com/matuvent/mineturn/battle/BattleStatus.java", "src/main/java/com/matuvent/mineturn/battle/BattleManager.java", "src/main/java/com/matuvent/mineturn/battle/BattleSession.java"],
+    "docs": ["docs/COMBAT_BOUNDARIES.md", "docs/BATTLE_LIFECYCLE.md", "docs/AV_STATUSES.md"]
+  },
+  {
+    "name": "items",
+    "paths": ["src/main/java/com/matuvent/mineturn/api/*Item*.java", "src/main/java/com/matuvent/mineturn/battle/BattleTridents.java", "src/main/java/com/matuvent/mineturn/battle/BattleRiptide.java", "src/main/resources/data/*/mineturn/items/*.json"],
+    "docs": ["docs/ITEM_ADAPTER_GUIDE.md", "docs/ITEM_MECHANICS_PLAN.md"]
+  },
+  {
+    "name": "datapack",
+    "paths": ["src/main/java/com/matuvent/mineturn/data/*.java", "src/main/resources/data/*", "examples/*"],
+    "docs": ["docs/DATAPACK_EXTENSION_SPEC.md", "docs/DATAPACK_OVERRIDE_SEMANTICS.md", "tools/README.md"]
+  },
+  {
+    "name": "client-network",
+    "paths": ["src/main/java/com/matuvent/mineturn/client/*.java", "src/main/java/com/matuvent/mineturn/network/*.java", "src/main/resources/assets/*"],
+    "docs": ["docs/CLIENT_ACCEPTANCE.md", "docs/ACTION_ANIMATION_PLAN.md"]
+  },
+  {
+    "name": "verification",
+    "paths": ["*GameTests.java", "build.gradle", "gradle.properties", "gradle/*"],
+    "docs": ["docs/RELEASE_CHECKLIST.md"]
+  },
+  {
+    "name": "workspace-tools",
+    "paths": ["tools/*", "*AGENTS.md"],
+    "docs": ["tools/README.md"]
+  }
+]

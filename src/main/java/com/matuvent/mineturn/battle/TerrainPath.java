@@ -22,6 +22,21 @@ public final class TerrainPath {
     private record Surface(double y, BlockPos block) {}
     private static final double EPS = 1e-6;
 
+    /** Recheck a planned supported sample without moving the entity or loading chunks. */
+    static boolean supportedAt(LivingEntity entity,Vec3 point){
+        var level=(ServerLevel)entity.level();
+        var body=BattleRiding.body(entity).move(point.subtract(entity.position()));
+        var feet=new AABB(body.minX+EPS,body.minY-0.02,body.minZ+EPS,body.maxX-EPS,body.minY+EPS,body.maxZ-EPS);
+        if(!loaded(level,feet))return false;
+        if(!level.noCollision(entity,feet))return true;
+        var carrier=BattleRiding.vehicle(entity);var walker=carrier==null?entity:carrier;
+        var below=BlockPos.containing(body.getCenter().x,body.minY-0.01,body.getCenter().z);
+        var nativeSurface=nativeFluidSurface(level,walker,below);
+        if(nativeSurface!=null && Math.abs(body.minY-nativeSurface)<=0.03)return true;
+        return com.matuvent.mineturn.api.CombatMovement.walksOnWater(walker)
+                && level.getFluidState(BlockPos.containing(body.getCenter().x,body.minY-0.01,body.getCenter().z)).is(net.minecraft.tags.FluidTags.WATER);
+    }
+
     public static Result trace(LivingEntity entity, Vec3 horizontal, Predicate<Vec3> control) {
         return traceFrom(entity,entity.position(),horizontal,control);
     }
@@ -44,7 +59,7 @@ public final class TerrainPath {
             if (!loaded(level, atBase)) break;
             Surface support = support(level, entity, atBase, last.y + 1);
             if (support == null) break;
-            double surface=support.y;boolean water=false;
+            double surface=support.y;boolean water=nativeFluidSurface(level,entity,support.block)!=null;
             var fluidHit=level.clip(new ClipContext(base.add(0,EPS,0),new Vec3(base.x,surface,base.z),ClipContext.Block.COLLIDER,ClipContext.Fluid.ANY,entity));
             if(AquaticPath.immersed(level,base) && support.y<=last.y+EPS){water=true;surface=last.y;}
             else if(fluidHit.getType()==HitResult.Type.BLOCK && fluidHit.getLocation().y>support.y+EPS && level.getFluidState(fluidHit.getBlockPos()).is(net.minecraft.tags.FluidTags.WATER)){
@@ -65,11 +80,17 @@ public final class TerrainPath {
             Vec3 corner = dy > EPS ? new Vec3(last.x, point.y, last.z) : base;
             Vec3 previous = last;
             for (Vec3 end : List.of(corner, point)) {
-                int count = Math.max(1, (int)Math.ceil(previous.distanceTo(end) / 0.1));
+                // A nominal 0.1 edge can be a few ULPs longer at large coordinates. Do not
+                // split it into two points: that inserts an unsupported midpoint before a drop.
+                int count = Math.max(1, (int)Math.ceil((previous.distanceTo(end)-EPS) / 0.1));
                 for (int i = 1; i <= count; i++) {
                     Vec3 checked = previous.lerp(end, i / (double)count);
                     if (!control.test(checked)) { legal = false; break; }
-                    segment.add(checked);
+                    // Keep the control check, but do not replay a stationary corner during movement.
+                    Vec3 recorded=segment.isEmpty()?last:segment.getLast();
+                    // Interpolation at large world coordinates can differ by one ULP at a corner.
+                    // Such stationary duplicates hide the following drop from execution support checks.
+                    if(checked.distanceToSqr(recorded)>EPS*EPS)segment.add(checked);
                 }
                 if (!legal) break;
                 previous = end;
@@ -97,6 +118,8 @@ public final class TerrainPath {
         boolean inFluid = fluid.getType() == HitResult.Type.BLOCK && !level.getFluidState(fluid.getBlockPos()).isEmpty()
                 && fluid.getLocation().y >= ground;
         if (inFluid) { ground = fluid.getLocation().y; block = fluid.getBlockPos();
+            var nativeSurface=nativeFluidSurface(level,entity,block);
+            if(nativeSurface!=null)ground=nativeSurface;
             if(level.getFluidState(block).is(net.minecraft.tags.FluidTags.WATER) && !com.matuvent.mineturn.api.CombatMovement.walksOnWater(entity))ground=Math.floor(ground-EPS);
         }
         double distance = entity.getY() - ground;
@@ -123,7 +146,31 @@ public final class TerrainPath {
         AABB interior = box.deflate(EPS);
         if(!level.getWorldBorder().isWithinBounds(box) || !level.noCollision(entity,interior))return false;
         for(var pos:BlockPos.betweenClosed(BlockPos.containing(interior.minX,interior.minY,interior.minZ),BlockPos.containing(interior.maxX,interior.maxY,interior.maxZ))){
-            var fluid=level.getFluidState(pos);if(!fluid.isEmpty() && !fluid.is(net.minecraft.tags.FluidTags.WATER))return false;
+            var fluid=level.getFluidState(pos);
+            if(!fluid.isEmpty() && !fluid.is(net.minecraft.tags.FluidTags.WATER)){
+                var surface=nativeFluidSurface(level,entity,pos);
+                if(surface==null || interior.minY<surface-EPS)return false;
+            }
+        }
+        return true;
+    }
+    /** Match vanilla LiquidBlock support using the hypothetical feet, not the entity's current position. */
+    private static Double nativeFluidSurface(ServerLevel level,LivingEntity entity,BlockPos pos) {
+        var state=level.getBlockState(pos);var fluid=state.getFluidState();
+        if(!(state.getBlock() instanceof net.minecraft.world.level.block.LiquidBlock)
+                || state.getValue(net.minecraft.world.level.block.LiquidBlock.LEVEL)!=0 || !entity.canStandOnFluid(fluid)
+                || level.getFluidState(pos.above()).getType().isSame(fluid.getType()))return null;
+        return pos.getY()+net.minecraft.world.level.block.LiquidBlock.STABLE_SHAPE.max(net.minecraft.core.Direction.Axis.Y);
+    }
+    /** Mounted/ground execution permits only native supported fluid surfaces, never swimming through lava. */
+    static boolean clearGroundSample(LivingEntity entity,Vec3 point) {
+        var level=(ServerLevel)entity.level();var body=BattleRiding.body(entity).move(point.subtract(entity.position())).deflate(EPS);
+        if(!loaded(level,body) || !level.getWorldBorder().isWithinBounds(body) || !level.noCollision(entity,body))return false;
+        var carrier=BattleRiding.vehicle(entity);var walker=carrier==null?entity:carrier;
+        for(var pos:BlockPos.betweenClosed(BlockPos.containing(body.minX,body.minY,body.minZ),BlockPos.containing(body.maxX,body.maxY,body.maxZ))){
+            if(level.getFluidState(pos).isEmpty())continue;
+            var surface=nativeFluidSurface(level,walker,pos);
+            if(surface==null || body.minY<surface-EPS)return false;
         }
         return true;
     }
@@ -139,6 +186,8 @@ public final class TerrainPath {
         for (int x = (int) Math.floor(column.minX); x <= (int) Math.floor(column.maxX); x++)
         for (int z = (int) Math.floor(column.minZ); z <= (int) Math.floor(column.maxZ); z++) {
         BlockPos pos = new BlockPos(x, y, z);
+        var nativeSurface=nativeFluidSurface(level,entity,pos);
+        if(nativeSurface!=null && nativeSurface<=ceiling+EPS && nativeSurface>highest){highest=nativeSurface;block=pos;}
         var shape = level.getBlockState(pos).getCollisionShape(level, pos, context).move(x, y, z);
         for (AABB solid : shape.toAabbs()) {
             if (solid.maxY > ceiling + EPS || solid.maxY <= highest || solid.maxX <= column.minX || solid.minX >= column.maxX

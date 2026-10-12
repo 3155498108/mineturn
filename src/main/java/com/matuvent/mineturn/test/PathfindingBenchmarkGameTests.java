@@ -12,7 +12,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -89,7 +88,7 @@ public final class PathfindingBenchmarkGameTests {
         player.teleportTo(spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5);
         player.setDeltaMovement(0, 0, 0);
         player.setOnGround(true);
-        if (!player.onGround()) {
+        if (helper.getLevel().noCollision(player, player.getBoundingBox().move(0,-0.01,0))) {
             throw new IllegalStateException("The entity is not standing on its platform: " + player.position());
         }
         // Fail loudly if a scenario would run into the sandbox fence, so a fence can never be mistaken for
@@ -163,10 +162,8 @@ public final class PathfindingBenchmarkGameTests {
     /**
      * Invariants that follow from the trace implementation, and nothing more.
      *
-     * <p>Two claims were removed after measuring rather than reasoning: that the sample count relates to the
-     * distance covered (a two block walk records 48 samples, so it does not), and that every route records
-     * landings ({@code landings} only captures drops, so a flat walk records none). Only the cost is
-     * contractual; the rest is measurement and is reported rather than asserted.
+     * Sample count is not cost divided by a fixed step: vertical segments and floating-point rounding
+     * affect it. Landings only capture drops, so a flat walk records none.
      */
     private static void assertSane(GameTestHelper h, Measured row) {
         h.assertTrue(row.cost() >= 0, row.scenario() + ": negative cost");
@@ -296,75 +293,64 @@ public final class PathfindingBenchmarkGameTests {
         h.succeed();
     }
 
-    /**
-     * Water traversal benchmark.
-     *
-     * <p>This started as a "sealed underwater" scenario with an assertion that the pool walls stop the
-     * route. That assertion could not be made to hold, and the reason is not a pathfinding defect: with a
-     * pool 8 blocks deep and walls verified present at both ends and at the body's own height, a trace of
-     * 4 blocks completes at full cost, i.e. the body crosses the surface rather than being blocked by the
-     * far wall. Encoding a claim about wall behaviour here would therefore assert something the engine does
-     * not promise, so the scenario records what a water crossing costs and leaves containment to the
-     * dedicated water suites.
-     */
+    /** A real submerged body must stop at the sealed pool wall, with no surface escape. */
     @GameTest(template = "empty", timeoutTicks = 400)
-    public static void waterCrossing(GameTestHelper h) {
+    public static void sealedUnderwater(GameTestHelper h) {
         ServerPlayer player = player(h);
         try {
             var origin = platform(h, player);
+            for (int dx = -5; dx <= 1; dx++) for (int dy = 1; dy <= 4; dy++)
+                for (int dz = -2; dz <= 2; dz++)
+                    at(h, origin, dx, dy, dz,
+                            dx == -5 || dx == 1 || Math.abs(dz) == 2 || dy == 4 ? Blocks.STONE : Blocks.WATER);
             var from = player.position();
-            // Leave a clear block behind the body, then eight blocks of water.
-            for (int dx = -8; dx <= -2; dx++) {
-                for (int dy = 0; dy <= 3; dy++) {
-                    for (int dz = -3; dz <= 3; dz++) at(h, origin, dx, dy + 1, dz, Blocks.WATER);
-                }
+            var offset = new Vec3(-8, 0, 0);
+            var swimming = measure("sealed player swimming", offset, from,
+                    () -> com.matuvent.mineturn.battle.AquaticPath.trace(player, offset, p -> true));
+            var strict = measure("sealed strict swimming", offset, from,
+                    () -> com.matuvent.mineturn.battle.SpatialPath.trace(player, offset, true, p -> true));
+            report(List.of(swimming, strict));
+            for (var row : List.of(swimming, strict)) {
+                assertSane(h, row);
+                h.assertTrue(row.cost() > 2 && row.cost() < 4.5, "Swimmer crossed the sealed wall or never entered pool");
+                h.assertTrue(Math.abs(row.result().destination().y-from.y)<1e-6, "Swimmer escaped vertically");
+                h.assertTrue(com.matuvent.mineturn.battle.AquaticPath.immersed(h.getLevel(),row.result().destination()), "Swimmer left water");
             }
-            var across = measure("water 4", new Vec3(-4, 0, 0), from,
-                    () -> TerrainPath.traceFrom(player, from, new Vec3(-4, 0, 0), p -> true));
-            report(List.of(across));
-            assertSane(h, across);
-            h.assertTrue(across.cost() > 0, "Crossing water charged nothing at all");
-            h.assertTrue(Math.abs(across.result().destination().z - from.z) <= 4,
-                    "The water crossing drifted unexpectedly sideways: " + across.result().destination());
-        } finally {
-            cleanup(player);
-        }
+            h.assertTrue(player.position().equals(from), "Swimming preview moved its subject");
+        } finally { cleanup(player); }
         h.succeed();
     }
 
-    /** Flight: a flyer is never worse than a walker on the same route. */
+    /** Exercise the spatial executor: rise above a wall, cross it, then descend. */
     @GameTest(template = "empty", timeoutTicks = 400)
     public static void flightCrossesWhatWalkingCannot(GameTestHelper h) {
         ServerPlayer player = player(h);
-        Zombie flyer = null;
         try {
             var origin = platform(h, player);
             var from = player.position();
-            for (int dz = -6; dz <= 6; dz++) {
-                for (int dy = 1; dy <= 4; dy++) at(h, origin, -4, dy, dz, Blocks.STONE);
+            for (int dz = -6; dz <= 6; dz++) for (int dy = 1; dy <= 4; dy++)
+                at(h, origin, -4, dy, dz, Blocks.STONE);
+            var walker = TerrainPath.traceFrom(player, from, new Vec3(-REACH, 0, 0), p -> true);
+            h.assertTrue(walker.cost()<4, "Walker passed through wall");
+            var blocked = com.matuvent.mineturn.battle.SpatialPath.trace(player,new Vec3(-REACH,0,0),false,p->true);
+            h.assertTrue(blocked.cost()<4, "Flight ignored solid collision");
+            double total=0;
+            for(var offset:List.of(new Vec3(0,5,0),new Vec3(-REACH,0,0),new Vec3(0,-5,0))){
+                var start=player.position();
+                var route=com.matuvent.mineturn.battle.SpatialPath.trace(player,offset,false,p->true);
+                h.assertTrue(route.destination().distanceToSqr(start.add(offset))<1e-8,"Spatial leg did not reach expected endpoint");
+                h.assertTrue(player.position().equals(start),"Flight preview moved its subject");
+                total+=route.cost();
+                player.setPos(route.destination());
             }
-            flyer = h.spawnWithNoFreeWill(EntityType.ZOMBIE, origin.offset(0, 1, 0));
-            flyer.setNoGravity(true);
-            final Zombie subject = flyer;
-            var walker = measure("wall walker", new Vec3(-REACH, 0, 0), from,
-                    () -> TerrainPath.traceFrom(player, from, new Vec3(-REACH, 0, 0), p -> true));
-            var flying = measure("wall flyer", new Vec3(-REACH, 0, 0), from,
-                    () -> TerrainPath.traceFrom(subject, from, new Vec3(-REACH, 0, 0), p -> true));
-            report(List.of(walker, flying));
-            assertSane(h, walker);
-            h.assertTrue(walker.reach(new Vec3(-REACH, 0, 0)) < 4,
-                    "The walker crossed the wall it should have stopped at: " + walker.result().destination());
-            h.assertTrue(flying.reach(new Vec3(-REACH, 0, 0)) >= walker.reach(new Vec3(-REACH, 0, 0)) - 1e-6,
-                    "The flyer got less far than the walker: flyer=" + flying.result().destination()
-                            + " walker=" + walker.result().destination());
-        } finally {
-            if (flyer != null) flyer.discard();
-            cleanup(player);
-        }
+            h.assertTrue(player.position().distanceToSqr(from.add(-REACH,0,0))<1e-8 && Math.abs(total-18)<1e-6,
+                    "Flight route lost endpoint or Manhattan vertical cost");
+            com.matuvent.mineturn.MineTurn.LOGGER.info("Flight three-leg route cost={}, walker cost={}",total,walker.cost());
+        } finally { cleanup(player); }
         h.succeed();
     }
 
-    /** Several participants tracing in one world: per-traversal work must not grow as they scale. */
+    /** Independent trace output sizes, not a measurement of search complexity or network load. */
     @GameTest(template = "empty", timeoutTicks = 400)
     public static void severalParticipantsScaleLinearly(GameTestHelper h) {
         ServerPlayer player = player(h);
@@ -385,7 +371,8 @@ public final class PathfindingBenchmarkGameTests {
             }
             long allMillis = (System.nanoTime() - begin) / 1_000_000L;
 
-            report(List.of(one, new Measured("4 participants total", one.result(), from, 4, allMillis)));
+            report(List.of(one));
+            com.matuvent.mineturn.MineTurn.LOGGER.info("4 participants total: samples={}, ms={}",totalSamples,allMillis);
 
             assertSane(h, one);
             h.assertTrue(totalSamples >= one.samples(),

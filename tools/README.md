@@ -1,4 +1,32 @@
-# 数据包示例静态检查（`tools/validate_examples.py`）
+# 开发工具
+
+## 按改动选择工作资料（`workspace_context.py`）
+
+```powershell
+python tools/workspace_context.py
+python tools/workspace_context.py --files src/main/java/com/matuvent/mineturn/mixin/RavagerBattleMixin.java
+python tools/workspace_context.py --base HEAD
+python tools/workspace_context.py --check
+python -m unittest discover -s tools -p "test_*.py"
+```
+
+默认合并 Git 已暂存、未暂存和未跟踪文件；`--base` 另外包含相对指定版本的差异。
+`--files` 用于只关注本次任务，路径以仓库根目录为基准。支持中文、空格及 Windows 路径分隔符。
+
+工具输出祖先目录的 AGENTS.md，以及 [context_rules.json](context_rules.json) 匹配的专题文档；
+不会把文档内容全部塞入输出，不自动执行其中命令。规则中的 `*` 可以跨目录匹配。
+`--check` 检查规则的目标文件和 Git 可见 AGENTS.md 的本地链接，并执行原样的
+`git diff --check` 和 `git diff --cached --check`；任一失败均返回非零退出码。
+未跟踪的 UTF-8 文本另查行末空格和制表符，逐行报告。
+通过 `git check-attr` 读取声明；对全部已跟踪及未跟踪的 `eol=lf` 文本检查 CRLF，每文件只报一次。
+跳过二进制和符号链接；不把允许 CRLF 或未声明 LF 的文件当成换行违规。
+不验证链接锚点或内容语义；资料推荐模式不执行空白检查。
+工具本身只读，不修改 Git 或自动启动构建；失败返回非零退出码。无需第三方依赖。
+
+工作方式：根入口只保留通用约定，局部约定放模块入口，行为说明继续维护在专题文档。
+增删文件时更新引用和规则，避免复制历史测试数字、绝对机器路径和易过期的源码行号。
+
+## 数据包示例静态检查（`tools/validate_examples.py`）
 
 在仓库根目录运行：
 

@@ -13,6 +13,16 @@ public final class Timeline<T> {
     private double time;
     public void add(T actor) { remaining.putIfAbsent(actor, LAP); }
     public void remove(T actor) { remaining.remove(actor); }
+    /** Replace an entity identity without adding a fresh lap or changing tie order/time. */
+    public boolean replace(T previous,T replacement) {
+        java.util.Objects.requireNonNull(previous);java.util.Objects.requireNonNull(replacement);
+        if(!remaining.containsKey(previous))return false;
+        if(previous.equals(replacement))return true;
+        if(remaining.containsKey(replacement))throw new IllegalArgumentException("Replacement already participates in timeline");
+        var updated=new LinkedHashMap<T,Double>();
+        for(var entry:remaining.entrySet())updated.put(entry.getKey().equals(previous)?replacement:entry.getKey(),entry.getValue());
+        remaining.clear();remaining.putAll(updated);return true;
+    }
     public double time() { return time; }
     public double remaining(T actor) { return remaining.getOrDefault(actor, LAP); }
     public double until(T actor, ToDoubleFunction<T> agility) { return remaining(actor) / agility.applyAsDouble(actor); }

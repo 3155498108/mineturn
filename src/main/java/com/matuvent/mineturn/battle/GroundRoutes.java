@@ -11,41 +11,54 @@ final class GroundRoutes {
     private record Key(long x,long y,long z) {
         static Key of(Vec3 p){return new Key(Math.round(p.x*1024),Math.round(p.y*1024),Math.round(p.z*1024));}
     }
-    private record Node(Vec3 point,double cost,double score,List<TerrainPath.Landing> landings,List<Vec3> samples,long order){}
+    private record Node(Vec3 point,double cost,double score,List<TerrainPath.Landing> landings,List<Vec3> samples,Node parent,long order){}
     static TerrainPath.Result find(LivingEntity entity,Vec3 goal,double budget,Supplier<Predicate<Vec3>> controlFactory) {
+        return find(entity,goal,budget,controlFactory,new RouteSearchStats());
+    }
+    static TerrainPath.Result find(LivingEntity entity,Vec3 goal,double budget,Supplier<Predicate<Vec3>> controlFactory,RouteSearchStats stats) {
         var open=new PriorityQueue<Node>(Comparator.comparingDouble(Node::score).thenComparingLong(Node::order));
         var best=new HashMap<Key,Double>();long order=0;
-        open.add(new Node(entity.position(),0,horizontal(entity.position(),goal),List.of(),List.of(),order++));
+        open.add(new Node(entity.position(),0,horizontal(entity.position(),goal),List.of(),List.of(),null,order++));
         best.put(Key.of(entity.position()),0.0);
+        stats.queued(open.size());
         int expanded=0;
         while(!open.isEmpty() && expanded++<512) {
-            var node=open.remove();
+            var node=open.remove();stats.polled++;
             if(node.cost()>best.getOrDefault(Key.of(node.point()),Double.POSITIVE_INFINITY)+1e-6)continue;
+            stats.expanded++;
             double remaining=budget-node.cost();
             if(horizontal(node.point(),goal)<=remaining+1e-6) {
-                var finish=edge(entity,node,goal.subtract(node.point()).multiply(1,0,1),controlFactory);
+                var finish=edge(entity,node,goal.subtract(node.point()).multiply(1,0,1),controlFactory,stats);
                 if(finish.destination().distanceToSqr(goal)<0.0025 && finish.cost()<=remaining+1e-6)
                     return combine(node,finish);
             }
             for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++) {
                 if(dx==0 && dz==0)continue;
                 double length=(Math.abs(dx)+Math.abs(dz));
-                if(length>remaining+1e-6)continue;
-                var step=edge(entity,node,new Vec3(dx,0,dz),controlFactory);
+                // A complete edge ends at this X/Z regardless of its support height.
+                // Reject an unaffordable lower bound before sweeping/replaying the path.
+                if(length+horizontal(node.point().add(dx,0,dz),goal)>remaining+1e-6){stats.budgetPruned++;continue;}
+                var step=edge(entity,node,new Vec3(dx,0,dz),controlFactory,stats);
                 if(Math.abs(step.cost()-length)>1e-5)continue;
                 double cost=node.cost()+length,estimate=cost+horizontal(step.destination(),goal);
                 if(estimate>budget+1e-6)continue;
                 var key=Key.of(step.destination());
                 if(cost>=best.getOrDefault(key,Double.POSITIVE_INFINITY)-1e-6)continue;
-                best.put(key,cost);var route=combine(node,step);
-                open.add(new Node(step.destination(),cost,estimate,route.landings(),route.samples(),order++));
+                best.put(key,cost);
+                open.add(new Node(step.destination(),cost,estimate,step.landings(),step.samples(),node,order++));stats.queued(open.size());
+                stats.storedSamples+=step.samples().size();
+                for(var ancestor=node;ancestor!=null;ancestor=ancestor.parent())stats.avoidedPrefixCopies+=ancestor.samples().size();
             }
         }
+        stats.capped=!open.isEmpty();
         return null;
     }
-    private static TerrainPath.Result edge(LivingEntity entity,Node node,Vec3 offset,Supplier<Predicate<Vec3>> factory) {
+    private static TerrainPath.Result edge(LivingEntity entity,Node node,Vec3 offset,Supplier<Predicate<Vec3>> factory,RouteSearchStats stats) {
+        stats.edges++;
         var control=factory.get();
-        for(var point:node.samples())if(!control.test(point))return new TerrainPath.Result(node.point(),0,List.of());
+        for(var ancestor:history(node))for(var point:ancestor.samples()){
+            stats.replayedSamples++;if(!control.test(point))return new TerrainPath.Result(node.point(),0,List.of());
+        }
         return TerrainPath.traceFrom(entity,node.point(),offset,control);
     }
     /** Search beyond this turn, then keep only the affordable prefix ending on a supported surface. */
@@ -59,8 +72,9 @@ final class GroundRoutes {
             cost+=horizontal(previous,point);if(cost>budget+1e-6)break;
             if(landing<route.landings().size() && point.distanceToSqr(route.landings().get(landing).position())<1e-8)
                 landings.add(route.landings().get(landing++));
-            var body=entity.getBoundingBox().move(point.subtract(entity.position())).deflate(1e-6);
-            if(!entity.level().noCollision(entity,body.move(0,-0.06,0))) {
+            // A swimmer or immersed carrier may end a turn in water without a solid floor below it.
+            if(AquaticPath.immersed(entity,point)
+                    || TerrainPath.supportedAt(entity,point)) {
                 accepted=i+1;acceptedCost=cost;acceptedLandings=landings.size();
             }
             previous=point;
@@ -69,9 +83,18 @@ final class GroundRoutes {
         return new TerrainPath.Result(route.samples().get(accepted-1),acceptedCost,landings.subList(0,acceptedLandings),route.samples().subList(0,accepted));
     }
     private static TerrainPath.Result combine(Node node,TerrainPath.Result edge) {
-        var landings=new ArrayList<>(node.landings());landings.addAll(edge.landings());
-        var samples=new ArrayList<>(node.samples());samples.addAll(edge.samples());
+        var landings=new ArrayList<TerrainPath.Landing>();
+        var samples=new ArrayList<Vec3>();
+        for(var ancestor:history(node)){
+            landings.addAll(ancestor.landings());samples.addAll(ancestor.samples());
+        }
+        landings.addAll(edge.landings());samples.addAll(edge.samples());
         return new TerrainPath.Result(edge.destination(),node.cost()+edge.cost(),landings,samples);
+    }
+    private static Deque<Node> history(Node node){
+        var history=new ArrayDeque<Node>();
+        for(var current=node;current!=null;current=current.parent())history.addFirst(current);
+        return history;
     }
     private static double horizontal(Vec3 a,Vec3 b){return MovementDistance.ground(a.subtract(b));}
     private GroundRoutes(){}

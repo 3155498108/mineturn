@@ -22,7 +22,10 @@ public final class BattleCloud extends AreaEffectCloud {
     void advance(){nextAv+=BattleStatus.AV_PER_TICK;tickCount=++logicalAge;BattleManager.authorized(this::tick);}
     public List<LivingEntity> participants(List<LivingEntity> nearby) {
         if(battle.closed)return List.of();
-        return nearby.stream().filter(entity->entity.isAlive() && battle.members.containsKey(entity.getUUID())
+        // Vanilla's low cloud box may see only the carrier. Resolve to the single battle actor
+        // before native victim/reapplication accounting, including when both boxes overlap it.
+        return nearby.stream().map(entity->{var rider=BattleRiding.rider(entity);return rider==null?entity:rider;}).distinct()
+                .filter(entity->entity.isAlive() && battle.members.containsKey(entity.getUUID())
                 && level().clip(new net.minecraft.world.level.ClipContext(position().add(0,0.25,0),entity.getEyePosition(),
                         net.minecraft.world.level.ClipContext.Block.COLLIDER,net.minecraft.world.level.ClipContext.Fluid.NONE,this))
                     .getType()==net.minecraft.world.phys.HitResult.Type.MISS).toList();

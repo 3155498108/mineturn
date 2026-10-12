@@ -38,6 +38,8 @@ public final class BattleClient {
     private static Vec3 motionTarget;
     private static final com.matuvent.mineturn.network.StatusLocks statusLocks=new com.matuvent.mineturn.network.StatusLocks();
     public static BattleNetwork.Aim aim;
+    private static final com.matuvent.mineturn.network.AimOrder aimOrder=new com.matuvent.mineturn.network.AimOrder();
+    private static net.minecraft.client.multiplayer.ClientLevel battleWorld;
     private static long aimReceived;
     public static boolean aimSubmitted;
     public static double aimProgress() { return aim==null ? 0 : (aim.elapsedMs()+(System.nanoTime()-aimReceived)/1_000_000.0)/aim.durationMs(); }
@@ -78,8 +80,8 @@ public final class BattleClient {
         };
         BattleNetwork.receiveAim = packet -> {
             if(!active() || !state.battle().equals(packet.battle()))return;
-            if(!packet.active()){if(aim!=null && aim.token().equals(packet.token()))aim=null;return;}
-            if(aim!=null && aim.token().equals(packet.token()))return;
+            if(!packet.active()){if(aimOrder.stop(packet.token())){aim=null;aimSubmitted=false;}return;}
+            if(!aimOrder.start(packet.token()))return;
             aim=packet;aimReceived=System.nanoTime();aimSubmitted=false;
         };
         BattleNetwork.receivePreview = packet -> {
@@ -109,11 +111,16 @@ public final class BattleClient {
             return;
         }
         if (mc.player == null || mc.level == null) return;
+        if(battleWorld!=null && battleWorld!=mc.level)reset();
         boolean entering = !active() || !state.battle().equals(packet.battle());
         if (!entering && packet.revision() < state.revision()) return;
         if (entering) {
             motionOrder.reset();moving=false;motionTarget=null;
-            previousCamera = mc.options.getCameraType();
+            aimOrder.clear();aim=null;aimSubmitted=false;preview=null;offers=java.util.List.of();
+            ActionAnimations.clear();
+            // A direct battle replacement must retain the camera mode from before the first battle.
+            if(previousCamera==null)previousCamera = mc.options.getCameraType();
+            battleWorld=mc.level;
             yaw = mc.player.getYRot(); pitch = 45; distance = 10;
             focus = packet.enemyPosition().add(0, 1, 0);
             KeyMapping.releaseAll();
@@ -141,7 +148,7 @@ public final class BattleClient {
         moving=false; motionTarget=null;motionOrder.reset();
         statusLocks.clear();
         ActionAnimations.clear();
-        aim=null;aimSubmitted=false;
+        aim=null;aimSubmitted=false;aimOrder.clear();battleWorld=null;
         Minecraft mc = Minecraft.getInstance();
         state = null; preview = null; pending = false;
         if (previousCamera != null) { mc.options.setCameraType(previousCamera); previousCamera = null; }
@@ -163,7 +170,7 @@ public final class BattleClient {
     private static void tick(ClientTickEvent.Post event) {
         if (!active()) return;
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null || mc.getConnection() == null || !mc.player.isAlive()) { reset(); return; }
+        if (mc.level == null || mc.level!=battleWorld || mc.player == null || mc.getConnection() == null || !mc.player.isAlive()) { reset(); return; }
         mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
         mc.player.setDeltaMovement(Vec3.ZERO);
         mc.player.setSprinting(false);

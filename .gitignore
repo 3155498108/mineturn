@@ -43,5 +43,7 @@ repo/
 ### Review / scratch output ###
 # Intermediate output dir (contains a script depending on @oai/artifact-tool)
 outputs/
+__pycache__/
+*.pyc
 # Root-level design-sheet copy
 *副本.xlsx

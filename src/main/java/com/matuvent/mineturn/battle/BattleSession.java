@@ -67,7 +67,7 @@ final class BattleSession {
         final TerrainPath.Result route;
         final String mode;
         int sample, landing;
-        float falling;
+        double falling;
         boolean functionMove;
         UUID target;
         Runnable onLanding;
@@ -79,6 +79,7 @@ final class BattleSession {
     final Map<UUID,BattleSummons.Unit> summons=new LinkedHashMap<>();
     final List<BattleCloud> clouds=new ArrayList<>();
     final List<BattleTridents.Returning> returningTridents=new ArrayList<>();
+    final Map<UUID,BattleTridents.Recoverable> recoverableTridents=new HashMap<>();
     final List<BattleFang> fangs=new ArrayList<>();
 
     static final class Member {
@@ -89,6 +90,7 @@ final class BattleSession {
         Member mountState;
         String state;
         int previewTick = -1;
+        int stalePreviewTick = -1;
         UUID aiTarget,beeTarget,nativeTarget;
         UUID allyOwner;
         boolean guarding;
@@ -325,6 +327,7 @@ final class BattleSession {
         return entity instanceof ServerPlayer ? name : name + " #" + entity.getId();
     }
     void requireTurn(ServerPlayer player) {
+        if (activeEffect != null || payingResource || checkingAction || committingItem) throw new IllegalArgumentException("当前行动正在结算，请等待完成。");
         if (motion != null) throw new IllegalArgumentException("请等待移动完成。");
         if (actor != player || !player.isAlive()) throw new IllegalArgumentException("还没有轮到你。");
         if (shot != null) throw new IllegalArgumentException("请先完成远程判定。");
@@ -512,7 +515,7 @@ final class BattleSession {
         // A failed nested removal must not strand a member outside the original cleanup order.
         for(var member:new ArrayList<>(members.values()))releaseAfterFailure(member,reason);
         for(var fang:List.copyOf(fangs))cleanup("fang",fang::discard);
-        fields.clear();summons.clear();fangs.clear();scheduled.clear();returningTridents.clear();
+        fields.clear();summons.clear();fangs.clear();scheduled.clear();returningTridents.clear();recoverableTridents.clear();
         motion=null;shot=null;actor=null;
         cleanup("leave callbacks",this::drainCallbacks);callbacks.clear();
         BattleManager.ACTIVE.entrySet().removeIf(entry->entry.getValue()==this);
@@ -556,12 +559,14 @@ final class BattleSession {
     }
     String movementMode(LivingEntity entity) {
         if(entity instanceof BattleDevice)return "flying";
-        if(BattleRiding.vehicle(entity)!=null)return "ground";
+        var mount=BattleRiding.vehicle(entity);
+        if(mount!=null)return AquaticPath.immersed(level,mount.position())?"aquatic":"ground";
         String mode=member(entity).brain==null?"ground":member(entity).brain.movementMode();
         return (mode.equals("ground") || mode.equals("climbing")) && AquaticPath.inWater(level,entity.position())?"aquatic":mode;
     }
     String animationMode(LivingEntity entity,TerrainPath.Result route) {
         String mode=movementMode(entity);
+        if(BattleRiding.vehicle(entity)!=null)return route.samples().stream().anyMatch(p->AquaticPath.immersed(entity,p))?"amphibious":"ground";
         if(Set.of("ground","aquatic").contains(mode))return route.samples().stream().anyMatch(p->!AquaticPath.immersed(level,p))?"amphibious":"aquatic";
         return mode;
     }
@@ -591,7 +596,7 @@ final class BattleSession {
     private void beginPlayerMovement(ServerPlayer player, TerrainPath.Result route) {
         if (route.cost() < 0.01) throw new IllegalArgumentException("路径被阻挡。");
         budget.move(route.cost());
-        motion = new Movement(player, route, BattleRiding.vehicle(player)!=null?"ground":animationMode(player,route));
+        motion = new Movement(player, route, animationMode(player,route));
         sendMotion(player,true);
         message("正在沿路线移动…");
     }
@@ -599,6 +604,28 @@ final class BattleSession {
         if(entity instanceof ServerPlayer player)BattleNetwork.send(player,new BattleNetwork.Motion(id,++motionSequence,player.position(),active));
     }
     void cancelRidingMotion(LivingEntity entity) {sendMotion(entity,false);motion=null;}
+    private boolean clearMovementSample(Movement moving,Vec3 point){
+        var player=moving.player;
+        boolean clear=switch(moving.mode) {
+            case "phasing" -> SpatialPath.canStep(player,player.position(),point,false,true);
+            case "climbing" -> ClimbingPath.canStep(player,player.position(),point);
+            case "leap" -> SpatialPath.canStep(player,player.position(),point,false);
+            case "aquatic" -> AquaticPath.canStep(player,player.position(),point);
+            case "amphibious" -> AquaticPath.clearStep(player,player.position(),point);
+            case "bullet" -> BattleRealm.clear(player,player.position(),point);
+            case "swimming", "flying" -> SpatialPath.canStep(player,player.position(),point,moving.mode.equals("swimming"));
+            default -> TerrainPath.clearGroundSample(player,point);
+        };
+        if(clear && (moving.mode.equals("ground") || moving.mode.equals("amphibious") && !AquaticPath.immersed(player,point))){
+            boolean last=moving.sample+1==moving.route.samples().size();
+            boolean horizontal=Math.abs(point.y-player.getY())<1e-6;
+            boolean dropFollows=!last && moving.route.samples().get(moving.sample+1).y<point.y-1e-6;
+            boolean landing=moving.landing<moving.route.landings().size()
+                    && point.distanceToSqr(moving.route.landings().get(moving.landing).position())<1e-8;
+            if(last || landing || horizontal && !dropFollows)clear=TerrainPath.supportedAt(player,point);
+        }
+        return clear;
+    }
     void tickMotion() {
         if (motion == null) return;
         BattleRiding.maintain(this,member(motion.player));
@@ -607,18 +634,7 @@ final class BattleSession {
         double distance=0;
         while (moving.sample < moving.route.samples().size() && distance < 0.24) {
             Vec3 point=moving.route.samples().get(moving.sample);
-            var box=BattleRiding.body(player).move(point.subtract(player.position())).deflate(1e-6);
-            boolean clear=switch(moving.mode) {
-                case "phasing" -> SpatialPath.canStep(player,player.position(),point,false,true);
-                case "climbing" -> ClimbingPath.canStep(player,player.position(),point);
-                case "leap" -> SpatialPath.canStep(player,player.position(),point,false);
-                case "aquatic" -> AquaticPath.canStep(player,player.position(),point);
-                case "amphibious" -> AquaticPath.clearStep(player,player.position(),point);
-                case "bullet" -> BattleRealm.clear(player,player.position(),point);
-                case "swimming", "flying" -> SpatialPath.canStep(player,player.position(),point,moving.mode.equals("swimming"));
-                default -> level.hasChunkAt(BlockPos.containing(point)) && level.getWorldBorder().isWithinBounds(box)
-                        && level.noCollision(player,box) && !level.containsAnyLiquid(box);
-            };
+            boolean clear=clearMovementSample(moving,point);
             if (!clear) {
                 finishMotion("路线发生变化，移动已停止。",false); return;
             }
@@ -631,7 +647,8 @@ final class BattleSession {
                 Vec3 direction=point.subtract(player.position());
                 BattleFacing.along(player,direction);
             }
-            if ((moving.mode.equals("ground") || moving.mode.equals("leap") || moving.mode.equals("amphibious") && !AquaticPath.immersed(level,point)) && point.y < player.getY()) moving.falling += (float)(player.getY()-point.y);
+            if(AquaticPath.immersed(player,point))moving.falling=0;
+            else if ((moving.mode.equals("ground") || moving.mode.equals("leap") || moving.mode.equals("amphibious")) && point.y < player.getY()) moving.falling += player.getY()-point.y;
             Vec3 previous=player.position();
             if(!BattleRiding.position(player,point))player.setPos(point); member(player).anchor=player.position(); player.fallDistance=0;
             BattleRealm.contact(this,player,previous,player.position());
@@ -640,7 +657,8 @@ final class BattleSession {
             moving.sample++;
             if (moving.landing < moving.route.landings().size()
                     && point.distanceToSqr(moving.route.landings().get(moving.landing).position()) < 1e-8) {
-                fall(player,moving.route.landings().get(moving.landing++));
+                var landing=moving.route.landings().get(moving.landing++);
+                fall(player,new TerrainPath.Landing(landing.position(),landing.block(),(float)moving.falling));
                 moving.falling=0;
                 if(motion!=moving){prune();return;}
                 if (!player.isAlive()) { prune(); return; }
@@ -652,9 +670,9 @@ final class BattleSession {
     private void finishMotion(String message, boolean success) {
         var player=motion.player;
         boolean functionMove=motion.functionMove; UUID target=motion.target;
-        float falling=motion.falling;
+        float falling=(float)motion.falling;
         Runnable onLanding=motion.onLanding;
-        boolean grounded=motion.mode.equals("ground") || motion.mode.equals("leap") || motion.mode.equals("amphibious") && !AquaticPath.immersed(level,player.position())
+        boolean grounded=motion.mode.equals("ground") || motion.mode.equals("leap") || motion.mode.equals("amphibious") && !AquaticPath.immersed(player,player.position())
                 || motion.mode.equals("climbing") && !ClimbingPath.supported(player,player.position());
         sendMotion(player,false); motion=null;
         place(player,player.position()); player.fallDistance=falling;
@@ -676,7 +694,7 @@ final class BattleSession {
         if(BattleRiding.vehicle(player)!=null)destination=destination.add(BattleRiding.seat(player));
         if (!Double.isFinite(destination.x) || !Double.isFinite(destination.y) || !Double.isFinite(destination.z)) throw new IllegalArgumentException("无效目标位置。");
         destination=AquaticPath.settleSurface(player,destination);
-        boolean aquatic=BattleRiding.vehicle(player)==null && (AquaticPath.inWater(level,anchor)||AquaticPath.inWater(level,destination));
+        boolean aquatic=AquaticPath.inWater(player,anchor)||AquaticPath.inWater(player,destination);
         Vec3 offset = destination.subtract(anchor).multiply(1, aquatic && movementMode(player).equals("aquatic") ? 1 : 0, 1);
         if (MovementDistance.spatial(offset) < 0.01 || MovementDistance.spatial(offset) > budget.remaining() + 1e-6) throw new IllegalArgumentException("目标超出剩余移动距离。");
         TerrainPath.Result path = path(player, offset, budget.disengaged());
@@ -694,16 +712,27 @@ final class BattleSession {
     void commitMovement(LivingEntity entity, TerrainPath.Result path) {
         if (path.cost() < 0.01) throw new IllegalArgumentException("路径被阻挡。");
         budget.move(path.cost());
-        Vec3 previous=entity.position();
-        for(var point:path.samples()){place(entity,point,false);BattleRealm.contact(this,entity,previous,point);BattleFields.contact(this,entity,previous,point,true);previous=point;if(!entity.isAlive()){prune();return;}}
-        for (var landing : path.landings()) {
-            place(entity, landing.position(),false);
-            boolean mounted=BattleRiding.vehicle(entity)!=null;
-            fall(entity, landing);
-            if(mounted && BattleRiding.vehicle(entity)==null){prune();return;}
-            if (!entity.isAlive()) { prune(); return; }
+        var moving=new Movement(entity,path,animationMode(entity,path));
+        while(moving.sample<path.samples().size()){
+            var point=path.samples().get(moving.sample);
+            if(!clearMovementSample(moving,point)){
+                entity.fallDistance=(float)moving.falling;stabilizePlayers();
+                message("路线发生变化，移动已停止。");prune();return;
+            }
+            if(AquaticPath.immersed(entity,point))moving.falling=0;
+            else if((moving.mode.equals("ground") || moving.mode.equals("amphibious")) && point.y<entity.getY())moving.falling+=entity.getY()-point.y;
+            Vec3 previous=entity.position();place(entity,point,false);
+            BattleRealm.contact(this,entity,previous,point);
+            if(closed || !entity.isAlive() || !members.containsKey(entity.getUUID())){prune();return;}
+            BattleFields.contact(this,entity,previous,point,true);
+            if(closed || !entity.isAlive() || !members.containsKey(entity.getUUID())){prune();return;}
+            moving.sample++;
+            if(moving.landing<path.landings().size() && point.distanceToSqr(path.landings().get(moving.landing).position())<1e-8){
+                var landing=path.landings().get(moving.landing++);boolean mounted=BattleRiding.vehicle(entity)!=null;
+                fall(entity,new TerrainPath.Landing(point,landing.block(),(float)moving.falling));moving.falling=0;
+                if(closed || !entity.isAlive() || !members.containsKey(entity.getUUID()) || mounted && BattleRiding.vehicle(entity)==null){prune();return;}
+            }
         }
-        place(entity, path.destination(),false);
         prune();
     }
     void stabilizePlayers() {
@@ -711,7 +740,7 @@ final class BattleSession {
         for (LivingEntity player : members.values().stream().map(m->m.entity).filter(e->e instanceof ServerPlayer
                 || Set.of("ground","aquatic","swimming").contains(movementMode(e))
                 || movementMode(e).equals("climbing") && !ClimbingPath.supported(e,e.position())).toList()) {
-            if(motion != null && motion.player == player || AquaticPath.immersed(level,player.position()))continue;
+            if(motion != null && motion.player == player || AquaticPath.immersed(player,player.position()))continue;
             var landing = TerrainPath.drop(player);
             if (landing != null) {
                 place(player, landing.position()); fall(player, landing); revision++; changed = true;
@@ -748,7 +777,7 @@ final class BattleSession {
         Vec3 start = entity.position();
         if (!disengaged && engaged(entity)) return new TerrainPath.Result(start, 0, List.of());
         var control=movementControl(entity,disengaged);
-        if(BattleRiding.vehicle(entity)!=null)return TerrainPath.trace(entity,offset.multiply(1,0,1),control);
+        if(BattleRiding.vehicle(entity)!=null && movementMode(entity).equals("ground"))return TerrainPath.trace(entity,offset.multiply(1,0,1),control);
         if(movementMode(entity).equals("aquatic"))return AquaticPath.trace(entity,offset,control);
         return switch (movementMode(entity)) {
             case "phasing" -> SpatialPath.trace(entity,offset,false,true,control);
@@ -805,6 +834,9 @@ final class BattleSession {
     void validateUse(ServerPlayer player, int slot, String id, int targetId) {
         requireTurn(player);
         if (slot < 0 || slot > 35 && slot!=40) throw new IllegalArgumentException("无效物品槽位。");
+        checkedAction(player,target(targetId),slot,()->{validateUseDetails(player,slot,id,targetId);return null;});
+    }
+    private void validateUseDetails(ServerPlayer player,int slot,String id,int targetId) {
         ItemStack stack = player.getInventory().getItem(slot);
         CombatItem config = item(stack);
         boolean unarmed = stack.isEmpty() && id.equals("mineturn:melee");
@@ -828,8 +860,9 @@ final class BattleSession {
     }
     List<BattleNetwork.Offer> offers(ServerPlayer player) {
         var result=new ArrayList<BattleNetwork.Offer>();
+        if(checkingAction || payingResource || activeEffect!=null)return result;
         definitions.grants().entrySet().stream().sorted(Comparator.<Map.Entry<String,com.matuvent.mineturn.data.GrantedAction>>comparingInt(e->e.getValue().order()).thenComparing(Map.Entry::getKey)).forEach(entry->{
-            var grant=entry.getValue();if(!grant.available(player))return;
+            var grant=entry.getValue();if(!grantAvailableForOffer(player,grant))return;
             var action=definitions.actions().get(grant.action());String reason="没有符合条件的目标。";
             for(var target:actionTargets(player,action)) {
                 try{validateGrant(player,entry.getKey(),target.getId());reason="";break;}
@@ -839,8 +872,40 @@ final class BattleSession {
         });
         return result;
     }
+    private boolean grantAvailableForOffer(ServerPlayer player,com.matuvent.mineturn.data.GrantedAction grant) {
+        if(closed || !members.containsKey(player.getUUID()))return false;
+        long before=revision;
+        checkingAction=true;
+        try{return grant.available(player) && !closed && revision==before && members.containsKey(player.getUUID());}
+        finally{checkingAction=false;}
+    }
+    private boolean checkingAction;
+    <T> T checkedAction(ServerPlayer player,LivingEntity victim,int slot,java.util.function.Supplier<T> check) {
+        requireTurn(player);
+        var owner=member(player);var targetOwner=member(victim);
+        var originalBudget=budget;long originalRevision=revision;
+        int main=budget.mainActions(),bonus=budget.bonusActions();double movement=budget.remaining();
+        var start=player.position();var destination=victim.position();
+        var stack=slot<0?ItemStack.EMPTY:player.getInventory().getItem(slot);var copy=stack.copy();
+        checkingAction=true;
+        try {
+            var result=check.get();
+            if(closed || actor!=player || members.get(player.getUUID())!=owner || members.get(victim.getUUID())!=targetOwner
+                    || !player.isAlive() || !victim.isAlive() || player.level()!=level || victim.level()!=level
+                    || budget!=originalBudget || revision!=originalRevision || budget.mainActions()!=main || budget.bonusActions()!=bonus
+                    || budget.remaining()!=movement || !player.position().equals(start) || !victim.position().equals(destination)
+                    || motion!=null || shot!=null)
+                throw new IllegalArgumentException("校验期间战斗状态已变化，请重新选择行动。");
+            if(slot>=0 && (player.getInventory().getItem(slot)!=stack || !ItemStack.matches(stack,copy)))
+                throw new IllegalArgumentException("校验期间物品已变化，请重新选择行动。");
+            return result;
+        }finally{checkingAction=false;}
+    }
     CombatData.Action validateGrant(ServerPlayer player,String grantId,int targetId) {
         requireTurn(player);
+        return checkedAction(player,target(targetId),-1,()->validateGrantDetails(player,grantId,targetId));
+    }
+    private CombatData.Action validateGrantDetails(ServerPlayer player,String grantId,int targetId) {
         var grant=definitions.grants().get(grantId);
         if(grant==null || !grant.available(player))throw new IllegalArgumentException("此行动的装备或状态条件已失效。");
         var action=definitions.actions().get(grant.action());var target=target(targetId);
@@ -855,9 +920,32 @@ final class BattleSession {
         if(error!=null)throw new IllegalArgumentException(error);
         return action;
     }
+    private boolean payingResource;
+    private boolean committingItem;
+    void commitItem(Runnable work) {
+        if(committingItem)throw new IllegalStateException("Item commit already running");
+        committingItem=true;
+        try{work.run();}finally{committingItem=false;}
+    }
+    private boolean spendGrantResource(ServerPlayer player,LivingEntity target,com.matuvent.mineturn.api.CombatResources.Cost cost) {
+        var owner=member(player);var targetOwner=member(target);var originalBudget=budget;long originalRevision=revision;
+        boolean spent;
+        payingResource=true;
+        try {
+            spent=cost.trySpend(player);
+            if(closed || members.get(player.getUUID())!=owner || members.get(target.getUUID())!=targetOwner
+                    || actor!=player || !player.isAlive() || !target.isAlive() || player.level()!=level || target.level()!=level
+                    || budget!=originalBudget || revision!=originalRevision || motion!=null || shot!=null)
+                throw new IllegalStateException("Battle changed during resource payment");
+        }catch(RuntimeException failure){
+            // Providers may have already spent resources; this is not a harmless preflight rejection.
+            throw new RuntimeException("Combat resource payment failed: "+cost.resource(),failure);
+        }finally{payingResource=false;}
+        return spent;
+    }
     void useGrant(ServerPlayer player,String grantId,int targetId) {
         var action=validateGrant(player,grantId,targetId);var grant=definitions.grants().get(grantId);
-        if(grant.cost()!=null && !grant.cost().trySpend(player))throw new IllegalArgumentException("资源不足或消耗失败，请重新选择行动。");
+        if(grant.cost()!=null && !spendGrantResource(player,target(targetId),grant.cost()))throw new IllegalArgumentException("资源不足或消耗失败，请重新选择行动。");
         budget.spend(action.cost());
         if(action.ranged()!=null) {
               shot=new RangedShot(player,target(targetId),grant.action(),action,ItemStack.EMPTY,System.nanoTime());
@@ -916,6 +1004,9 @@ final class BattleSession {
     private CombatData.Action validateGroundItem(ServerPlayer player,int slot,String id) {
         requireTurn(player);
         if(slot<0 || slot>8)throw new IllegalArgumentException("无效快捷栏槽位。");
+        return checkedAction(player,player,slot,()->validateGroundItemDetails(player,slot,id));
+    }
+    private CombatData.Action validateGroundItemDetails(ServerPlayer player,int slot,String id) {
         var stack=player.getInventory().getItem(slot);var config=item(stack);var action=definitions.actions().get(id);
         if(action!=null && com.matuvent.mineturn.api.EnderPearl.action(action)){
             if(config==null || !config.enabled() || !config.actions().contains(id) || stack.getCount()<action.consume())throw new IllegalArgumentException("该物品没有启用传送或数量不足。");
@@ -954,18 +1045,19 @@ final class BattleSession {
         var sight=level.clip(new ClipContext(player.getEyePosition(),point.add(0,0.05,0),ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,player));
         if(sight.getType()!=HitResult.Type.MISS)throw new IllegalArgumentException("落点被遮挡。");
     }
-    void validatePotionPoint(ServerPlayer player,int slot,String id,Vec3 point) {
+    BattleRiptide.Route validatePotionPoint(ServerPlayer player,int slot,String id,Vec3 point) {
         var action=validateGroundItem(player,slot,id);
-        if(com.matuvent.mineturn.api.Riptide.action(action))BattleRiptide.route(this,player,player.getInventory().getItem(slot),action,point);
+        if(com.matuvent.mineturn.api.Riptide.action(action))return BattleRiptide.route(this,player,player.getInventory().getItem(slot),action,point);
         else if(com.matuvent.mineturn.api.EnderPearl.action(action))BattleTeleport.point(this,player,point,action.range(),true);
         else checkPotionPoint(player,point);
+        return null;
     }
     void usePotionPoint(ServerPlayer player,int slot,String id,Vec3 point) {
-        validatePotionPoint(player,slot,id,point);
+        var checkedRoute=validatePotionPoint(player,slot,id,point);
         var action=definitions.actions().get(id);var stack=player.getInventory().getItem(slot);
         if(com.matuvent.mineturn.api.EnderPearl.action(action)){BattleTeleport.pearl(this,player,slot,id,point);message("末影珍珠传送完成。");return;}
         if(com.matuvent.mineturn.api.Riptide.action(action)){
-            var route=BattleRiptide.route(this,player,stack,action,point);budget.spend(action.cost());
+            var route=checkedRoute;budget.spend(action.cost());
             member(player).cooldowns.put(cooldownKey(id),clock.time()+action.cooldown());
             BattleRiptide.launch(this,player,stack,action,route);revision++;prune();
             message("激流位移完成，普通移动距离保留。");return;
@@ -989,17 +1081,18 @@ final class BattleSession {
         cancelShot(); // Consume token before invoking any extension code.
         boolean valid=members.containsKey(resolved.shooter.getUUID()) && members.containsKey(resolved.target.getUUID())
                 && resolved.shooter.isAlive() && resolved.target.isAlive() && resolved.target.level()==level && resolved.shooter.hasLineOfSight(resolved.target);
-        if(resolved.ground!=null) {
-            valid=members.containsKey(resolved.shooter.getUUID()) && resolved.shooter.isAlive();
-            try{checkPotionPoint(resolved.shooter,resolved.ground);}catch(IllegalArgumentException ex){valid=false;}
-            if(valid)valid=CombatEffects.get(resolved.action.effect()).validate(effectContext(resolved.shooter,resolved.target,resolved.weapon,resolved.action,false,resolved.ammunition,resolved.ground))==null;
-        }
-        if(resolved.grantId!=null) {
-            var grant=definitions.grants().get(resolved.grantId);
-            valid=valid && grant!=null && grant.available(resolved.shooter);
-            if(valid)valid=CombatEffects.get(resolved.action.effect()).validate(effectContext(resolved.shooter,resolved.target,resolved.weapon,resolved.action,false))==null;
-        }
+        if(valid && (resolved.ground!=null || resolved.grantId!=null))try {
+            valid=checkedAction(resolved.shooter,resolved.target,-1,()->{
+                if(resolved.ground!=null)checkPotionPoint(resolved.shooter,resolved.ground);
+                if(resolved.grantId!=null){
+                    var grant=definitions.grants().get(resolved.grantId);
+                    if(grant==null || !grant.available(resolved.shooter))return false;
+                }
+                return CombatEffects.get(resolved.action.effect()).validate(effectContext(resolved.shooter,resolved.target,resolved.weapon,resolved.action,false,resolved.ammunition,resolved.ground))==null;
+            });
+        }catch(IllegalArgumentException|IllegalStateException rejected){valid=false;}
         if(hit && valid) runEffect(resolved.shooter,resolved.target,resolved.weapon,resolved.action,CombatEffects.get(resolved.action.effect())::execute,resolved.ammunition,resolved.ground);
+        if(!canPresentAction(resolved.shooter,resolved.target)){prune();return;}
         com.matuvent.mineturn.api.CombatVisuals.shot(resolved.shooter,resolved.ground==null?resolved.target.getBoundingBox().getCenter():resolved.ground,resolved.action.effect(),resolved.weapon,resolved.ammunition,hit && valid);
         message(hit && valid ? "远程判定成功！" : "远程判定失败，攻击未命中。");
         var owner=members.get(resolved.shooter.getUUID());
@@ -1049,12 +1142,18 @@ final class BattleSession {
                 if(!action.effect().equals("mineturn:food"))stack.consume(action.consume(),source);
                 if(!hit && action.effect().equals("mineturn:mob_crossbow"))com.matuvent.mineturn.api.CombatProjectiles.prepareMobCrossbow(source);
             }
+            if(!canPresentAction(source,target))return;
             source.swing(InteractionHand.MAIN_HAND);
             message(source.getName().getString() + " 对 " + target.getName().getString() + " 使用了「" + action.name() + "」。" + (hit ? "" : "未命中。"));
         });
+        if(!canPresentAction(source,target))return;
         if(action.ranged()!=null)com.matuvent.mineturn.api.CombatVisuals.shot(source,target.getBoundingBox().getCenter(),action.effect(),weapon,ammunition,hit);
         Member owner = members.get(source.getUUID());
         if (owner != null) callback(owner, "on_action_resolved", id, action.self() ? null : target.getUUID(),hit);
+    }
+    private boolean canPresentAction(LivingEntity source,LivingEntity target) {
+        return !closed && source!=null && source.isAlive() && source.level()==level && members.containsKey(source.getUUID())
+                && (target==null || target.level()==level && members.containsKey(target.getUUID()));
     }
     private static void faceTarget(LivingEntity source,LivingEntity target) {
         if(source==target)return;
@@ -1073,6 +1172,23 @@ final class BattleSession {
         Member owner = member(source);
         CombatEffects.Context[] context = new CombatEffects.Context[1];
         var access = new CombatEffects.BattleAccess() {
+            @Override public String tridentRecoveryError(double range){
+                return source instanceof ServerPlayer player?BattleTridents.recoveryError(BattleSession.this,player,range):"只有玩家可以回收三叉戟。";
+            }
+            @Override public void recoverTrident(double range){
+                requireActive();
+                if(!(source instanceof ServerPlayer player))throw new IllegalArgumentException("只有玩家可以回收三叉戟。");
+                BattleTridents.recoverNearest(BattleSession.this,player,range);
+            }
+            @Override public boolean canContinue(LivingEntity victim) {
+                return level.getServer().isSameThread() && executable && activeEffect==context[0] && !closed
+                        && members.get(source.getUUID())==owner && source.isAlive() && source.level()==level
+                        && victim!=null && victim.isAlive() && victim.level()==level
+                        && members.containsKey(victim.getUUID());
+            }
+            @Override public boolean canFinishAttack(LivingEntity victim) {
+                return canContinue(source) && victim!=null && victim.level()==level && members.containsKey(victim.getUUID());
+            }
             private void requireActive() {
                 if (!level.getServer().isSameThread() || !executable || activeEffect != context[0] || closed || members.get(source.getUUID()) != owner || !source.isAlive())
                     throw new IllegalStateException("技能上下文已过期或尚未消耗行动。");
@@ -1252,14 +1368,18 @@ final class BattleSession {
         var context = effectContext(source, target, item, action, true,ammunition,impact);
         activeEffect = context;
         try { BattleManager.authorized(() -> effect.accept(context)); }
+        catch(IllegalArgumentException | IllegalStateException failure){
+            // This is paid execution, not request validation. Partial native effects cannot be rolled back.
+            throw new RuntimeException("Combat effect execution failed: "+action.effect(),failure);
+        }
         finally {
             activeEffect = previous;
-            broadcastActionAnimation(source, target, action, impact);
         }
+        broadcastActionAnimation(source, target, action, impact);
     }
     /** One performance per resolved action, broadcast to every player in this battle. Purely presentational. */
     private void broadcastActionAnimation(LivingEntity source, LivingEntity target, CombatData.Action action, Vec3 impact) {
-        if (closed || source == null || !source.isAlive()) return;
+        if (!canPresentAction(source,target)) return;
         var players = players();
         if (players.isEmpty()) return;
         Vec3 point = impact != null ? impact : (target != null && target.isAlive() ? target.getBoundingBox().getCenter() : source.getBoundingBox().getCenter());
@@ -1454,8 +1574,10 @@ final class BattleSession {
         var sides=new ArrayList<>(List.of(radial,new Vec3(-radial.z,0,radial.x),new Vec3(radial.z,0,-radial.x),radial.scale(-1)));
         if(!mode.equals("ground")){sides.add(new Vec3(0,stop,0));sides.add(new Vec3(0,-stop,0));}
         for(Vec3 side:sides) {
-            var detour=mode.equals("ground")?GroundRoutes.pursue(entity,target.position().add(side),budget.remaining(),()->movementControl(entity,budget.disengaged()))
-                    :SpatialRoutes.pursue(entity,target.position().add(side),budget.remaining(),mode,()->movementControl(entity,budget.disengaged()));
+            var detour=Set.of("ground","aquatic").contains(mode)
+                    ?GroundRoutes.pursue(entity,target.position().add(side),budget.remaining(),()->movementControl(entity,budget.disengaged())):null;
+            if(detour==null && !mode.equals("ground"))
+                detour=SpatialRoutes.pursue(entity,target.position().add(side),budget.remaining(),mode,()->movementControl(entity,budget.disengaged()));
             if(detour!=null)return detour;
         }
         return route;

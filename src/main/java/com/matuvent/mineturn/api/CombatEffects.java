@@ -12,6 +12,12 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Register during mod setup, before datapack loading. Callbacks run on the server thread. */
 public final class CombatEffects {
     public interface BattleAccess {
+        default String tridentRecoveryError(double range){return "Trident recovery unavailable";}
+        default void recoverTrident(double range){throw new UnsupportedOperationException("Trident recovery unavailable");}
+        /** Recheck after native callbacks, before continuing a paid effect against a living participant. */
+        default boolean canContinue(LivingEntity target){return false;}
+        /** Post-hit native work may still apply to a dead participant, but never a departed one. */
+        default boolean canFinishAttack(LivingEntity target){return false;}
         /** Enemy-only cylindrical field, prepaid; callback runs once per valid target each pulse. */
         default String previewField(CombatFields.Request request){return "Fields unavailable";}
         default CombatFields.Result createField(CombatFields.Request request,java.util.function.Consumer<Context> onTarget){throw new UnsupportedOperationException("Fields unavailable");}
@@ -95,6 +101,14 @@ public final class CombatEffects {
         RealmEffects.register();
         CompanionEffects.register();
         RepairEffects.register();
+        register(ResourceLocation.parse("mineturn:recover_trident"),new Effect(){
+            public void validateDefinition(CombatData.Action action){
+                if(!action.self() || action.consume()!=0 || action.ranged()!=null || action.range()<=0 || action.range()>8)
+                    throw new IllegalArgumentException("Trident recovery requires self, consume=0, no ranged check and range within (0,8]");
+            }
+            public String validate(Context context){return context.battle().tridentRecoveryError(context.action().range());}
+            public void execute(Context context){context.battle().recoverTrident(context.action().range());}
+        });
         register(ResourceLocation.parse("mineturn:wind_burst"),new WindBurst(true));
         register(ResourceLocation.parse("mineturn:breeze_burst"),new WindBurst(false));
         register(ResourceLocation.parse("mineturn:phantom_telegraph"),new Effect(){

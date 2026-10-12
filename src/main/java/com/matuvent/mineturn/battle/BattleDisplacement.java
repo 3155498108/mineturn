@@ -25,26 +25,33 @@ final class BattleDisplacement {
         return new TerrainPath.Result(last,MovementDistance.between(start,last),List.of(),samples);
     }
     static void apply(BattleSession battle,LivingEntity entity,TerrainPath.Result route) {
-        float falling=0;var previous=entity.position();
-        for(var point:route.samples()){
-            if(AquaticPath.immersed(battle.level,point))falling=0;
-            else if(point.y<previous.y)falling+=(float)(previous.y-point.y);
-            previous=point;
-        }
+        apply(battle,entity,route,false);
+    }
+    static void apply(BattleSession battle,LivingEntity entity,TerrainPath.Result route,boolean allowWater) {
+        double falling=0;
         Vec3 direction=route.destination().subtract(entity.position());
         if(direction.horizontalDistanceSqr()>1e-8)BattleFacing.along(entity,direction);
-        var origin=entity.position();battle.place(entity,route.destination(),false);
         for(var point:route.samples()){
-            BattleFields.contact(battle,entity,origin,point,true);origin=point;
-            if(!entity.isAlive() || !battle.members.containsKey(entity.getUUID()))return;
+            if(battle.closed || !entity.isAlive() || !battle.members.containsKey(entity.getUUID()))return;
+            var origin=entity.position();
+            boolean clear=allowWater?AquaticPath.clearStep(entity,origin,point):SpatialPath.canStep(entity,origin,point,false);
+            if(!clear || Math.abs(point.y-battle.center.y)>6 || Math.hypot(point.x-battle.center.x,point.z-battle.center.z)>BattleSession.RADIUS)break;
+            if(AquaticPath.immersed(battle.level,point))falling=0;
+            else if(point.y<origin.y)falling+=origin.y-point.y;
+            battle.place(entity,point,false);
+            BattleRealm.contact(battle,entity,origin,point);
+            if(battle.closed || !entity.isAlive() || !battle.members.containsKey(entity.getUUID()) || entity.position().distanceToSqr(point)>1e-8)return;
+            BattleFields.contact(battle,entity,origin,point,true);
+            // A callback may teleport or displace the same target. Never resume the superseded route.
+            if(battle.closed || !entity.isAlive() || !battle.members.containsKey(entity.getUUID()) || entity.position().distanceToSqr(point)>1e-8)return;
         }
         if(entity instanceof net.minecraft.server.level.ServerPlayer || battle.movementMode(entity).equals("ground")) {
-            entity.fallDistance=falling;
+            entity.fallDistance=(float)falling;
             if(!AquaticPath.immersed(battle.level,entity.position())){
                 var landing=TerrainPath.drop(entity);
                 if(landing!=null){battle.place(entity,landing.position());battle.fall(entity,landing);}
                 else if(falling>0 && !battle.level.noCollision(entity,entity.getBoundingBox().move(0,-0.06,0)))
-                    battle.fall(entity,new TerrainPath.Landing(entity.position(),BlockPos.containing(entity.position().add(0,-0.01,0)),falling));
+                    battle.fall(entity,new TerrainPath.Landing(entity.position(),BlockPos.containing(entity.position().add(0,-0.01,0)),(float)falling));
             }
             entity.fallDistance=0;
         }

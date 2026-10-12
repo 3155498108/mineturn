@@ -26,19 +26,33 @@ final class BattleRiptide {
         return new Route(path,contact[0]);
     }
     static void launch(BattleSession battle,ServerPlayer player,ItemStack weapon,CombatData.Action action,Route route) {
+        try{battle.commitItem(()->launchCommitted(battle,player,weapon,action,route));}
+        catch(RuntimeException failure){throw new RuntimeException("Riptide committed action failed",failure);}
+    }
+    private static void launchCommitted(BattleSession battle,ServerPlayer player,ItemStack weapon,CombatData.Action action,Route route) {
+        var owner=battle.member(player);var origin=player.position();var budget=battle.budget;long revision=battle.revision;
+        java.util.function.BooleanSupplier present=()->!battle.closed && player.isAlive() && player.level()==battle.level && battle.members.get(player.getUUID())==owner;
         var snapshot=weapon.copy();
-        weapon.hurtAndBreak(1,player,net.minecraft.world.entity.EquipmentSlot.MAINHAND);
+        try{weapon.hurtAndBreak(1,player,net.minecraft.world.entity.EquipmentSlot.MAINHAND);}
+        catch(RuntimeException failure){throw new RuntimeException("Riptide durability callback failed",failure);}
+        if(!present.getAsBoolean() || battle.budget!=budget || battle.revision!=revision || !player.position().equals(origin))
+            throw new RuntimeException("Riptide owner changed during durability callback");
         BattleManager.authorized(()->{
-            BattleDisplacement.apply(battle,player,route.path());
+            BattleDisplacement.apply(battle,player,route.path(),true);
             var target=route.contact();
-            if(player.isAlive() && target!=null && battle.members.containsKey(target.getUUID()) && target.isAlive() && battle.enemy(player,target)
-                    && BattleManager.gap(player.getBoundingBox(),target.getBoundingBox())<=0.5 && player.hasLineOfSight(target))
-                Riptide.hit(player,target,snapshot);
+            if(present.getAsBoolean() && target!=null && battle.members.containsKey(target.getUUID()) && target.isAlive() && battle.enemy(player,target)
+                    && BattleManager.gap(player.getBoundingBox(),target.getBoundingBox())<=0.5 && player.hasLineOfSight(target)){
+                var victim=battle.member(target);
+                java.util.function.BooleanSupplier finish=()->present.getAsBoolean() && target.level()==battle.level && battle.members.get(target.getUUID())==victim;
+                Riptide.hit(player,target,snapshot,()->finish.getAsBoolean() && target.isAlive()
+                        && BattleManager.gap(player.getBoundingBox(),target.getBoundingBox())<=0.5 && player.hasLineOfSight(target),finish);
+            }
         });
+        if(!present.getAsBoolean())return;
         var sound=net.minecraft.world.item.enchantment.EnchantmentHelper.pickHighestLevel(snapshot,
                 net.minecraft.world.item.enchantment.EnchantmentEffectComponents.TRIDENT_SOUND).orElse(net.minecraft.sounds.SoundEvents.TRIDENT_RIPTIDE_1);
         player.serverLevel().playSound(null,player,sound.value(),net.minecraft.sounds.SoundSource.PLAYERS,1,1);
-        player.awardStat(net.minecraft.stats.Stats.ITEM_USED.get(weapon.getItem()));
+        player.awardStat(net.minecraft.stats.Stats.ITEM_USED.get(snapshot.getItem()));
         player.inventoryMenu.broadcastChanges();
     }
     private BattleRiptide() {}

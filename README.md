@@ -8,7 +8,7 @@ MineTurn replaces vanilla Minecraft's real-time combat with a turn-based system:
 **action-value (AV) timeline**, every turn grants spendable movement and main/bonus actions, and *all* combat
 content — actions, mob AI, item mappings — is defined by **data packs**.
 
-> Status: a working, feature-complete prototype. 287 server integration tests pass.
+> Status: a working prototype. See the [task list](docs/TASKS.md) for current server test results and remaining work.
 > Please read [Known Defects & Security](#known-defects--security) before running this on a public server.
 
 ---
@@ -95,6 +95,8 @@ targets, function entry points and macro arguments. A failed validation **keeps 
 rather than letting the server run on half a definition.
 
 ## Building
+
+Start with [AGENTS.md](AGENTS.md); see [development tools](tools/README.md) for change-scoped guidance and static checks.
 
 Requires **JDK 21**.
 

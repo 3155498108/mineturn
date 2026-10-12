@@ -3,7 +3,7 @@
 > **本清单不自动发布任何东西。** 它不调用 `publish`、不上传、不改许可证、不动版本号。
 > 每一步都由人执行并留痕。
 
-**本页数字与命令均已实测。** 未验证的项标为 ⬜ 并写明"需人工"。
+构建实测记录见下方带日期的基线；安装流程依据官方说明整理，仍需在目标专服验收。未勾选项不代表已验证。
 
 ---
 
@@ -34,15 +34,12 @@ NeoForge 会拒绝协议不一致的连接，因此**不要**混用不同版本�
 
 ## 1. 构建与测试（可自动化，已验证）
 
-```bash
+```powershell
 # 完整构建 + 服务器测试
-gradlew.bat build runGameTestServer --offline --console=plain
+.\gradlew.bat build runGameTestServer --offline --console=plain
 
 # 构建全部 11 个示例数据包 ZIP
-gradlew.bat functionAiExamplePack functionAiOverridePack batchAiExamplePack \
-  spatialBossExamplePack grantedActionExamplePack itemAdapterExamplePack \
-  accessoryActionExamplePack delayedActionExamplePack summonActionExamplePack \
-  fieldActionExamplePack trapActionExamplePack --offline --console=plain
+.\gradlew.bat functionAiExamplePack functionAiOverridePack batchAiExamplePack spatialBossExamplePack grantedActionExamplePack itemAdapterExamplePack accessoryActionExamplePack delayedActionExamplePack summonActionExamplePack fieldActionExamplePack trapActionExamplePack --offline --console=plain
 ```
 
 **实测基线（2026-10-10）**：
@@ -114,13 +111,15 @@ mineturn-item-adapters-example.zip
 
 ### 专服
 
-```bash
-# 1. 用 NeoForge 21.1.251 安装器建立服务端
-# 2. 把 mineturn-1.0.0.jar 放入 mods/
-# 3. 启动
-java -Xmx4G -jar neoforge-21.1.251-installer.jar --installServer
-java -Xmx4G -jar server.jar nogui
+```powershell
+# 在独立服务端目录内，使用 Java 21 安装
+java -jar neoforge-21.1.251-installer.jar --installServer
+# 在生成的 user_jvm_args.txt 中配置内存，例如 -Xmx4G
+.\run.bat nogui
 ```
+
+首次启动会退出；阅读 `eula.txt` 指向的条款，同意后自行设置 `eula=true`。把模组放入 `mods/`，再运行 `.\run.bat nogui`。Linux 使用 `./run.sh nogui`。
+启动脚本与 JVM 配置方式依据 [NeoForge 官方专服安装说明](https://docs.neoforged.net/user/docs/server/)；本轮未新建生产专服或代为接受 EULA。
 
 ### 示例数据包
 
@@ -175,7 +174,7 @@ IModBusEvent events are not allowed
 
 | 限制 | 说明 |
 | --- | --- |
-| 行动者**没有姿态动画** | 目前只有镜头，角色身体不做挥剑/举食物等动作（属 A11 范围） |
+| 行动者**完整姿态动画尚未完成** | 已有原版挥手和部分使用姿态；完整动作专用身体演出仍属 A11 范围 |
 | 技能镜头**数值未经广泛实测** | 构图可调，但未在各体型/地形上普遍验证 |
 | 激流**原版旋转姿态未接入** | 刻意决定：原版旋转会追加实时伤害，纯表现启用等于绕过结算 |
 
@@ -185,9 +184,9 @@ IModBusEvent events are not allowed
 | --- | --- |
 | **返回任务不跨重启保存** | 三叉戟忠诚计时是内存态；重启后物品留在世界掉落物里，需自行拾取 |
 | 掉落物被摧毁**不重建** | 刻意设计（防复制）；岩浆/爆炸销毁即永久失去 |
-| **无战内回收动作** | 无忠诚三叉戟投出后只能战后走过去捡 |
+| **三叉戟战内回收有条件** | 本场自己投出的真实掉落物，默认 2.5 格内且视线可达，消耗一次主要行动并需要背包空位；已销毁物品不重建，客户端按钮/返程表现仍待实测 |
 | 部分物种机制不完整 | 已登记 ≠ 机制完整。例如流浪者变种转换、沼骸剪蘑菇、北极熊站立警告仍未适配 |
-| 月相：多数原版物品**被禁用** | 1333 项已登记中仅 **86** 项可在战斗中使用，其余为兜底登记 |
+| 多数原版物品**被禁用** | 1333 项已登记中仅 **86** 项可在战斗中使用，其余为兜底登记 |
 | 铁魔法、灾变、饰品槽 | 需对应附属适配，**不视为已兼容** |
 
 ### 排查工具的限制
@@ -220,8 +219,8 @@ IModBusEvent events are not allowed
 4. 若协议号有变化，**客户端也要一起回滚到对应版本**
 5. 启动后检查日志无 `Failed to create mod instance`
 
-> **为什么建议还原世界**：战斗中生成的掉落物、返回任务、状态 AV 等都写入过存档。
-> 只回滚 jar 可能留下新版写入的数据，旧版未必能正确解释。
+> **为什么建议还原世界**：战斗可能改变实体生命、物品掉落和世界方块等持久状态。
+> 返回任务及战斗 AV 队列是内存态，并不随存档恢复。只回滚 jar 不会撤销已经保存的世界变化。
 
 ### 移除示例数据包
 

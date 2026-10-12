@@ -38,6 +38,8 @@ public final class BattleStatus {
             if(!entity.isAlive())return;
             // Native poison/wither/fire may otherwise share invulnerability left by a previous logical tick.
             entity.invulnerableTime=0;
+            BattleContact.tick(entity,member.statusTicks);
+            if(!entity.isAlive())return;
             // Native repeated suffocation hits are separated by its ten-tick hurt window.
             // Track that interval explicitly because each logical status tick clears invulnerability.
             if(entity.isInWall()){

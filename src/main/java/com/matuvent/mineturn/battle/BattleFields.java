@@ -68,7 +68,7 @@ final class BattleFields {
     static double next(BattleSession b){return b.fields.values().stream().mapToDouble(f->f.request.onEnter()?f.expires:Math.min(f.next,f.expires)).min().orElse(Double.POSITIVE_INFINITY);}
     static boolean live(BattleSession b,Field f){return !b.closed && b.members.get(f.owner.entity.getUUID())==f.owner && f.owner.entity.isAlive() && f.owner.entity.level()==b.level && (f.core==null || f.core.isAlive() && !f.core.isRemoved());}
     static boolean geometry(Field f,LivingEntity e,Vec3 position){
-        var p=f.request.center();var box=e.getBoundingBox().move(position.subtract(e.position()));double dx=position.x-p.x,dz=position.z-p.z;
+        var p=f.request.center();var box=BattleRiding.body(e).move(position.subtract(e.position()));double dx=position.x-p.x,dz=position.z-p.z;
         return dx*dx+dz*dz<=f.request.radius()*f.request.radius() && box.maxY>p.y && box.minY<p.y+f.request.height();
     }
     static boolean targetAt(BattleSession b,Field f,LivingEntity e,Vec3 position){
@@ -78,6 +78,9 @@ final class BattleFields {
     static boolean target(BattleSession b,Field f,LivingEntity e){return targetAt(b,f,e,e.position());}
     static void contact(BattleSession b,LivingEntity e,Vec3 from,Vec3 to,boolean swept){
         if(from.distanceToSqr(to)<1e-12 || !b.members.containsKey(e.getUUID()))return;
+        // Shared committed movement hook: teleports only test field arrivals, not berry traversal.
+        if(swept)BattleContact.moved(b,e,from,to);
+        if(!e.isAlive())return;
         for(var f:List.copyOf(b.fields.values())){
             if(!f.request.onEnter() || b.fields.get(f.id)!=f || !live(b,f) || f.expires<=b.clock.time()+1e-7)continue;
             int steps=swept?Math.max(1,(int)Math.ceil(from.distanceTo(to)/0.1)):1;

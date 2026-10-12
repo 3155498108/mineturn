@@ -8,6 +8,7 @@ import java.util.function.Predicate;
 /** Register pure server-side conditions during mod setup, e.g. a Curios equipment lookup. */
 public final class CombatConditions {
     private static final ConcurrentHashMap<String,Predicate<ServerPlayer>> CONDITIONS=new ConcurrentHashMap<>();
+    static {register(ResourceLocation.parse("mineturn:nearby_thrown_trident"),com.matuvent.mineturn.battle.BattleManager::hasRecoverableTrident);}
     public static void register(ResourceLocation id,Predicate<ServerPlayer> condition) {
         if(CONDITIONS.putIfAbsent(id.toString(),java.util.Objects.requireNonNull(condition))!=null)
             throw new IllegalArgumentException("Duplicate condition: "+id);

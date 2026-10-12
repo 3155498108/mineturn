@@ -39,17 +39,25 @@ public final class Riptide implements CombatEffects.Effect {
     }
     /** One committed contact, using the native spin base damage and weapon snapshot. */
     public static void hit(ServerPlayer player,net.minecraft.world.entity.LivingEntity target,ItemStack weapon) {
+        hit(player,target,weapon,()->true,()->true);
+    }
+    /** Battle adapters supply ownership checks around externally dispatched native callbacks. */
+    public static void hit(ServerPlayer player,net.minecraft.world.entity.LivingEntity target,ItemStack weapon,
+            java.util.function.BooleanSupplier canHit,java.util.function.BooleanSupplier canFinish) {
         if(!net.neoforged.neoforge.common.CommonHooks.onPlayerAttackTarget(player,target))return;
+        if(!canHit.getAsBoolean())return;
         var source=new net.minecraft.world.damagesource.DamageSource(player.damageSources().playerAttack(player).typeHolder(),player){
             @Override public ItemStack getWeaponItem(){return weapon;}
         };
         float damage=EnchantmentHelper.modifyDamage(player.serverLevel(),weapon,target,source,8)
                 +weapon.getItem().getAttackDamageBonus(target,8,source);
+        if(!canHit.getAsBoolean())return;
         target.invulnerableTime=0;
         if(target.hurt(source,damage)){
+            if(!canFinish.getAsBoolean())return;
             player.setLastHurtMob(target);
             EnchantmentHelper.doPostAttackEffectsWithItemSource(player.serverLevel(),target,source,weapon);
         }
-        target.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        if(canFinish.getAsBoolean())target.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
     }
 }

@@ -121,6 +121,12 @@ public final class BattleManager {
         if(!player.getServer().isSameThread())throw new IllegalStateException("Cooldown queries require the server thread");
         var battle=ACTIVE.get(player.getUUID());return battle==null?0:battle.remainingCooldown(player,action);
     }
+    public static boolean hasRecoverableTrident(ServerPlayer player) {
+        if(!player.getServer().isSameThread())return false;
+        var battle=ACTIVE.get(player.getUUID());if(battle==null)return false;
+        var action=battle.definitions.actions().get("mineturn:recover_trident");
+        return action!=null && BattleTridents.nearest(battle,player,action.range())!=null;
+    }
     public static com.matuvent.mineturn.api.CombatCasting.Result castGranted(ServerPlayer player,String grant,int targetId) {
         if(!player.getServer().isSameThread())throw new IllegalStateException("Combat casting requires the server thread");
         var battle=ACTIVE.get(player.getUUID());
@@ -130,6 +136,10 @@ public final class BattleManager {
             return new com.matuvent.mineturn.api.CombatCasting.Result(true,"");
         }catch(IllegalArgumentException|IllegalStateException error){
             return new com.matuvent.mineturn.api.CombatCasting.Result(false,error.getMessage()==null?"无法施放。":error.getMessage());
+        }catch(RuntimeException error){
+            MineTurn.LOGGER.error("Granted combat action failed",error);
+            closeSafely(battle,"扩展行动异常，已恢复控制。");
+            return new com.matuvent.mineturn.api.CombatCasting.Result(false,"扩展行动执行失败，已结束战斗；已发生的消耗不会退回。");
         }
     }
     public static void request(ServerPlayer player, BattleNetwork.Request request) {
@@ -141,15 +151,16 @@ public final class BattleManager {
             BattleNetwork.send(player, BattleNetwork.State.closed(request.battle(), request.revision() + 1, "战斗已经结束。")); return;
         }
         if (!battle.id.equals(request.battle())) { battle.sync(player); return; }
+        if(request.operation().equals("preview") || request.operation().equals("potion_preview")){
+            if(!acceptPreview(battle.member(player),battle.ticks,request.revision()==battle.revision))return;
+        }
         if(request.operation().equals("potion_preview")) {
-            var member=battle.member(player);if(member.previewTick==battle.ticks)return;member.previewTick=battle.ticks;
             String reason="";boolean valid=false;List<Vec3> points=new ArrayList<>();
             try{
                 if(request.revision()!=battle.revision)throw new IllegalArgumentException("战斗状态已变化，请重新选择落点。");
-                battle.validatePotionPoint(player,request.slot(),request.action(),request.destination());valid=true;
-                var action=battle.definitions.actions().get(request.action());
-                if(com.matuvent.mineturn.api.Riptide.action(action)){
-                    var route=BattleRiptide.route(battle,player,player.getInventory().getItem(request.slot()),action,request.destination()).path();
+                var checkedRoute=battle.validatePotionPoint(player,request.slot(),request.action(),request.destination());valid=true;
+                if(checkedRoute!=null){
+                    var route=checkedRoute.path();
                     var samples=route.samples();int count=Math.min(32,samples.size());
                     for(int i=1;i<=count;i++)points.add(samples.get((int)((long)i*samples.size()/count)-1));
                     if(route.destination().distanceToSqr(request.destination())>0.01)reason="激流会在路线末端提前停步。";
@@ -158,9 +169,6 @@ public final class BattleManager {
             BattleNetwork.send(player,new BattleNetwork.Preview(battle.id,battle.revision,request.previewId(),request.destination(),valid,reason,points));return;
         }
         if (request.operation().equals("preview")) {
-            var member = battle.member(player);
-            if (member.previewTick == battle.ticks) return;
-            member.previewTick = battle.ticks;
             String reason = "";
             boolean valid = false;
             List<Vec3> previewPath = new ArrayList<>();
@@ -204,6 +212,17 @@ public final class BattleManager {
             MineTurn.LOGGER.error("Battle action failed", ex); closeSafely(battle,"战斗异常，已恢复控制。");
         }
     }
+    /** Stale replies have their own per-member quota and never suppress a current preview. */
+    static boolean acceptPreview(BattleSession.Member member,int tick,boolean current){
+        if(current){
+            if(member.previewTick==tick)return false;
+            member.previewTick=tick;
+        }else{
+            if(member.stalePreviewTick==tick)return false;
+            member.stalePreviewTick=tick;
+        }
+        return true;
+    }
     public static void submitAim(ServerPlayer player, BattleNetwork.AimSubmit request) {
         var battle=ACTIVE.get(player.getUUID());
         if(battle==null || !battle.id.equals(request.battle()))return;
@@ -221,7 +240,10 @@ public final class BattleManager {
         return owner;
     }
     public static boolean allowsRealtimeEffect(Entity source,LivingEntity target){
-        if(locked(target))return false;
+        return !locked(target) && allowsRealtimeSource(source);
+    }
+    /** Source-only gate for native world effects; this does not protect a battle's terrain. */
+    public static boolean allowsRealtimeSource(Entity source){
         for(int i=0;source!=null && i<5;i++){
             if(locked(source))return false;
             if(source instanceof net.minecraft.world.entity.projectile.Projectile projectile)source=projectile.getOwner();

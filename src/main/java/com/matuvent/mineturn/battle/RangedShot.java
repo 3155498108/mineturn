@@ -10,12 +10,12 @@ import java.util.UUID;
 final class RangedShot {
     /**
      * Where the green window may sit, as a fraction of the bar. The position is drawn per shot so a
-     * modified client cannot precompute the submit time; the honest client renders whatever the
+     * players do not repeat one fixed timing; the honest client renders whatever the
      * server sends in the Aim packet, so the visible bar stays consistent.
      */
     private static final double WINDOW_MIN = 0.25;
     private static final double WINDOW_MAX = 0.75;
-    /** Randomized lead-in before the bar starts, so a client cannot even anchor on the creation time. */
+    /** Randomized lead-in changes timing, but does not prevent a modified client from auto-aiming. */
     private static final long LEAD_IN_MIN_NANOS = 1_000_000_000L;
     private static final long LEAD_IN_SPAN_NANOS = 1_000_000_000L;
     String grantId;
@@ -36,7 +36,7 @@ final class RangedShot {
     RangedShot(ServerPlayer shooter, LivingEntity target, String actionId, CombatData.Action action, ItemStack weapon, long now,net.minecraft.world.phys.Vec3 ground) {
         this.ground=ground;
         this.shooter=shooter; this.target=target; this.actionId=actionId; this.action=action; this.weapon=weapon.copy();
-        // The server owns both the injected lead-in and the window position; neither reaches the client early.
+        // The server chooses both values and sends them for display; they are not client-side secrets.
         startNanos=now+LEAD_IN_MIN_NANOS+(long)(shooter.getRandom().nextDouble()*LEAD_IN_SPAN_NANOS);
         latencyCompensationNanos=Math.clamp(shooter.connection.latency(),0,250)*1_000_000L;
         double width=action.ranged().width(ground==null?shooter.distanceTo(target):shooter.position().distanceTo(ground));

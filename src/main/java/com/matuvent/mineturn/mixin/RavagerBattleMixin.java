@@ -35,8 +35,15 @@ public abstract class RavagerBattleMixin extends net.minecraft.world.entity.raid
     private void mineturn$freeze(CallbackInfo ci){
         var self=(Ravager)(Object)this;
         if(self.getEntityData().get(MINETURN_STUN)>=0){
-            // Attack presentation still plays in real time; stun/roar gameplay timers remain on AV.
-            if(self.level().isClientSide && attackTick>0)attackTick--;
+            // Zero still means AV-owned, not stunned. Keep the client superclass update:
+            // LivingEntity.aiStep consumes position/head interpolation sent by the server.
+            // Only Ravager's native timer/roar logic must be skipped on the client.
+            if(self.level().isClientSide){
+                stunnedTick=self.getEntityData().get(MINETURN_STUN);
+                roarTick=Math.max(0,self.getEntityData().get(MINETURN_ROAR));
+                super.aiStep();
+                if(attackTick>0)attackTick--;
+            }
             ci.cancel();
         }
     }

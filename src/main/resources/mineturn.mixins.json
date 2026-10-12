@@ -39,6 +39,7 @@
     "ConduitAuraAccess",
     "FluidAccess",
     "StatusClockMixin",
+    "RoseClockMixin",
     "InfiniteEffectClockMixin",
     "BeeLifeAccess",
     "SnowballHitAccess",

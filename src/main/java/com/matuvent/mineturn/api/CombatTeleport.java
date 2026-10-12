@@ -2,7 +2,7 @@ package com.matuvent.mineturn.api;
 
 import net.minecraft.world.phys.Vec3;
 
-/** Safe battle-local teleport contract. Coordinates are feet positions; X/Z snap to block centers. */
+/** Safe battle-local teleport contract. Coordinates are target feet (rider feet when mounted); X/Z snap to block centers. */
 public final class CombatTeleport {
     public record Rules(double range, boolean requireSight, boolean allowWater) {
         public Rules {

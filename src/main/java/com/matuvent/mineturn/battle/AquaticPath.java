@@ -11,14 +11,19 @@ import java.util.function.Predicate;
 
 /** Player swimming permits a head above water and supported banks, never open-air flight. */
 public final class AquaticPath {
+    static Vec3 feet(LivingEntity entity,Vec3 point){return BattleRiding.vehicle(entity)==null?point:point.subtract(BattleRiding.seat(entity));}
+    static boolean immersed(LivingEntity entity,Vec3 point){return immersed(entity.level(),feet(entity,point));}
+    static boolean inWater(LivingEntity entity,Vec3 point){return inWater(entity.level(),feet(entity,point));}
     public static boolean immersed(Level level,Vec3 point) {
         BlockPos pos=BlockPos.containing(point.add(0,1e-5,0));
         if(!level.hasChunkAt(pos))return false;var fluid=level.getFluidState(pos);
         return fluid.is(FluidTags.WATER) && point.y<pos.getY()+fluid.getHeight(level,pos)-1e-6;
     }
     public static Vec3 settleSurface(LivingEntity entity,Vec3 point){
+        var mount=BattleRiding.vehicle(entity);
+        if(mount!=null){var seat=BattleRiding.seat(entity);return settleSurface(mount,point.subtract(seat)).add(seat);}
         if(immersed(entity.level(),point) || !inWater(entity.level(),point) || com.matuvent.mineturn.api.CombatMovement.walksOnWater(entity))return point;
-        var body=entity.getBoundingBox().move(point.subtract(entity.position())).deflate(1e-6);
+        var body=BattleRiding.body(entity).move(point.subtract(entity.position())).deflate(1e-6);
         if(!entity.level().noCollision(entity,body.move(0,-0.06,0)))return point;
         var below=BlockPos.containing(point.add(0,-0.2,0));
         return new Vec3(point.x,below.getY(),point.z);
@@ -52,12 +57,13 @@ public final class AquaticPath {
     static boolean clearStep(LivingEntity entity,Vec3 from,Vec3 point){return check(entity,from,point,true);}
     private static boolean check(LivingEntity entity,Vec3 from,Vec3 point,boolean groundRoute) {
         var level=entity.level();
-        var body=entity.getBoundingBox().move(point.subtract(entity.position())).deflate(1e-6);
-        var sweep=entity.getBoundingBox().move(from.subtract(entity.position())).expandTowards(point.subtract(from)).deflate(1e-6);
+        var body=BattleRiding.body(entity).move(point.subtract(entity.position())).deflate(1e-6);
+        var sweep=BattleRiding.body(entity).move(from.subtract(entity.position())).expandTowards(point.subtract(from)).deflate(1e-6);
         if(body.minY<level.getMinBuildHeight() || body.maxY>level.getMaxBuildHeight() || !level.getWorldBorder().isWithinBounds(sweep))return false;
         for(BlockPos pos:BlockPos.betweenClosed(BlockPos.containing(sweep.minX,sweep.minY,sweep.minZ),BlockPos.containing(sweep.maxX,sweep.maxY,sweep.maxZ)))
             if(!level.hasChunkAt(pos)||level.getFluidState(pos).is(FluidTags.LAVA))return false;
-        return level.noCollision(entity,sweep) && (groundRoute || immersed(level,point) || com.matuvent.mineturn.api.CombatMovement.walksOnWater(entity) && inWater(level,point) || !level.noCollision(entity,body.move(0,-0.06,0)));
+        var mount=BattleRiding.vehicle(entity);var walker=mount==null?entity:mount;
+        return level.noCollision(entity,sweep) && (groundRoute || immersed(entity,point) || com.matuvent.mineturn.api.CombatMovement.walksOnWater(walker) && inWater(entity,point) || !level.noCollision(entity,body.move(0,-0.06,0)));
     }
     private AquaticPath(){}
 }

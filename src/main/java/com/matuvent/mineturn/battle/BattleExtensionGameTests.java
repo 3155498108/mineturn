@@ -1542,16 +1542,25 @@ public final class BattleExtensionGameTests {
             try{
                 BattleSpecies.stun(battle,ravager);
                 for(int i=0;i<20;i++)battle.tick();
+                for(int i=0;i<20;i++)ravager.aiStep();
                 h.assertTrue(ravager.getStunnedTick()==40,"Stun advanced in real time");
                 for(int i=0;i<40;i++)BattleSpecies.tick(battle,battle.member(ravager));
                 h.assertTrue(ravager.getStunnedTick()==0 && ravager.getRoarTick()==20,"Stun did not transition to roar");
+                for(int i=0;i<20;i++)ravager.aiStep();
+                h.assertTrue(ravager.getRoarTick()==20,"Native aiStep consumed AV-owned roar");
                 float before=player.getHealth();
                 for(int i=0;i<10;i++)BattleSpecies.tick(battle,battle.member(ravager));
                 h.assertTrue(player.getHealth()==before-6 && player.getDeltaMovement().lengthSqr()==0,"Roar damage or knockback incorrect");
                 for(int i=0;i<10;i++)BattleSpecies.tick(battle,battle.member(ravager));
                 h.assertTrue(player.getHealth()==before-6 && !BattleSpecies.busy(ravager),"Roar repeated or failed to recover");
+                ravager.handleEntityEvent((byte)39);
+                ravager.aiStep();
+                h.assertTrue(ravager.getStunnedTick()==0 && !BattleSpecies.busy(ravager),"Zero AV timer fell back to stale native stun");
                 BattleSpecies.stun(battle,ravager);battle.close("test");
                 h.assertTrue(ravager.getStunnedTick()==0 && ravager.getRoarTick()==0,"Ravager remained frozen on exit");
+                ravager.handleEntityEvent((byte)39);
+                ravager.aiStep();
+                h.assertTrue(ravager.getStunnedTick()==39,"Native timer did not resume after battle exit");
             }finally{battle.close("test");cleanup(player);ravager.discard();}h.succeed();
         });
     }
