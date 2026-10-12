@@ -1,8 +1,35 @@
-# 交接：劫掠兽被永久冻结（`MINETURN_STUN >= 0` 判定错误）
+# 交接：劫掠兽被永久冻结（`MINETURN_STUN` 判定）
 
 更新：2026-10-11 ｜ 作者：**DeepSeek** ｜ 收件人：**Codex**
 
-**来源**：用户真实客户端实测。**已定位到根因，未修复**——改动落在你的范围（`mixin`）。
+> ## ✅ 已修复（2026-10-12，Codex）
+>
+> 修复记录见 [劫掠兽客户端冻结修复](CODEX_RAVAGER_FREEZE_FIX.md)。**用户已确认有效。**
+>
+> **本文的修法建议（把 `>= 0` 改为 `> 0`）是错的，请勿采纳。** Codex 的纠正理由：
+>
+> `-1` / `0` / 正数**都有语义**，不是可以合并的同一状态：
+>
+> | 值 | 含义 |
+> | --- | --- |
+> | `-1` | **原版接管**（战斗未接管该计时） |
+> | `0` | 战斗接管，但**当前计时已结束** |
+> | 正数 | 还有剩余计时 |
+>
+> getter 返回 `0` 是**必要行为**——否则会读到客户端实体事件留下的原版旧计时。
+>
+> **我定位对的部分**：`aiStep` 入口被取消导致显示停住，这个机制方向是对的。
+> **我判断错的部分**：真正的问题是**取消整个 `aiStep` 使父类的插值无法推进**
+> （父类 `LivingEntity.aiStep` 负责位置/身体旋转/头部旋转插值），
+> **而不是**比较运算符本身写错。
+>
+> 实际修复：客户端在战斗接管期间先同步原版眩晕/吼叫字段，再执行父类 `aiStep`，
+> 保留攻击动画实时时钟；继续跳过劫掠兽自身的原版计时、吼叫伤害与破坏树叶。
+>
+> **教训**：`-1` / `0` / 正数这种哨兵值设计，不能在只看到一处比较时就断定是笔误。
+> 我应该在建议里先确认哨兵值语义，而不是直接给出「改成 `> 0`」。
+
+**来源**：用户真实客户端实测。**本文为历史定位记录**，结论以修复记录为准。
 
 ## 用户现象
 
@@ -13,132 +40,58 @@
 | **仍能正常攻击** | 攻击结算正常，**只有显示/位移冻结** |
 | 用户原话 | 「很像**动作被冻结**了，而他还能正常攻击我，只是显示上不移动」 |
 
-## 根因（完整链路，逐行可核）
+## 我当时定位到的链路（机制正确，结论待修正）
 
-### 1. 冻结判定用了 `>= 0`
+### 1. 冻结判定
 
-`mixin/RavagerBattleMixin.java:34-42`：
+`mixin/RavagerBattleMixin.java`：
 
 ```java
 @Inject(method="aiStep",at=@At("HEAD"),cancellable=true)
 private void mineturn$freeze(CallbackInfo ci){
     var self=(Ravager)(Object)this;
-    if(self.getEntityData().get(MINETURN_STUN) >= 0){   // ← 0 也命中
+    if(self.getEntityData().get(MINETURN_STUN) >= 0){
         if(self.level().isClientSide && attackTick>0)attackTick--;
-        ci.cancel();                                     // ← 冻结整个 aiStep
+        ci.cancel();
     }
 }
 ```
 
-### 2. 眩晕结束时写入的正是 `0`
+### 2. 眩晕结束时写入 `0`
 
-`battle/BattleSpecies.java`：
+`battle/BattleSpecies.java` 的 `tick`：`stun` 归零时调 `mineturn$timers(stun=0, roar=20)`。
 
-```java
-static void tick(BattleSession battle,BattleSession.Member member){
-    if(member.entity instanceof Ravager r){
-        int stun=r.getStunnedTick(),roar=r.getRoarTick();
-        if(stun>0){
-            stun--;
-            if(stun==0){roar=20;r.playSound(SoundEvents.RAVAGER_ROAR,1,1);}
-        }else if(roar>0){
-            roar--;
-            if(roar==10)roar(battle,r);
-        }
-        ((RavagerBattleAccess)r).mineturn$timers(stun,roar);   // ← stun 此时为 0
-    }
-    ...
-}
-```
-
-### 3. `mineturn$timers` 会把这个 `0` 同步到实体数据
-
-`mixin/RavagerBattleMixin.java:21-24`：
+### 3. `mineturn$timers` 原样写入同步数据
 
 ```java
 @Override public void mineturn$timers(int stun,int roar){
     var self=(Ravager)(Object)this;stunnedTick=Math.max(0,stun);roarTick=Math.max(0,roar);
-    self.getEntityData().set(MINETURN_STUN,stun);   // ← 写入 0（不是 -1）
+    self.getEntityData().set(MINETURN_STUN,stun);   // 写入 0
     self.getEntityData().set(MINETURN_ROAR,roar);
 }
 ```
 
 ### 4. 只有战斗结束才恢复 `-1`
 
-`BattleSpecies.clear`：
+`BattleSpecies.clear`：`((RavagerBattleAccess)r).mineturn$timers(-1,-1);`
 
-```java
-if(entity instanceof Ravager r)((RavagerBattleAccess)r).mineturn$timers(-1,-1);
-```
+**当时的推断**：`0 >= 0` 恒真 → 永久冻结。
+**实际**：`0` 是"战斗接管但计时结束"的合法状态，**取消 `aiStep` 才是问题**（阻断父类插值）。
 
-**只在 `clear()`（离场/重载/战斗结束）时置 -1。**
+## 触发条件（仍然成立）
 
-### 结论
-
-**劫掠兽一旦被眩晕一次，`MINETURN_STUN` 就停在 `0`，
-`0 >= 0` 恒真 → `aiStep` 被永久取消 → 原版 AI、朝向与动画冻结，直到本场战斗结束。**
-
-- **攻击仍正常**：伤害走战斗结算路径，与 `aiStep` 无关
-- **显示抽搐**：战斗系统的移动在推进，但原版实体更新被取消，两者不同步
-- **不移动**：`aiStep` 被取消
-
-### 同一处还有第二处相同的 off-by-one（第 31 行）
-
-```java
-@Inject(method="getStunnedTick",at=@At("HEAD"),cancellable=true)
-private void mineturn$stun(CallbackInfoReturnable<Integer> cir){
-    int n=((Ravager)(Object)this).getEntityData().get(MINETURN_STUN);
-    if(n>=0)cir.setReturnValue(n);      // ← 同样把 0 当成有效值
-}
-```
-
-对比 `BattleSpecies.busy` 用的是**严格大于零**：
-
-```java
-static boolean busy(LivingEntity entity){
-    return entity instanceof Ravager r && (r.getStunnedTick()>0 || r.getRoarTick()>0) || ...
-}
-```
-
-**同一个概念（"是否处于眩晕/吼叫中"）在两处用了不同的判定**：
-`busy()` 是 `> 0`，`mineturn$freeze`/`mineturn$stun` 是 `>= 0`。这就是分叉的根源。
-
-## 触发条件（很容易撞上）
-
-`battle/BattleManager.java:105`：
+`battle/BattleManager.java`：
 
 ```java
 if(battle!=null && ravager.getRandom().nextDouble()<0.5)BattleSpecies.stun(battle,ravager);
 ```
 
-**用盾牌格挡劫掠兽有 50% 概率触发眩晕**（这也是玩家最自然的应对方式）。
-
-## 建议修法（三选一，请你定）
-
-| 方案 | 改动 | 说明 |
-| --- | --- | --- |
-| **A（最小）** | 判定改为 `> 0`，并在 `BattleSpecies.tick` 里让 `roar>0` 时**不要**把 stun 写 0 | 需同时确认眩晕期间仍要冻结 |
-| **B（对齐语义）** | 明确 `-1 = 未激活`、`>=0 = 激活`，则 `mineturn$timers` 在 `stun==0 && roar==0` 时应写 `-1` | 语义最清晰 |
-| **C** | `mineturn$freeze` 改为检查 `stun>0 || roar>0` | 与 `BattleSpecies.busy` 的语义一致 |
-
-**推荐 C**：它与 `BattleSpecies.busy(entity)` 已有的语义（`getStunnedTick()>0 || getRoarTick()>0`）完全一致，
-让"冻结"和"跳过回合"用同一个条件，避免两处再次分叉。
+**用盾牌格挡劫掠兽有 50% 概率触发眩晕**（玩家最自然的应对方式）。
 
 ## 我无法自行验证的原因
 
 我写过探针想观察真实战斗里的劫掠兽回合，结果**劫掠兽和铁傀儡都不动**——说明探针没能驱动 AI
-（`BattleSession` 包私有，`turnTicks`/`budget`/`actor` 在 `test` 包设不了）。**该探针已删除**，没留伪造结论。
-
-**若要回归测试**，建议放在 `battle` 包内，仿 `BattleExtensionGameTests:1538` 的
-`ravagerStunRoarAvAndCleanup`，追加一条断言：
-
-```java
-// 眩晕+吼叫走完之后必须解冻
-for(int i=0;i<40+20;i++)BattleSpecies.tick(battle,battle.member(ravager));
-h.assertTrue(ravager.getEntityData().get(MINETURN_STUN) < 0 或 == -1, "Ravager stayed frozen after roar");
-```
-
-需要在 mixin 里加一个 `@Invoker` 或从 `RavagerBattleAccess` 暴露读取方法。
+（`BattleSession` 包私有，`turnTicks`/`budget`/`actor` 在 `test` 包设不了）。**该探针已删除**。
 
 ## 我这边同期的改动（与本问题无关）
 
@@ -147,11 +100,11 @@ h.assertTrue(ravager.getEntityData().get(MINETURN_STUN) < 0 或 == -1, "Ravager 
 
 ## 相关文件
 
-| 文件 | 行 | 关系 |
-| --- | --- | --- |
-| `mixin/RavagerBattleMixin.java` | **34-42** | **冻结判定（根因）** |
-| `mixin/RavagerBattleMixin.java` | 21-24 | 写同步数据 |
-| `battle/BattleSpecies.java` | `tick` | 眩晕归零写 0 |
-| `battle/BattleSpecies.java` | `clear` | 唯一恢复 -1 处 |
-| `battle/BattleManager.java` | 105 | 50% 格挡触发眩晕 |
-| `battle/BattleSession.java` | 1467 | `busy()` 跳过整个回合 |
+| 文件 | 关系 |
+| --- | --- |
+| [CODEX_RAVAGER_FREEZE_FIX.md](CODEX_RAVAGER_FREEZE_FIX.md) | **实际修复与正确语义** |
+| `mixin/RavagerBattleMixin.java` | 冻结判定与同步字段 |
+| `battle/BattleSpecies.java` | 眩晕/吼叫 AV 推进，以及唯一的 `-1` 恢复处 |
+| `battle/BattleManager.java` | 盾挡 50% 触发眩晕 |
+| `battle/BattleSession.java` | `busy()` 跳过整个回合 |
+
