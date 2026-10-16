@@ -1,0 +1,18 @@
+{
+  "name": "地面闪现（对照）",
+  "effect": "mineturn:teleport_offset",
+  "amount": 0,
+  "range": 8,
+  "self": true,
+  "consume": 0,
+  "cooldown_av": 100,
+  "parameters": {
+    "dx": 2,
+    "dy": 0,
+    "dz": 0,
+    "allow_air": false,
+    "require_sight": false,
+    "allow_water": false,
+    "action_cost": {"main": 1, "bonus": 0}
+  }
+}

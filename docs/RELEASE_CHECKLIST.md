@@ -238,6 +238,7 @@ IModBusEvent events are not allowed
 - [ ] 11 个示例 ZIP 已生成
 - [ ] 每个示例 ZIP 根目录直接是 `pack.mcmeta` + `data/`
 - [ ] `python tools/validate_examples.py` 通过（13 包 / 56 JSON）
+- [ ] `python tools/verify_release_jar.py build/libs/mineturn-1.0.0.jar` 通过——核对元数据、Mixin 配置与类、必要资源与包内 JSON 语法；并记录输出的 **大小与 SHA-256**
 
 ### 人工确认（无法自动化）
 

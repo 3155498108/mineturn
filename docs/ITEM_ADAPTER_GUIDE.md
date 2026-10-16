@@ -43,6 +43,32 @@
 | mineturn:player_snowball | 原版雪球命中语义 | 换一个物品 ID 就继承其独有投射物行为；执行器明确限定雪球 |
 | mineturn:ender_pearl / chorus_fruit | 专用受约束传送、原版事件与冷却交接 | 任意传送物品的自动适配；参考 TELEPORT_API.md 注册自定义效果 |
 
+### 通用传送：`allow_air` 与旧三参数 `Rules`
+
+物品之外的通用传送入口是 `mineturn:teleport_offset`（数据包动作）与 `previewTeleport` / `teleportTo`（Java）。
+两者的落点规则由 `CombatTeleport.Rules` 决定：
+
+```
+Rules(range, requireSight, allowWater, allowAir)
+```
+
+| 参数 | 默认 | 说明 |
+| --- | --- | --- |
+| `range` | — | 三轴曼哈顿上限，必须 `(0, 32]` |
+| `requireSight` | `true` | 落点是否要求视线 |
+| `allowWater` | `false` | 是否允许水中落点 |
+| **`allow_air`** | **`false`** | 是否允许**无支撑**空中落点 |
+
+**`allow_air=true` 的实际边界**（不要误解为"获得飞行"）：
+
+- 只有**当前战斗移动模式为 `flying` / `phasing`、且未骑乘的非玩家生物**可用无支撑落点；
+- **不会**给玩家、地面生物或骑乘组合飞行能力；
+- 即使是 `phasing`，落点仍检查实体体积，**不能落进实心方块**；
+- `allow_air=false`（默认）时恢复"必须有支撑或允许水中落点"的要求。
+
+**旧三参数构造器 `Rules(range, requireSight, allowWater)` 保留**，等价于 `allowAir=false`。
+完整规则、失败语义与事件边界见[战斗传送扩展接口](TELEPORT_API.md)。
+
 通用组件值通过实际 ItemStack 读取，不维护另一套原版伤害/食物数值表。执行器有物品类型限制时，仅在 JSON 中改 ID 不够。mineturn:combat 只决定动作入口，不赋予物品新的原版组件或代码行为。
 
 ## 费用与安全边界

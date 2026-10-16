@@ -37,6 +37,47 @@ python tools/validate_examples.py
 退出码 `0` 表示全部通过；`1` 表示至少有一处问题，并在末尾逐条列出。
 **只用 Python 标准库**，无第三方依赖，不需要启动游戏或 Gradle。
 
+## 成品 JAR 结构核验（`tools/verify_release_jar.py`）
+
+对**已经构建好的**模组 JAR 做只读结构核验：
+
+```bash
+python tools/verify_release_jar.py build/libs/mineturn-1.0.0.jar
+```
+
+退出码 `0` 表示结构通过，`1` 表示有失败项（逐条列出原因），`2` 表示路径不可读。
+**只用 Python 标准库**；默认**只读**——不构建、不启动游戏、不解压到工作区、不修改或删除产物、不联网。
+路径支持空格与中文。
+
+### 它检查什么
+
+| 检查 | 说明 |
+| --- | --- |
+| ZIP 完整性与重复条目 | `testzip()` 加条目重名统计 |
+| 模组元数据 | `META-INF/neoforge.mods.toml` 存在，且声明 `modId`、`version`、`license` |
+| Mixin 配置 | 元数据里 `[[mixins]] config` 指向的配置**确实在包内** |
+| Mixin 类 | 配置的 `package` + `mixins` / `client` / `server` 列表**逐一解析为 `.class` 条目** |
+| 必要资源 | `assets/mineturn/lang/{en_us,zh_cn}.json`、`animation_camera.json`、`data/mineturn/` 下有内容 |
+| JSON 语法 | 包内**每个** `.json` 成员都能解析 |
+
+模组版本等**从元数据读取**，工具里不写死版本号或测试数。
+
+### 它刻意**不**检查什么
+
+- **不模拟游戏的资源优先级**，不判断数据包覆盖谁
+- **不把合法的外部资源引用判错**（示例包允许引用基础包，JAR 同理）
+- **不证明游戏行为或发布就绪**——通过只代表**包结构**成立
+
+### 单元测试
+
+```bash
+python -m unittest discover -s tools -p "test_*.py"
+```
+
+`tools/test_verify_release_jar.py` 用**临时合成 JAR** 覆盖：文件缺失、ZIP 损坏、重复条目、
+缺 Mixin class（含 client 列表与包名不匹配）、坏 JSON、缺必要资源、元数据带行尾注释、
+带空格与中文的路径。
+
 ## 它检查什么
 
 | # | 检查项 |

@@ -1,0 +1,6 @@
+{
+  "pack": {
+    "pack_format": 48,
+    "description": "MineTurn 飞行传送示例：恶魂用函数 AI 演示 teleport_offset 的 allow_air"
+  }
+}

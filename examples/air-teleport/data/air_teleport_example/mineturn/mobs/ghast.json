@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "entity": "minecraft:ghast",
+  "priority": 0,
+  "agility": 100,
+  "reach": 4,
+  "movement_mode": "flying",
+  "ai": {
+    "on_enter": "air_teleport_example:ghast/init",
+    "on_turn": "air_teleport_example:ghast/turn",
+    "on_leave": "air_teleport_example:ghast/cleanup",
+    "parameters": {"fireball_weight": 70}
+  }
+}
