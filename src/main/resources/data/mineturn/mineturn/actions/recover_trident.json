@@ -1,0 +1,8 @@
+{
+  "name": "回收三叉戟",
+  "effect": "mineturn:recover_trident",
+  "amount": 0,
+  "self": true,
+  "range": 2.5,
+  "parameters": {"action_cost": {"main": 1, "bonus": 0}}
+}

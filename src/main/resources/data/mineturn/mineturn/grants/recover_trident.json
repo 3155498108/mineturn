@@ -1,0 +1,7 @@
+{
+  "action": "mineturn:recover_trident",
+  "name": "回收三叉戟",
+  "icon": "minecraft:trident",
+  "order": -100,
+  "conditions": ["mineturn:nearby_thrown_trident"]
+}
