@@ -26,6 +26,13 @@ sourceSets.main.resources {
     exclude("src/generated/**/.cache") // datagen cache files
 }
 
+// Upstream main includes two unfinished regression suites whose production classes are absent.
+// Preserve the files, but do not compile tests for nonexistent conversion/mount features.
+sourceSets.main.java {
+    exclude('com/matuvent/mineturn/battle/ConversionEligibilityRegressionGameTests.java')
+    exclude('com/matuvent/mineturn/battle/MountEligibilityRegressionGameTests.java')
+}
+
 repositories {
     // Add here additional repositories if required by some of the dependencies below.
 }
@@ -54,6 +61,15 @@ neoForge {
     runs {
         client {
             client()
+            if (providers.gradleProperty('clientSmoke').isPresent()) {
+                systemProperty 'mineturn.clientSmoke', 'true'
+            }
+            if (providers.gradleProperty('encounterSmoke').isPresent()) {
+                systemProperty 'mineturn.encounterSmoke', 'true'
+                systemProperty 'mineturn.qaWorld', providers.gradleProperty('qaWorld').getOrElse('AT-QA-20261023')
+                systemProperty 'mineturn.qaTag', providers.gradleProperty('qaTag').getOrElse('v1')
+                programArguments.addAll '--quickPlaySingleplayer', providers.gradleProperty('qaWorld').getOrElse('AT-QA-20261023')
+            }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
@@ -70,7 +86,10 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             gameDirectory = project.file('run-gametest')
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'neoforge.enabledGameTestNamespaces', providers.gradleProperty('testNamespaces').getOrElse('trails')
+            if (providers.gradleProperty('legacyTests').isPresent()) {
+                systemProperty 'mineturn.legacyAutoStart', 'true'
+            }
         }
 
         data {
@@ -223,6 +242,12 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+tasks.named('jar', Jar).configure {
+    from('LICENSE')
+    from('NOTICE')
+    from('TEMPLATE_LICENSE.txt')
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

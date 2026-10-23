@@ -45,5 +45,7 @@ repo/
 outputs/
 __pycache__/
 *.pyc
+*.log
+dist/
 # Root-level design-sheet copy
 *副本.xlsx

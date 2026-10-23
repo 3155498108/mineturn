@@ -27,6 +27,7 @@ import java.util.*;
 final class BattleSession {
     static final int MAX_MEMBERS = 32;
     static final double RADIUS = 16;
+    TrailsCombat trails;
     final UUID id = UUID.randomUUID();
     final CombatData.Snapshot definitions;
     final Timeline<LivingEntity> clock = new Timeline<>();
@@ -120,6 +121,23 @@ final class BattleSession {
             state = brain == null ? "" : brain.initial();
         }
     }
+    BattleSession(ServerPlayer player, List<LivingEntity> participants, boolean advantage) {
+        this.definitions = CombatData.current;
+        this.level = player.serverLevel();
+        this.center = player.position();
+        this.trails = new TrailsCombat(this, player);
+        add(player);
+        for (var entity : participants) add(entity);
+        actor = player;
+        budget = newBudget(player);
+        if (!advantage) {
+            actor = clock.next(trails::speed);
+            budget = newBudget(actor);
+            nextRegen = clock.time() + 100;
+            for (var member : members.values()) member.nextStatusAv = clock.time() + BattleStatus.AV_PER_TICK;
+        }
+        trails.initialize(advantage);
+    }
     BattleSession(ServerPlayer player, LivingEntity mob, CombatData.Snapshot definitions, LivingEntity first) {
         this.definitions = definitions; level = player.serverLevel();
         center = player.position().add(mob.position()).scale(0.5);
@@ -140,6 +158,7 @@ final class BattleSession {
         return members.values().stream().map(m -> m.entity).filter(ServerPlayer.class::isInstance).map(ServerPlayer.class::cast).toList();
     }
     boolean enemy(LivingEntity first, LivingEntity second) {
+        if (trails != null) return trails.enemy(first, second);
         if(first==second)return false;
         var firstOwner=BattleFields.principal(this,BattleSummons.principal(this,first));var secondOwner=BattleFields.principal(this,BattleSummons.principal(this,second));
         if(firstOwner!=first || secondOwner!=second)return enemy(firstOwner,secondOwner);
@@ -169,6 +188,7 @@ final class BattleSession {
     }
     UUID side(LivingEntity entity){return entity instanceof ServerPlayer?entity.getUUID():members.containsKey(entity.getUUID())?member(entity).allyOwner:null;}
     UUID assistanceOwner(LivingEntity entity){
+        if (trails != null) return trails.allied(entity) ? trails.player.getUUID() : null;
         if(entity instanceof net.minecraft.world.entity.animal.axolotl.Axolotl a && AquaticPath.inWater(level,a.position()) && !(a.getLastHurtByMob() instanceof ServerPlayer) && !(a.getTarget() instanceof ServerPlayer))
             return players().stream().filter(p->AquaticPath.inWater(level,p.position())).min(Comparator.comparingDouble(entity::distanceToSqr)).map(Entity::getUUID).orElse(null);
         if(entity instanceof net.minecraft.world.entity.animal.Wolf wolf && wolf.isTame() && !wolf.isOrderedToSit()) {
@@ -201,6 +221,8 @@ final class BattleSession {
         return tacticalEnemies(entity).stream().min(Comparator.comparingDouble(entity::distanceToSqr)).orElse(null);
     }
     boolean inRegion(Entity entity) {
+        if (trails != null) return Math.abs(entity.getY() - center.y) <= com.matuvent.mineturn.TrailsConfig.current.verticalRange
+                && entity.position().subtract(center).horizontalDistance() <= com.matuvent.mineturn.TrailsConfig.current.encounterRadius;
         return entity.level() == level && Math.abs(entity.getY() - center.y) <= 6
                 && Math.hypot(entity.getX() - center.x, entity.getZ() - center.z) <= RADIUS;
     }
@@ -215,7 +237,7 @@ final class BattleSession {
                 && definitions.mobs().containsKey(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString()));
     }
     void add(LivingEntity entity) {
-        if(!(entity instanceof BattleBullet))BattleManager.centerForBattle(entity);
+        if(trails == null && !(entity instanceof BattleBullet))BattleManager.centerForBattle(entity);
         CombatData.Brain brain = entity instanceof ServerPlayer ? null : definitions.mobs().get(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
         members.put(entity.getUUID(), new Member(entity, brain));
         member(entity).allyOwner=assistanceOwner(entity);
@@ -239,6 +261,7 @@ final class BattleSession {
         callback(member(entity), "on_enter", "", null);
     }
     void recruit() {
+        if (trails != null) return;
         escaped.removeIf(uuid -> { Entity entity = level.getEntity(uuid); return entity == null || !inRegion(entity); });
         boolean changed = false;
         var region = new AABB(center, center).inflate(RADIUS, 6, RADIUS);
@@ -251,6 +274,7 @@ final class BattleSession {
         if (changed) syncAll();
     }
     void joinAttacker(LivingEntity entity,LivingEntity victim) {
+        if (trails != null) return;
         if(entity==victim || !members.containsKey(victim.getUUID()) || !BattleParticipation.allowed(entity,definitions))return;
         if (!canJoin(entity) && !(entity instanceof Mob && !closed && members.size()<MAX_MEMBERS
                 && BattleManager.eligible(entity) && !BattleManager.locked(entity) && inRegion(entity)
@@ -270,6 +294,10 @@ final class BattleSession {
             player.sendSystemMessage(Component.literal("[MineTurn] " + text));
     }
     void sync(ServerPlayer player) {
+        if (trails != null) {
+            if (!closed && members.containsKey(player.getUUID())) trails.sync(player);
+            return;
+        }
         if (!closed && members.containsKey(player.getUUID())) {
             BattleNetwork.send(player, snapshot(player));
             BattleNetwork.send(player,new BattleNetwork.Offers(id,revision,offers(player)));
@@ -278,6 +306,7 @@ final class BattleSession {
     }
     void syncAll() { for(Member member:members.values())BattleStatus.sync(member.entity,true); for (ServerPlayer player : players()) sync(player); }
     double agility(LivingEntity entity) {
+        if (trails != null) return trails.speed(entity);
         Member member = member(entity);
         return entity.getAttributeValue(MineTurn.AGILITY) * (member.brain == null ? 1 : member.brain.agility() / 100.0);
     }
@@ -327,6 +356,7 @@ final class BattleSession {
         return entity instanceof ServerPlayer ? name : name + " #" + entity.getId();
     }
     void requireTurn(ServerPlayer player) {
+        if (trails != null) throw new IllegalArgumentException("请使用 AT 战斗面板。");
         if (activeEffect != null || payingResource || checkingAction || committingItem) throw new IllegalArgumentException("当前行动正在结算，请等待完成。");
         if (motion != null) throw new IllegalArgumentException("请等待移动完成。");
         if (actor != player || !player.isAlive()) throw new IllegalArgumentException("还没有轮到你。");
@@ -356,6 +386,7 @@ final class BattleSession {
     }
     void tick() {
         if (closed) return;
+        if (trails != null) { trails.tick(); return; }
         drainCallbacks();
         prune(); if (closed) return;
         ticks++; turnTicks++;
@@ -453,7 +484,7 @@ final class BattleSession {
             // The native addFreshEntity call (including spawn cancellation) must already have succeeded.
             // Reserve the departing parent's slot, but never grow the settled battle above its cap.
             if(child.level()!=level || level.getEntity(child.getUUID())!=child || !BattleManager.eligible(child)
-                    || BattleManager.locked(child) || members.size()>=MAX_MEMBERS+1 || !inRegion(child)
+                    || BattleManager.locked(child) || trails == null && members.size()>=MAX_MEMBERS+1 || !inRegion(child)
                     || !definitions.mobs().containsKey(BuiltInRegistries.ENTITY_TYPE.getKey(child.getType()).toString()))continue;
             add(child);member(child).allyOwner=previous.allyOwner;
             if(movementMode(child).equals("ground")){
@@ -527,6 +558,7 @@ final class BattleSession {
         advanceEvents(true);
         if (closed || members.isEmpty()) return;
         actor = clock.next(this::agility); revision++; turnTicks = 0; budget = newBudget(actor);
+        if (trails != null) trails.onTurn();
         if(member(actor).guarding){actor.stopUsingItem();member(actor).guarding=false;}
         message(actor.getName().getString() + " 的行动。"); syncAll();
     }

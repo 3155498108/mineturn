@@ -1,1 +1,7 @@
-{"attribute.mineturn.agility":"Agility"}
+{
+  "attribute.mineturn.agility": "Agility",
+  "key.mineturn.trails_switch": "AT: hold to preview / release to enter / allied turn to exit",
+  "key.mineturn.trails_burst": "S-Break",
+  "key.mineturn.trails_primary": "Set held weapon as primary",
+  "key.categories.mineturn": "MineTurn AT combat"
+}

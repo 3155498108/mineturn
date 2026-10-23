@@ -13,6 +13,12 @@ public final class Timeline<T> {
     private double time;
     public void add(T actor) { remaining.putIfAbsent(actor, LAP); }
     public void remove(T actor) { remaining.remove(actor); }
+    /** Set action recovery without losing anyone else's partial progress. */
+    public void recovery(T actor, double distance) {
+        if (!remaining.containsKey(actor) || !Double.isFinite(distance) || distance < 0)
+            throw new IllegalArgumentException("Invalid recovery");
+        remaining.put(actor, distance);
+    }
     /** Replace an entity identity without adding a fresh lap or changing tie order/time. */
     public boolean replace(T previous,T replacement) {
         java.util.Objects.requireNonNull(previous);java.util.Objects.requireNonNull(replacement);

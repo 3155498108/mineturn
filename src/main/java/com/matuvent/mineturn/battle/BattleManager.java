@@ -267,6 +267,7 @@ public final class BattleManager {
         if(locked(event.getAffectedEntity()) || source!=null && locked(source))event.setKnockbackVelocity(Vec3.ZERO);
     }
     @SubscribeEvent public static void incoming(LivingIncomingDamageEvent event) {
+        TrailsCombat.guardDamage(event);
         if(event.getEntity() instanceof net.minecraft.world.entity.monster.breeze.Breeze
                 && event.getSource().is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE)){event.setCanceled(true);return;}
         if (authorized()) return;
@@ -306,6 +307,9 @@ public final class BattleManager {
                     current.directHostilities.add(Set.of(attacker.getUUID(),event.getEntity().getUUID()));
             }
         }
+        TrailsCombat.damaged(event);
+        // Manual encounters are the product default; retain old admission only for baseline regression tests.
+        if (!Boolean.getBoolean("mineturn.legacyAutoStart")) return;
         if (reloading() || authorized() || event.getEntity().level().isClientSide || event.getNewDamage() <= 0
                 || STOPPING.contains(event.getEntity().getServer())) return;
         LivingEntity victim = event.getEntity();
@@ -351,6 +355,7 @@ public final class BattleManager {
         entity.fallDistance=fall;
     }
     @SubscribeEvent public static void entityTick(EntityTickEvent.Pre event) {
+        if (TrailsCombat.stunned(event.getEntity())) { event.getEntity().setDeltaMovement(Vec3.ZERO); event.setCanceled(true); return; }
         if(event.getEntity() instanceof BattleCloud cloud){cloud.freezeAge();event.setCanceled(true);return;}
         if (event.getEntity() instanceof Mob mob && mob.isAlive() && locked(mob)) event.setCanceled(true);
     }

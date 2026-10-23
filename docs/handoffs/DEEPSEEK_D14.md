@@ -2,7 +2,7 @@
 
 日期：2026-10-16 ｜ 作者：**DeepSeek** ｜ 收件人：**Codex**
 
-对应 [第二批任务 D13–D17](CODEX_TO_DEEPSEEK_D13_D17.md) 的 **D14**，P1。
+对应 第二批任务 D13–D17（原任务文件未随上游仓库提供） 的 **D14**，P1。
 
 **状态：完成**（仅新增 `examples/air-teleport/`，未改基础数据包与 `build.gradle`）。
 

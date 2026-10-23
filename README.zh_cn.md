@@ -1,4 +1,6 @@
-# MineTurn
+# MineTurn：AT 战术切换原型分支
+
+本分支基于 Matuvent/mineturn，加入按键圈选参战、友军手动控制、速度 AT、背袭先制与主武器抢 S。请先阅读 [本分支玩法、默认数值和验收状态](docs/TRAILS_PROTOTYPE.md)；以下为保留的上游说明，其中攻击自动开战等旧规则不适用于本分支正常运行。许可证和上游版权声明保留。
 
 [English](README.md) | **中文**
 

@@ -1,0 +1,288 @@
+package com.matuvent.mineturn.battle;
+
+import com.matuvent.mineturn.network.TrailsNetwork;
+import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
+import java.util.*;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.*;
+import net.minecraft.world.item.*;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder("trails")
+@PrefixGameTestTemplate(false)
+public final class TrailsGameTests {
+    static final class Fixture implements AutoCloseable {
+        final GameTestHelper h;
+        final ServerPlayer p;
+        final EmbeddedChannel channel;
+        final List<LivingEntity> entities = new ArrayList<>();
+        BattleSession b;
+        Fixture(GameTestHelper h) {
+            this.h = h;
+            for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) h.setBlock(x, 0, z, Blocks.STONE);
+            var cookie = CommonListenerCookie.createInitial(new GameProfile(UUID.randomUUID(), "at-" + UUID.randomUUID().toString().substring(0, 6)), false);
+            p = new ServerPlayer(h.getLevel().getServer(), h.getLevel(), cookie.gameProfile(), cookie.clientInformation());
+            var connection = new Connection(PacketFlow.SERVERBOUND); channel = new EmbeddedChannel(connection);
+            p.getServer().getPlayerList().placeNewPlayer(connection, p, cookie);
+            p.setGameMode(GameType.SURVIVAL);
+            var pos = h.absolutePos(new BlockPos(5, 1, 5)); p.teleportTo(pos.getX() + .23, pos.getY(), pos.getZ() + .37);
+            p.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
+            ((com.matuvent.mineturn.mixin.StatusAccess) p).mineturn$equipment();
+        }
+        <T extends Mob> T mob(EntityType<T> type, int x, int z) {
+            T m = h.spawnWithNoFreeWill(type, new BlockPos(x, 1, z));
+            if (m instanceof net.minecraft.world.entity.monster.Zombie) m.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+            entities.add(m); return m;
+        }
+        void start(boolean advantage) { b = new BattleSession(p, List.copyOf(entities), advantage); }
+        TrailsNetwork.Command cmd(String op, int target, int slot) { return new TrailsNetwork.Command(b.id, b.revision, op, target, slot, 0, 0); }
+        @Override public void close() {
+            if (b != null) b.close("test cleanup");
+            p.getServer().getPlayerList().remove(p); p.discard();
+            for (var e : entities) e.discard();
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    @GameTest(template = "empty")
+    public static void circleKeepsPositionAndFortyAllies(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 8, 5);
+            for (int i = 0; i < 40; i++) f.mob(EntityType.PIG, 5 + i % 5, 7 + i / 5);
+            var start = f.p.position(); f.start(false);
+            h.assertTrue(f.b.members.size() == 42, "A fixed 32-member cap lost allies");
+            h.assertTrue(f.p.position().equals(start), "Entering AT moved the player");
+            h.assertTrue(f.b.members.values().stream().filter(m -> f.b.trails.allied(m.entity)).count() == 41, "Passive animals were not allies");
+            f.b.close("exit");
+            h.assertTrue(f.entities.stream().noneMatch(BattleManager::locked) && !BattleManager.locked(f.p), "Exit stranded locks");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void normalEntryUsesSpeedAndDoesNotGivePlayerAnExtraTurn(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 8, 5);
+            zombie.getAttribute(com.matuvent.mineturn.MineTurn.AGILITY).setBaseValue(200);
+            f.start(false);
+            h.assertTrue(f.b.actor == zombie, "Fastest enemy did not receive the normal initial turn");
+            f.b.trails.finish(1);
+            h.assertTrue(f.b.actor == f.p, "The slower player lost its partial initial progress");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void ambushDamagesEnemiesAndAllAlliesGoFirst(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 8, 5);
+            var pig = f.mob(EntityType.PIG, 6, 5); var sheep = f.mob(EntityType.SHEEP, 5, 6);
+            float hp = zombie.getHealth(); f.start(true);
+            h.assertTrue(Math.abs(zombie.getHealth() - (hp - zombie.getMaxHealth() * .25)) < .001, "Ambush health penalty");
+            var seen = new HashSet<LivingEntity>(); seen.add(f.p);
+            f.b.trails.finish(1);
+            h.assertTrue(f.b.trails.allied(f.b.actor), "Enemy acted before allies"); seen.add(f.b.actor);
+            f.b.trails.finish(1);
+            h.assertTrue(f.b.trails.allied(f.b.actor), "Enemy acted before second ally"); seen.add(f.b.actor);
+            h.assertTrue(seen.contains(pig) && seen.contains(sheep), "An ally's guaranteed first turn was skipped");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void gearAndPotionChangeSpeedWithoutResettingAt(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 8, 5); f.start(false);
+            double old = f.b.trails.speed(f.p), remaining = f.b.clock.remaining(f.p);
+            f.p.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.DIAMOND_BOOTS));
+            f.p.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));
+            f.p.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, 200, 0));
+            h.assertTrue(f.b.trails.speed(f.p) > old * 1.4, "Equipment/potion speed was ignored");
+            h.assertTrue(f.b.clock.remaining(f.p) == remaining, "Buff reset action progress");
+            h.assertTrue(f.b.clock.until(f.p, f.b::agility) < remaining / old, "Speed did not shorten next AT");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void exitRequiresAlliedTurnButBurstInterruptsEnemy(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 8, 5);
+            zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(200); zombie.setHealth(200);
+            f.start(false); f.b.actor = zombie; f.b.trails.addCp(150);
+            TrailsCombat.request(f.p, f.cmd("toggle", -1, 0));
+            h.assertTrue(!f.b.closed, "Enemy turn allowed exit");
+            var original = f.b.actor; long revision = f.b.revision;
+            var request = f.cmd("burst", zombie.getId(), 0);
+            TrailsCombat.request(f.p, request);
+            h.assertTrue(zombie.getHealth() < 200 && f.b.actor == original, "S-Break did not interrupt while retaining enemy turn");
+            h.assertTrue(f.b.trails.cp() == 50 && f.b.revision > revision, "Burst CP cost");
+            TrailsCombat.request(f.p, request);
+            h.assertTrue(f.b.trails.cp() == 50, "Replayed burst spent CP again");
+            f.b.actor = f.p;
+            TrailsCombat.request(f.p, f.cmd("toggle", -1, 0));
+            h.assertTrue(f.b.closed && !BattleManager.locked(zombie), "Allied exit did not release encounter");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void foodRestoresHealthAndHungerOnce(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 8, 5); f.start(false);
+            f.p.setHealth(8); f.p.getFoodData().setFoodLevel(10);
+            f.p.getInventory().setItem(1, new ItemStack(Items.BREAD, 2));
+            f.b.trails.item(1);
+            h.assertTrue(f.p.getHealth() >= 12 && f.p.getFoodData().getFoodLevel() > 10, "Food did not restore both resources");
+            h.assertTrue(f.p.getInventory().getItem(1).getCount() == 1, "Food consumed more than once");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void speedPotionKeepsBottleAndChangesAt(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 8, 5); f.start(false);
+            var potion = new ItemStack(Items.POTION); potion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SWIFTNESS));
+            f.p.getInventory().setItem(1, potion); double speed = f.b.trails.speed(f.p);
+            f.b.trails.item(1);
+            h.assertTrue(f.p.getInventory().getItem(1).is(Items.GLASS_BOTTLE), "Potion container was lost");
+            h.assertTrue(f.b.trails.speed(f.p) > speed, "Swiftness did not affect AT speed");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void swordConeDoesNotHitAlliesOrEnemiesBehind(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var front = f.mob(EntityType.ZOMBIE, 7, 5);
+            var behind = f.mob(EntityType.ZOMBIE, 3, 5); var pig = f.mob(EntityType.PIG, 6, 5);
+            f.start(false); float hp = front.getHealth(), behindHp = behind.getHealth(), pigHp = pig.getHealth();
+            f.b.trails.attack(front.getId(), 0, false);
+            h.assertTrue(front.getHealth() < hp, "Sword missed cone target");
+            h.assertTrue(behind.getHealth() == behindHp && pig.getHealth() == pigHp,
+                    "Sword hit behind or friendly target: behind=" + behind.getHealth() + "/" + behindHp + ", ally=" + pig.getHealth() + "/" + pigHp);
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void bowRequiresAndConsumesAmmunition(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 12, 5); f.start(false);
+            f.p.getInventory().setItem(1, new ItemStack(Items.BOW)); float hp = zombie.getHealth();
+            TrailsCombat.request(f.p, f.cmd("attack", zombie.getId(), 1));
+            h.assertTrue(zombie.getHealth() == hp && f.b.actor == f.p, "Missing ammo still attacked/spent turn");
+            f.p.getInventory().setItem(2, new ItemStack(Items.ARROW, 3));
+            f.b.trails.attack(zombie.getId(), 1, false);
+            h.assertTrue(zombie.getHealth() < hp && f.p.getInventory().getItem(2).getCount() == 2, "Ranged attack/ammo consumption");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void windMaceHasAreaDamageCostAndLongRecovery(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var a = f.mob(EntityType.ZOMBIE, 7, 5); var c = f.mob(EntityType.ZOMBIE, 9, 5);
+            f.p.getInventory().setItem(1, new ItemStack(Items.MACE)); f.p.getInventory().setItem(2, new ItemStack(Items.WIND_CHARGE, 2));
+            f.start(false); float hp = c.getHealth(); f.b.trails.attack(a.getId(), 1, true);
+            h.assertTrue(c.getHealth() < hp && f.p.getInventory().getItem(2).getCount() == 1, "Wind combo area/resource");
+            h.assertTrue(f.b.clock.until(f.p, f.b::agility) > 100, "Heavy combo did not lengthen recovery");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void pigRegeneratesAcrossOwnTurnsAndSheepHealsArea(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 9, 5); var pig = f.mob(EntityType.PIG, 6, 5); var sheep = f.mob(EntityType.SHEEP, 5, 6);
+            f.start(false); pig.setHealth(2); f.p.setHealth(8);
+            f.b.actor = pig; f.b.trails.companionSkill(-1); float hp = pig.getHealth();
+            f.b.actor = pig; f.b.trails.onTurn();
+            h.assertTrue(pig.getHealth() == hp + 2, "Pig did not regenerate on later own turn");
+            f.b.actor = sheep; f.b.trails.companionSkill(-1);
+            h.assertTrue(f.p.getHealth() >= 12, "Sheep did not heal nearby party");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void companionsCannotUseInventoryAndCanExitOnTheirTurn(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 9, 5); var pig = f.mob(EntityType.PIG, 6, 5); f.start(false); f.b.actor = pig;
+            f.p.getInventory().setItem(1, new ItemStack(Items.BREAD, 2));
+            TrailsCombat.request(f.p, f.cmd("item", -1, 1));
+            h.assertTrue(f.p.getInventory().getItem(1).getCount() == 2, "Ally consumed player inventory");
+            TrailsCombat.request(f.p, f.cmd("toggle", -1, 0));
+            h.assertTrue(f.b.closed, "Own side includes allied creature turns");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void rearHitStunsWithoutAutomaticAdmission(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 7, 7);
+            zombie.setYRot(0); zombie.yHeadRot = 0;
+            f.p.teleportTo(zombie.getX(), zombie.getY(), zombie.getZ() - 1.5);
+            zombie.hurt(f.p.damageSources().playerAttack(f.p), 1);
+            h.assertTrue(TrailsCombat.stunned(zombie), "A rear melee hit did not create the ambush window");
+            h.assertTrue(!BattleManager.locked(f.p) && !BattleManager.locked(zombie), "A real-time hit auto-started AT");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void rearArrowAlsoCreatesAmbushOpportunity(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 7, 7);
+            zombie.setYRot(0); zombie.yHeadRot = 0;
+            f.p.teleportTo(zombie.getX(), zombie.getY(), zombie.getZ() - 4);
+            var arrow = EntityType.ARROW.create(h.getLevel()); arrow.setOwner(f.p);
+            try {
+                zombie.hurt(f.p.damageSources().arrow(arrow, f.p), 1);
+                h.assertTrue(TrailsCombat.stunned(zombie), "A player's rear ranged hit did not create an ambush opportunity");
+            } finally { arrow.discard(); }
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void bossTelegraphsBeforeUltimate(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var boss = f.mob(EntityType.RAVAGER, 8, 5); f.start(false);
+            f.b.actor = boss; f.b.trails.turns.put(boss.getUUID(), 3);
+            float hp = f.p.getHealth(); f.b.trails.enemyAction();
+            h.assertTrue(f.b.trails.charging.contains(boss.getUUID()) && f.p.getHealth() == hp, "Boss did not telegraph before damage");
+            f.b.actor = boss; f.b.trails.enemyAction();
+            h.assertTrue(!f.b.trails.charging.contains(boss.getUUID()), "Boss did not resolve charged ultimate");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void waitingDoesNotAdvanceAtOrRunAlliedAi(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 8, 5); var pig = f.mob(EntityType.PIG, 6, 5); f.start(false);
+            f.b.actor = pig; double time = f.b.clock.time();
+            for (int i = 0; i < 650; i++) f.b.trails.tick();
+            h.assertTrue(f.b.actor == pig && f.b.clock.time() == time, "Waiting auto-played an allied turn or ran old timeout");
+        }
+        h.succeed();
+    }
+}

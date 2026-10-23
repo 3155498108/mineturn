@@ -50,6 +50,7 @@ public final class BattleClient {
     }
 
     public BattleClient(IEventBus bus) {
+        TrailsClient.initialize(bus);
         bus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event)->event.registerEntityRenderer(MineTurn.BATTLE_BULLET.get(),BattleBulletRenderer::new));
         bus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event)->event.registerEntityRenderer(MineTurn.BATTLE_DEVICE.get(),BattleDeviceRenderer::new));
 
@@ -144,6 +145,7 @@ public final class BattleClient {
         if (entering || mc.screen == null) mc.setScreen(new BattleScreen());
     }
     public static void reset() {
+        TrailsClient.reset();
         offers=java.util.List.of();
         moving=false; motionTarget=null;motionOrder.reset();
         statusLocks.clear();
@@ -153,7 +155,7 @@ public final class BattleClient {
         state = null; preview = null; pending = false;
         if (previousCamera != null) { mc.options.setCameraType(previousCamera); previousCamera = null; }
         KeyMapping.releaseAll();
-        if (mc.screen instanceof BattleScreen) mc.setScreen(null);
+        if (mc.screen instanceof BattleScreen || mc.screen instanceof TrailsScreen) mc.setScreen(null);
     }
     public static void send(String operation, int slot, String action, int target, Vec3 destination, int previewId) {
         if (!active() || pending && !operation.endsWith("preview")) return;
@@ -183,7 +185,7 @@ public final class BattleClient {
             }
             if(!moving)motionTarget=null;
         }
-        if (mc.screen == null) mc.setScreen(new BattleScreen());
+        if (mc.screen == null) mc.setScreen(TrailsClient.active() ? new TrailsScreen() : new BattleScreen());
         if (pending && ++pendingTicks > 100) pending = false;
     }
     private static void input(MovementInputUpdateEvent event) {
@@ -194,7 +196,7 @@ public final class BattleClient {
         input.jumping = false; input.shiftKeyDown = false;
     }
     private static void hud(RenderGuiEvent.Pre event) {
-        if (active() && Minecraft.getInstance().screen instanceof BattleScreen) event.setCanceled(true);
+        if (active() && (Minecraft.getInstance().screen instanceof BattleScreen || Minecraft.getInstance().screen instanceof TrailsScreen)) event.setCanceled(true);
     }
     private static void world(RenderLevelStageEvent event) {
         Minecraft mc = Minecraft.getInstance();

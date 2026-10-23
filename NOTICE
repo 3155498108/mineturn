@@ -1,0 +1,12 @@
+MineTurn AT Prototype
+
+Based on MineTurn, Copyright (C) 2026 Matuvent.
+Upstream: https://github.com/Matuvent/mineturn
+Imported revision: 3f0dd6eb5fe31d071126bd95ebe1c460195f063b
+
+This local branch adds manual encounter switching, controllable friendly creatures,
+equipment-sensitive AT, backstab advantage, weapon areas and S-Break rules.
+It is not an official upstream MineTurn release.
+
+This modified mod retains the GNU Lesser General Public License, version 2.1 only.
+See LICENSE. The NeoForge template notice is in TEMPLATE_LICENSE.txt.
