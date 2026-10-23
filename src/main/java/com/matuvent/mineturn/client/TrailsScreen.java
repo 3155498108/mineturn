@@ -2,6 +2,7 @@ package com.matuvent.mineturn.client;
 
 import com.matuvent.mineturn.network.TrailsNetwork;
 import com.matuvent.mineturn.battle.TrailsArea;
+import com.matuvent.mineturn.battle.TrailsWeaponSkills;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.gui.GuiGraphics;
@@ -39,6 +40,7 @@ public final class TrailsScreen extends Screen {
             var candidate = minecraft.player.getInventory().getItem(i);
             if (net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(candidate.getItem()).toString().equals(TrailsClient.view.primary())) { stack = candidate; break; }
         }
+        if (preparing.equals("weapon_skill")) return TrailsWeaponSkills.shape(stack);
         return TrailsArea.weapon(stack, preparing.equals("wind"), preparing.equals("burst"));
     }
     public net.minecraft.world.phys.Vec3 aimVector() {
@@ -49,6 +51,7 @@ public final class TrailsScreen extends Screen {
     }
     private void prepare(String op) {
         if (preparing.equals(op)) { confirm(); return; }
+        if (TrailsClient.view.busy() && !op.equals("burst")) return;
         preparing = op; prepareTurn = TrailsClient.view.turn();
         var shape = previewShape(); var actor = minecraft.level.getEntity(op.equals("burst") ? minecraft.player.getId() : TrailsClient.view.actor());
         var victim = minecraft.level.getEntity(target);
@@ -78,7 +81,7 @@ public final class TrailsScreen extends Screen {
         clearWidgets();
         if (!TrailsClient.active() || minecraft == null || minecraft.player == null) return;
         var view = TrailsClient.view;
-        boolean own = view.alliedTurn();
+        boolean own = view.alliedTurn() && !view.busy();
         boolean playerTurn = view.actor() == minecraft.player.getId();
         if (!own || !playerTurn) items = false;
         if (items) { inventory(); return; }
@@ -91,9 +94,10 @@ public final class TrailsScreen extends Screen {
         int left = (width - cell * 5) / 2;
         button(preparing.equals("attack") ? "确认攻击" : "普通攻击", left, y, cell - 3, () -> prepare("attack"), own);
         var actor = TrailsClient.fighters.stream().filter(f -> f.id() == view.actor()).findFirst();
-        var skill = button(playerTurn ? "风弹重锤" : "战技", left + cell, y, cell - 3,
-                () -> prepare(playerTurn ? "wind" : "skill"), own && (!playerTurn || minecraft.player.getMainHandItem().getItem() instanceof net.minecraft.world.item.MaceItem));
-        skill.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(playerTurn ? "装备重锤，并消耗背包内 1 个风弹：扩大范围和伤害，增加 AT 硬直。"
+        var held = minecraft.player.getMainHandItem();
+        var skill = button(preparing.equals("weapon_skill") || preparing.equals("skill") ? "确认战技" : playerTurn ? TrailsWeaponSkills.name(held) : "战技", left + cell, y, cell - 3,
+                () -> prepare(playerTurn ? "weapon_skill" : "skill"), own && (!playerTurn || TrailsWeaponSkills.supported(held)));
+        skill.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(playerTurn ? TrailsWeaponSkills.description(held)
                 : actor.map(TrailsNetwork.Fighter::skill).orElse("友军战技"))));
         button("道具", left + cell * 2, y, cell - 3, () -> { preparing = ""; items = !items; rebuild(); }, own && playerTurn);
         button("防御", left + cell * 3, y, cell - 3, () -> command("guard"), own);
@@ -141,7 +145,7 @@ public final class TrailsScreen extends Screen {
         }
     }
     private boolean playerTurn() {
-        return TrailsClient.active() && TrailsClient.view.alliedTurn() && minecraft.player != null && TrailsClient.view.actor() == minecraft.player.getId();
+        return TrailsClient.active() && TrailsClient.view.alliedTurn() && !TrailsClient.view.busy() && minecraft.player != null && TrailsClient.view.actor() == minecraft.player.getId();
     }
     private void selectSlot(int slot) {
         if (!playerTurn()) return;
@@ -155,7 +159,7 @@ public final class TrailsScreen extends Screen {
             movementTurn = view.turn(); movementKeys.clear(); sentMovement = false;
         }
         double x = 0, z = 0;
-        if (!forceStop && !items && view.alliedTurn() && minecraft.isWindowActive()) {
+        if (!forceStop && !items && view.alliedTurn() && !view.busy() && minecraft.isWindowActive()) {
             x = (movementKeys.contains(GLFW.GLFW_KEY_D) ? 1 : 0) - (movementKeys.contains(GLFW.GLFW_KEY_A) ? 1 : 0);
             z = (movementKeys.contains(GLFW.GLFW_KEY_W) ? 1 : 0) - (movementKeys.contains(GLFW.GLFW_KEY_S) ? 1 : 0);
         }
@@ -219,7 +223,7 @@ public final class TrailsScreen extends Screen {
             g.drawCenteredString(font, "移动半径 " + String.format(Locale.ROOT, "%.1f", view.movement()) + " 格 · 圈内自由移动", width / 2, height - 123, 0xffffffff);
             var shape = previewShape();
             if (shape != null) {
-                String label = switch (preparing) { case "skill" -> "战技"; case "wind" -> "风弹重锤"; case "burst" -> "S 技"; default -> "攻击"; };
+                String label = switch (preparing) { case "skill" -> "战技"; case "wind" -> "风弹重锤"; case "weapon_skill" -> TrailsWeaponSkills.name(minecraft.player.getMainHandItem()); case "burst" -> "S 技"; default -> "攻击"; };
                 g.drawCenteredString(font, label + "预览 · Enter确认", width / 2, 73, 0xffffda80);
                 String reach = switch (shape.kind()) {
                     case RECTANGLE -> String.format(Locale.ROOT, "长 %.0f × 宽 %.0f", shape.radius(), shape.width());
@@ -262,7 +266,7 @@ public final class TrailsScreen extends Screen {
             selectSlot(key - GLFW.GLFW_KEY_1); return true;
         }
         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_SPACE) { if (preparing.isEmpty()) prepare("attack"); else confirm(); return true; }
-        if (key == GLFW.GLFW_KEY_F) { prepare(playerTurn() ? "wind" : "skill"); return true; }
+        if (key == GLFW.GLFW_KEY_F) { prepare(playerTurn() ? "weapon_skill" : "skill"); return true; }
         if (key == GLFW.GLFW_KEY_ESCAPE) { preparing = ""; items = false; rebuild(); return true; }
         return super.keyPressed(key, scan, modifiers);
     }

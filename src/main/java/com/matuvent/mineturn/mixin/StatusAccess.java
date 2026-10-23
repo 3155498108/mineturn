@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(LivingEntity.class)
 public interface StatusAccess {
     @org.spongepowered.asm.mixin.gen.Accessor("useItemRemaining") void mineturn$useRemaining(int ticks);
+    @Invoker("setLivingEntityFlag") void mineturn$useFlag(int flag, boolean value);
     @Invoker("detectEquipmentUpdates") void mineturn$equipment();
     @Invoker("removeFrost") void mineturn$removeFrost();
     @Invoker("tryAddFrost") void mineturn$addFrost();

@@ -9,7 +9,7 @@ import net.neoforged.fml.loading.FMLPaths;
 /** Editable prototype balance; no entity-count limit is imposed. */
 public final class TrailsConfig {
     public static TrailsConfig current = new TrailsConfig();
-    public double encounterRadius = 12;
+    public double encounterRadius = 20;
     public double verticalRange = 6;
     public double movementRadius = 4;
     public double backstabSeconds = 6;

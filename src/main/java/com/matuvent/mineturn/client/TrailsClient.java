@@ -24,14 +24,14 @@ public final class TrailsClient {
     public static final KeyMapping BURST = new KeyMapping("key.mineturn.trails_burst", GLFW.GLFW_KEY_V, "key.categories.mineturn");
     public static final KeyMapping PRIMARY = new KeyMapping("key.mineturn.trails_primary", GLFW.GLFW_KEY_B, "key.categories.mineturn");
     public static final KeyMapping CONFIG = new KeyMapping("key.mineturn.trails_config", GLFW.GLFW_KEY_O, "key.categories.mineturn");
-    public static TrailsNetwork.Settings settings = new TrailsNetwork.Settings(12, 6, 4, false, "");
+    public static TrailsNetwork.Settings settings = new TrailsNetwork.Settings(20, 6, 4, false, "");
     private static net.minecraft.world.phys.Vec3 previousFocus = net.minecraft.world.phys.Vec3.ZERO;
     private static List<TrailsNetwork.Fighter> introAllies = List.of(), introEnemies = List.of();
     public static TrailsNetwork.View view;
     public static List<TrailsNetwork.Fighter> fighters = List.of();
     private static final List<TrailsNetwork.Fighter> assembling = new ArrayList<>();
     public static boolean preview;
-    public static double radius = 12;
+    public static double radius = 20;
     static long movementSequence;
     private static int readyTicks, cutTicks, cutTotal;
     private static String cutText = "";
@@ -44,6 +44,8 @@ public final class TrailsClient {
         bus.addListener((RegisterKeyMappingsEvent e) -> { e.register(SWITCH); e.register(BURST); e.register(PRIMARY); e.register(CONFIG); });
         net.neoforged.fml.ModList.get().getModContainerById("mineturn").orElseThrow().registerExtensionPoint(
                 net.neoforged.neoforge.client.gui.IConfigScreenFactory.class, (container, parent) -> new TrailsConfigScreen(parent));
+        TrailsNetwork.receivePerformance = TrailsPerformances::receive;
+        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> TrailsPerformances.tick());
         TrailsNetwork.receiveSettings = p -> {
             settings = p; radius = p.encounter();
             if (Minecraft.getInstance().screen instanceof TrailsConfigScreen screen) screen.received(p);
@@ -77,6 +79,7 @@ public final class TrailsClient {
     public static boolean active() { return view != null && BattleClient.active() && view.battle().equals(BattleClient.state.battle()); }
     public static net.minecraft.world.phys.Vec3 cameraFocus(float partial) { return previousFocus.lerp(BattleClient.focus, Math.clamp(partial, 0, 1)); }
     public static void reset() {
+        TrailsPerformances.reset();
         view = null; fighters = List.of(); assembling.clear(); preview = false; held = false; readyTicks = 0;
         movementSequence = 0;
         if (!burstCut || Minecraft.getInstance().level == null) cutTicks = 0;

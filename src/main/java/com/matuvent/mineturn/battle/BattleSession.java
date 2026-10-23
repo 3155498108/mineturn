@@ -532,6 +532,7 @@ final class BattleSession {
     void close(String reason) {
         if (closed) return;
         closed = true;
+        if (trails != null) trails.clear();
         var participants=new ArrayList<>(members.values());
         for(var field:List.copyOf(fields.values()))cleanup("field",()->BattleFields.delete(this,field));
         for(var cloud:List.copyOf(clouds))cleanup("cloud",cloud::discard);

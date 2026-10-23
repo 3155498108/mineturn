@@ -21,6 +21,10 @@ final class ProjectileAnimations {
         if(item.is(net.minecraft.world.item.Items.SPECTRAL_ARROW))return new net.minecraft.world.entity.projectile.SpectralArrow(world,from.x,from.y,from.z,item,null);
         if(item.is(net.minecraft.world.item.Items.ARROW) || item.is(net.minecraft.world.item.Items.TIPPED_ARROW))return new net.minecraft.world.entity.projectile.Arrow(world,from.x,from.y,from.z,item,null);
         if(item.is(net.minecraft.world.item.Items.FIREWORK_ROCKET))return new net.minecraft.world.entity.projectile.FireworkRocketEntity(world,item,from.x,from.y,from.z,true);
+        if(item.is(net.minecraft.world.item.Items.WIND_CHARGE))return new net.minecraft.world.entity.projectile.windcharge.BreezeWindCharge(net.minecraft.world.entity.EntityType.BREEZE_WIND_CHARGE,world);
+        if(item.is(net.minecraft.world.item.Items.FIRE_CHARGE))return new net.minecraft.world.entity.projectile.SmallFireball(net.minecraft.world.entity.EntityType.SMALL_FIREBALL,world);
+        if(item.is(net.minecraft.world.item.Items.SNOWBALL))return new net.minecraft.world.entity.projectile.Snowball(world,from.x,from.y,from.z);
+        if(item.is(net.minecraft.world.item.Items.WIND_CHARGE))return new net.minecraft.world.entity.projectile.windcharge.BreezeWindCharge(net.minecraft.world.entity.EntityType.BREEZE_WIND_CHARGE,world);
         return null;
     }
     static void tick(){

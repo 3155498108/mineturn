@@ -48,7 +48,8 @@
   "client": [
     "BattleCameraMixin",
     "BattleClientMovementMixin",
-    "BattleRendererMixin"
+    "BattleRendererMixin",
+    "TrailsSkillTintMixin"
   ],
   "injectors": {
     "defaultRequire": 1

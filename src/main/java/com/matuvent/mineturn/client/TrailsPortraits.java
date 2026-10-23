@@ -21,7 +21,8 @@ final class TrailsPortraits {
         String type = BuiltInRegistries.ENTITY_TYPE.getKey(living.getType()).getPath();
         int u = 8, v = 8, w = 8, h = 8, tw = 64, th = 64;
         switch (type) {
-            case "skeleton", "stray", "wither_skeleton", "creeper" -> th = 32;
+            case "skeleton", "stray", "bogged", "wither_skeleton", "creeper", "blaze" -> th = 32;
+            case "breeze" -> { tw = 32; th = 32; }
             case "sheep" -> { u = 6; v = 6; w = 6; h = 6; th = 32; }
             case "chicken" -> { u = 2; v = 3; w = 4; h = 6; th = 32; }
             case "wolf" -> { u = 4; v = 4; w = 6; h = 6; th = 32; }

@@ -40,6 +40,37 @@ public final class TrailsCombat {
     Vec3 pendingAim = Vec3.ZERO;
     double recovery = 1;
     int enemyWait;
+    Pending pending;
+    boolean knockback;
+    private record Pending(LivingEntity source, long turn, int ticks, Runnable release, boolean red) {}
+    boolean busy() { return pending != null || b.motion != null || knockback; }
+    void perform(LivingEntity source, String animation, int ticks, boolean red, Vec3 aim) {
+        BattleNetwork.send(player, new TrailsNetwork.Performance(b.id, ++b.actionSequence, source.getId(), animation, ticks, red, aim));
+    }
+    void windup(LivingEntity source, LivingEntity victim, int ticks, boolean red, Runnable release) {
+        inputTicks = 0; direction = Vec3.ZERO;
+        pending = new Pending(source, turn, ticks, release, red);
+        perform(source, "draw", ticks, red, victim == null ? source.position().add(source.getLookAngle()) : victim.position());
+        b.revision++; b.syncAll();
+    }
+    void tickPending() {
+        var action = pending;
+        if (action == null) return;
+        if (b.actor != action.source || turn != action.turn || !action.source.isAlive() || !b.members.containsKey(action.source.getUUID())) { pending = null; return; }
+        if (action.ticks > 1) {
+            pending = new Pending(action.source, action.turn, action.ticks - 1, action.release, action.red);
+            if (action.red && action.ticks % 3 == 0) b.level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(
+                    new org.joml.Vector3f(1, .04f, .02f), 1.4f), action.source.getX(), action.source.getY() + 1, action.source.getZ(), 8, .4, .5, .4, .01);
+            return;
+        }
+        pending = null;
+        boolean previous = resolving;
+        resolving = true;
+        try { action.release.run(); }
+        finally { resolving = previous; }
+        if (!b.closed) { b.revision++; b.syncAll(); }
+    }
+    void clear() { pending = null; knockback = false; pendingBurst = false; direction = Vec3.ZERO; inputTicks = 0; }
     long turn, inputSequence = -1;
     Vec3 movementOrigin = Vec3.ZERO, direction = Vec3.ZERO;
     double movementRadius;
@@ -141,7 +172,7 @@ public final class TrailsCombat {
         var session = BattleManager.ACTIVE.get(p.getUUID());
         if (session == null || session.closed || session.trails == null || !session.id.equals(packet.battle())) return;
         var rules = session.trails;
-        if (rules.player != p || !p.isAlive() || session.actor == null || !rules.allied(session.actor) || session.motion != null || rules.resolving
+        if (rules.player != p || !p.isAlive() || session.actor == null || !rules.allied(session.actor) || rules.busy() || rules.resolving
                 || packet.turn() != rules.turn || packet.sequence() <= rules.inputSequence
                 || !Double.isFinite(packet.x()) || !Double.isFinite(packet.z()) || Math.abs(packet.x()) > 1 || Math.abs(packet.z()) > 1) return;
         rules.inputSequence = packet.sequence();
@@ -153,7 +184,7 @@ public final class TrailsCombat {
     public static boolean inventoryAllowed(ServerPlayer p) {
         var session = BattleManager.ACTIVE.get(p.getUUID());
         return session != null && !session.closed && session.trails != null && session.trails.player == p
-                && session.actor == p && session.motion == null && !session.trails.resolving && p.isAlive()
+                && session.actor == p && !session.trails.busy() && !session.trails.resolving && p.isAlive()
                 && p.containerMenu == p.inventoryMenu;
     }
 
@@ -249,12 +280,12 @@ public final class TrailsCombat {
         var queue = b.clock.forecast(16, this::speed).stream()
                 .map(t -> new BattleNetwork.QueueEntry(t.actor().getId(), b.displayName(t.actor()), t.inAv())).toList();
         BattleNetwork.send(recipient, new TrailsNetwork.View(b.id, b.revision, b.actor.getId(), allied(b.actor), cp(), cfg().burstCost,
-                primary(), burstName(primaryStack()), movementRadius, turn, movementOrigin, charging.isEmpty() ? b.lastMessage
+                primary(), burstName(primaryStack()), movementRadius, turn, movementOrigin, busy(), charging.isEmpty() ? b.lastMessage
                         : "危险蓄力：" + b.members.values().stream().filter(m -> charging.contains(m.entity.getUUID()))
                                 .map(m -> m.entity.getName().getString()).reduce((a, c) -> a + "、" + c).orElse("") + " · 防御或抢 S！", queue));
         var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity),
                 !allied(m.entity), m.entity.getHealth(), m.entity.getMaxHealth(), speed(m.entity),
-                b.clock.until(m.entity, this::speed), skillName(m.entity), m.entity.getActiveEffects().stream().limit(64)
+                b.clock.until(m.entity, this::speed), m.entity == player ? TrailsWeaponSkills.name(player.getMainHandItem()) : skillName(m.entity), m.entity.getActiveEffects().stream().limit(64)
                         .map(e -> new TrailsNetwork.Status(BuiltInRegistries.MOB_EFFECT.getKey(e.getEffect().value()).toString(), e.getAmplifier() + 1, e.getDuration())).toList())).toList();
         for (int from = 0, page = 0; from < roster.size(); from += 48, page++)
             BattleNetwork.send(recipient, new TrailsNetwork.Roster(b.id, b.revision, page, from + 48 >= roster.size(),
@@ -264,8 +295,11 @@ public final class TrailsCombat {
     void tick() {
         b.prune(); if (b.closed) return;
         b.ticks++; b.turnTicks++;
+        boolean wasKnockback = knockback;
         b.tickMotion(); if (b.closed) return;
-        if (inputTicks > 0 && --inputTicks >= 0 && allied(b.actor) && b.motion == null && direction.lengthSqr() > 1e-8) {
+        if (wasKnockback && b.motion == null && knockback) { knockback = false; finish(1.4); if (b.closed) return; }
+        tickPending(); if (b.closed) return;
+        if (inputTicks > 0 && --inputTicks >= 0 && allied(b.actor) && !busy() && direction.lengthSqr() > 1e-8) {
             move(direction.x * .215, direction.z * .215);
             if (b.closed) return;
         }
@@ -282,7 +316,7 @@ public final class TrailsCombat {
             try { burst(pendingTarget, pendingAim); } catch (IllegalArgumentException error) { b.message(error.getMessage()); }
             if (b.closed) return;
         }
-        if (!allied(b.actor) && b.motion == null && ++enemyWait >= 28) {
+        if (!allied(b.actor) && !busy() && ++enemyWait >= 28) {
             enemyWait = 0;
             enemyAction();
         }
@@ -305,11 +339,12 @@ public final class TrailsCombat {
     void command(TrailsNetwork.Command p) {
         if (p.operation().equals("burst")) {
             if (cp() < cfg().burstCost) throw new IllegalArgumentException("CP 不足，普通行动及受伤可积累 CP。");
+            if (pending != null && b.actor == player) throw new IllegalArgumentException("请等待自己的战技完成后再抢 S。");
             if (b.motion != null) { pendingBurst = true; pendingTarget = p.target(); pendingAim = new Vec3(p.x(), 0, p.z()); return; }
             burst(p.target(), new Vec3(p.x(), 0, p.z())); return;
         }
         if (b.actor == null || !allied(b.actor)) throw new IllegalArgumentException("敌方回合：可以抢 S，不能退出或下达普通指令。");
-        if (b.motion != null) throw new IllegalArgumentException("请等待移动完成。");
+        if (busy()) throw new IllegalArgumentException("请等待当前动作完成。");
         if (p.operation().equals("toggle")) { b.close("已退出 AT 战斗，恢复即时战斗。"); return; }
         if (p.operation().equals("select") || p.operation().equals("primary")) {
             if (b.actor != player) throw new IllegalArgumentException("只能在玩家回合切换武器。");
@@ -324,6 +359,7 @@ public final class TrailsCombat {
         if (p.operation().equals("guard")) {
             guarding.add(b.actor.getUUID()); finish(.5); return;
         }
+        if (p.operation().equals("weapon_skill")) { weaponSkill(p.target(), p.slot(), new Vec3(p.x(), 0, p.z())); return; }
         if (p.operation().equals("skill")) { companionSkill(p.target(), new Vec3(p.x(), 0, p.z())); return; }
         if (p.operation().equals("attack") || p.operation().equals("wind")) { attack(p.target(), p.slot(), p.operation().equals("wind"), new Vec3(p.x(), 0, p.z())); return; }
         if (p.operation().equals("item")) { item(p.slot()); return; }
@@ -369,6 +405,7 @@ public final class TrailsCombat {
         return 3 + (strength == null ? 0 : 3 * (strength.getAmplifier() + 1));
     }
     void animate(LivingEntity source, LivingEntity victim, boolean ranged) {
+        perform(source, "strike", 12, !allied(source), victim.position());
         source.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
         var animation = new BattleNetwork.ActionAnimation(b.id, ++b.actionSequence,
                 net.minecraft.resources.ResourceLocation.parse(ranged ? "mineturn:ranged" : "mineturn:melee"), 10,
@@ -400,9 +437,11 @@ public final class TrailsCombat {
                 };
                 b.revision++; b.syncAll(); return;
             }
-            requireRange(source, victim, 2.2);
-            hit(source, victim, id(source).equals("minecraft:iron_golem") ? 10 : baseDamage(source));
-            animate(source, victim, false); addCp(cfg().cpPerAction); finish(1); return;
+            boolean snowball = source instanceof SnowGolem;
+            requireRange(source, victim, snowball ? 20 : 2.2);
+            hit(source, victim, id(source).equals("minecraft:iron_golem") ? 10 : snowball ? 2 : baseDamage(source));
+            if (snowball) projectile(source, victim.getEyePosition(), Items.SNOWBALL);
+            animate(source, victim, snowball); addCp(cfg().cpPerAction); finish(1); return;
         }
         if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
         player.getInventory().selected = slot;
@@ -435,9 +474,72 @@ public final class TrailsCombat {
             shaped(source, shape, aim, damage);
         } else { hit(source, victim, s.is(ItemTags.AXES) ? damage * 1.15 : damage); delay = s.is(ItemTags.AXES) ? 1.2 : 1; }
         if (s.isDamageableItem()) s.hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
-        if (victim != null) animate(source, victim, ranged); else source.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        if (ranged) {
+            Vec3 end = victim != null ? victim.getEyePosition() : source.getEyePosition().add(shape.direction(aim).scale(shape.radius()));
+            projectile(source, end, Items.ARROW);
+        }
+        if (victim != null) animate(source, victim, ranged); else { perform(source, "strike", 12, false, source.position().add(aim)); source.swing(net.minecraft.world.InteractionHand.MAIN_HAND); }
         addCp(cfg().cpPerAction);
         finish(delay);
+    }
+    void projectile(LivingEntity source, Vec3 end, Item item) {
+        var from = source.getEyePosition();
+        var wall = b.level.clip(new net.minecraft.world.level.ClipContext(from, end, net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, source));
+        if (wall.getType() != net.minecraft.world.phys.HitResult.Type.MISS) end = wall.getLocation();
+        com.matuvent.mineturn.api.CombatVisuals.flight(b.level, from, end, new ItemStack(item), true, false);
+    }
+    void weaponSkill(int targetId, int slot, Vec3 aim) {
+        if (b.actor != player) throw new IllegalArgumentException("只有玩家能使用武器战技。");
+        if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
+        var stack = player.getInventory().getItem(slot);
+        if (!weapon(stack)) throw new IllegalArgumentException("请先装备武器。");
+        var shape = TrailsWeaponSkills.shape(stack);
+        if (!shape.validAim(aim)) throw new IllegalArgumentException("战技方向或落点无效。");
+        var victim = shape.kind() == TrailsArea.Kind.SINGLE ? target(targetId, player) : null;
+        if (victim != null) requireRange(player, victim, shape.cast());
+        boolean bow = stack.getItem() instanceof BowItem, crossbow = stack.getItem() instanceof CrossbowItem;
+        int resource = bow || crossbow ? find(Items.ARROW) : stack.getItem() instanceof MaceItem ? find(Items.WIND_CHARGE) : -2;
+        if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "战技需要 1 支箭。" : "战技需要 1 个风弹。");
+        player.getInventory().selected = slot;
+        ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
+        if (resource >= 0) player.getInventory().getItem(resource).shrink(1);
+        double base = baseDamage(player);
+        var snapshot = stack.copy();
+        if (stack.isDamageableItem()) stack.hurtAndBreak(2, player, EquipmentSlot.MAINHAND);
+        windup(player, victim, bow || crossbow ? 20 : 10, false, () -> {
+            if (victim != null && (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || gap(player, victim) > shape.cast() || !player.hasLineOfSight(victim))) {
+                b.message("目标已离场或离开射程，战技落空。"); finish(1.5); return;
+            }
+            Vec3 end = victim == null ? player.getEyePosition().add(shape.direction(aim).scale(shape.radius())) : victim.getEyePosition();
+            double delay = 1.5;
+            if (bow) { hit(player, victim, 14); projectile(player, end, Items.ARROW); delay = 1.6; }
+            else if (crossbow) {
+                shaped(player, shape, aim, 12);
+                var forward = shape.direction(aim); var across = new Vec3(forward.z, 0, -forward.x);
+                for (int lane = -1; lane <= 1; lane++) projectile(player, end.add(across.scale(lane * 3)), Items.ARROW);
+                delay = 1.8;
+            } else if (snapshot.is(ItemTags.AXES)) {
+                hit(player, victim, base * 1.8);
+                if (victim.isAlive() && b.members.containsKey(victim.getUUID())) b.clock.recovery(victim, b.clock.remaining(victim) + 30 * speed(victim));
+                delay = 1.7;
+            } else if (snapshot.getItem() instanceof MaceItem) {
+                shaped(player, shape, aim, Math.max(6, base) * 2.3); delay = 2.2;
+                var point = shape.center(player.position(), aim);
+                b.level.sendParticles(ParticleTypes.GUST_EMITTER_SMALL, point.x, point.y + .2, point.z, 1, 0, 0, 0, 0);
+                player.playSound(SoundEvents.MACE_SMASH_GROUND_HEAVY, 1, 1);
+            } else if (snapshot.getItem() instanceof TridentItem) {
+                shaped(player, shape, aim, Math.max(8, base) * 1.5); projectile(player, end, Items.TRIDENT);
+                delay = 1.6;
+            } else {
+                shaped(player, shape, aim, base * 1.4);
+                var sweep = player.position().add(shape.direction(aim).scale(1.5));
+                b.level.sendParticles(ParticleTypes.SWEEP_ATTACK, sweep.x, sweep.y + 1, sweep.z, 2, .3, 0, .3, 0);
+                player.playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1, 1);
+            }
+            perform(player, "strike", 12, false, end); player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            b.message(TrailsWeaponSkills.name(snapshot)); addCp(cfg().cpPerAction); finish(delay);
+        });
     }
     void shaped(LivingEntity source, TrailsArea shape, Vec3 aim, double damage) {
         Vec3 origin = source.position();
@@ -482,7 +584,7 @@ public final class TrailsCombat {
     }
 
     void move(double dx, double dz) {
-        if (b.actor == null || !allied(b.actor) || b.motion != null || !Double.isFinite(dx) || !Double.isFinite(dz)) return;
+        if (b.actor == null || !allied(b.actor) || busy() || !Double.isFinite(dx) || !Double.isFinite(dz)) return;
         var entity = b.actor;
         Vec3 offset = new Vec3(dx, 0, dz);
         if (offset.length() > .215) offset = offset.normalize().scale(.215);
@@ -510,6 +612,14 @@ public final class TrailsCombat {
 
     static String skillName(LivingEntity e) {
         return switch (id(e)) {
+            case "minecraft:breeze" -> "强风弹 · 击飞";
+            case "minecraft:skeleton", "minecraft:pillager" -> "连发齐射";
+            case "minecraft:stray" -> "迟缓箭雨";
+            case "minecraft:bogged" -> "剧毒箭雨";
+            case "minecraft:witch" -> "剧毒药剂 · 自愈";
+            case "minecraft:blaze", "minecraft:ghast" -> "火焰轰击";
+            case "minecraft:wither_skeleton" -> "凋零斩击";
+            case "minecraft:cave_spider" -> "毒牙";
             case "minecraft:pig" -> "自愈 · 三回合恢复";
             case "minecraft:sheep" -> "羊毛祝福 · 范围治疗";
             case "minecraft:wolf" -> "战吼 · 群体强化";
@@ -534,6 +644,7 @@ public final class TrailsCombat {
         String kind = id(actor);
         var shape = TrailsArea.skill(kind);
         if (!shape.validAim(aim)) throw new IllegalArgumentException("战技落点超出施放范围。");
+        perform(actor, "support", 26, false, actor.position());
         if (kind.equals("minecraft:chicken")) {
             var ready = b.members.values().stream().map(m -> m.entity).filter(e -> allied(e) && e.isAlive() && shape.contains(actor.position(), Vec3.ZERO, e.position())).toList();
             b.clock.readyFirst(ready); addCp(10); b.message("振翅号令：范围内友军 AT 归零，优先行动！"); b.next(); return;
@@ -608,28 +719,48 @@ public final class TrailsCombat {
         b.revision++; b.prune(); if (!b.closed) b.syncAll();
     }
 
+    static boolean ranged(LivingEntity actor) {
+        String kind = id(actor);
+        return actor.getMainHandItem().getItem() instanceof BowItem || actor.getMainHandItem().getItem() instanceof CrossbowItem
+                || actor.getMainHandItem().getItem() instanceof TridentItem || Set.of("minecraft:skeleton", "minecraft:stray", "minecraft:bogged",
+                "minecraft:pillager", "minecraft:witch", "minecraft:breeze", "minecraft:blaze", "minecraft:ghast", "minecraft:guardian", "minecraft:elder_guardian").contains(kind);
+    }
     void enemyAction() {
+        if (busy()) return;
         var actor = b.actor;
         if (actor == null || !actor.isAlive()) { b.prune(); return; }
         var victim = b.enemies(actor).stream().min(Comparator.comparingDouble(actor::distanceToSqr)).orElse(null);
         if (victim == null) { b.close("战斗结束。"); return; }
         String kind = id(actor);
         boolean boss = actor.getMaxHealth() >= 100 || kind.equals("minecraft:elder_guardian");
-        int turn = turns.getOrDefault(actor.getUUID(), 1);
+        int count = turns.getOrDefault(actor.getUUID(), 1);
         if (charging.remove(actor.getUUID())) {
-            area(actor, victim.position(), boss ? 6 : 4, boss ? 12 : 9);
-            b.message(actor.getName().getString() + (boss ? " 发动大招：毁灭震荡！" : " 引爆蓄力攻击！"));
-            if (kind.equals("minecraft:creeper")) BattleManager.authorized(() -> actor.hurt(actor.damageSources().generic(), Float.MAX_VALUE));
-            finish(1.8); return;
+            windup(actor, victim, 24, true, () -> {
+                if (victim.isAlive()) area(actor, kind.equals("minecraft:creeper") ? actor.position() : victim.position(), boss ? 6 : 4, boss ? 12 : 9);
+                perform(actor, "strike", 16, true, victim.position());
+                b.level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, actor.getX(), actor.getY() + 1, actor.getZ(), 1, 0, 0, 0, 0);
+                b.message(actor.getName().getString() + (boss ? " 发动大招：毁灭震荡！" : " 引爆蓄力攻击！"));
+                if (kind.equals("minecraft:creeper")) BattleManager.authorized(() -> actor.hurt(actor.damageSources().generic(), Float.MAX_VALUE));
+                finish(1.8);
+            }); return;
         }
-        if ((boss || kind.equals("minecraft:creeper")) && turn % 3 == 0) {
-            charging.add(actor.getUUID());
+        if (kind.equals("minecraft:creeper") && gap(actor, victim) > 4) {
+            if (actor instanceof Mob mob) {
+                var route = b.pursuitRoute(mob, victim);
+                if (route.cost() > .01) {
+                    b.budget.move(route.cost()); b.motion = new BattleSession.Movement(actor, route, b.animationMode(actor, route));
+                    b.motion.onLanding = () -> finish(1); b.revision++; b.syncAll(); return;
+                }
+            }
+            finish(1); return;
+        }
+        if (kind.equals("minecraft:creeper") || boss && count % 3 == 0) {
+            charging.add(actor.getUUID()); perform(actor, "draw", 32, true, victim.position());
             b.message("⚠ " + actor.getName().getString() + " 正在蓄力，下次行动发动范围大招！可防御或抢 S。");
             finish(1.6); return;
         }
-        boolean ranged = kind.contains("skeleton") || kind.contains("pillager") || kind.contains("witch")
-                || kind.contains("blaze") || kind.contains("ghast") || kind.contains("guardian") || boss;
-        if (gap(actor, victim) > (ranged ? 20 : 2.4) || !actor.hasLineOfSight(victim)) {
+        boolean shooting = ranged(actor) || boss;
+        if (gap(actor, victim) > (shooting ? 24 : 2.4) || !actor.hasLineOfSight(victim)) {
             if (actor instanceof Mob mob) {
                 var route = b.pursuitRoute(mob, victim);
                 if (route.cost() > .01) {
@@ -640,14 +771,77 @@ public final class TrailsCombat {
             }
             finish(.8); return;
         }
-        double damage = Math.min(12, Math.max(3, baseDamage(actor)));
-        if (turn % 3 == 0) {
-            if (kind.contains("witch")) { actor.heal(6); effect(victim, MobEffects.POISON, 100, 0); }
-            else if (kind.contains("spider")) { hit(actor, victim, damage); effect(victim, MobEffects.POISON, 100, 0); }
-            else if (kind.contains("skeleton") || kind.contains("pillager")) { hit(actor, victim, damage); hit(actor, victim, damage * .6); }
-            else if (kind.contains("zombie")) { hit(actor, victim, damage * 1.4); actor.heal(2); }
-            else { hit(actor, victim, damage * 1.6); effect(victim, MobEffects.MOVEMENT_SLOWDOWN, 120, 0); }
-        } else hit(actor, victim, damage);
-        animate(actor, victim, ranged); finish(turn % 3 == 0 ? 1.3 : 1);
+        boolean skill = count % 3 == 0;
+        b.message(actor.getName().getString() + (skill ? " 发动战技 · " + skillName(actor) : shooting ? " 瞄准远程攻击" : " 准备攻击"));
+        windup(actor, victim, shooting ? 20 : 10, skill, () -> {
+            if (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || !actor.hasLineOfSight(victim)
+                    || gap(actor, victim) > (shooting ? 24 : 2.4)) { finish(1); return; }
+            perform(actor, "strike", 16, skill, victim.position()); actor.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            Item projectile = switch (kind) {
+                case "minecraft:breeze" -> Items.WIND_CHARGE;
+                case "minecraft:skeleton", "minecraft:stray", "minecraft:bogged", "minecraft:pillager" -> Items.ARROW;
+                case "minecraft:witch" -> Items.SPLASH_POTION;
+                case "minecraft:blaze", "minecraft:ghast" -> Items.FIRE_CHARGE;
+                case "minecraft:drowned" -> actor.getMainHandItem().is(Items.TRIDENT) ? Items.TRIDENT : null;
+                default -> actor.getMainHandItem().getItem() instanceof BowItem || actor.getMainHandItem().getItem() instanceof CrossbowItem ? Items.ARROW : null;
+            };
+            if (projectile != null) {
+                projectile(actor, victim.getEyePosition(), projectile);
+                actor.playSound(projectile == Items.WIND_CHARGE ? SoundEvents.BREEZE_SHOOT : projectile == Items.ARROW ? SoundEvents.SKELETON_SHOOT : SoundEvents.GENERIC_SPLASH, .9f, 1);
+                if (skill && projectile == Items.ARROW) {
+                    projectile(actor, victim.getEyePosition().add(.3, 0, 0), Items.ARROW);
+                    projectile(actor, victim.getEyePosition().add(-.3, 0, 0), Items.ARROW);
+                }
+            }
+            int flight = projectile == null ? 1 : (int)Math.clamp(Math.ceil(actor.getEyePosition().distanceTo(victim.getEyePosition()) * 1.2), 6, 16);
+            pending = new Pending(actor, turn, flight, () -> {
+                if (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || !actor.hasLineOfSight(victim)) { finish(1); return; }
+                double damage = Math.min(12, Math.max(3, baseDamage(actor)));
+                if (kind.equals("minecraft:breeze")) {
+                    hit(actor, victim, skill ? 3 : 1);
+                    b.level.sendParticles(ParticleTypes.GUST_EMITTER_SMALL, victim.getX(), victim.getY() + .5, victim.getZ(), 1, 0, 0, 0, 0);
+                    if (victim.isAlive() && knockUp(actor, victim, skill ? 1.04 : .92)) return;
+                } else if (kind.equals("minecraft:witch")) {
+                    effect(victim, MobEffects.POISON, 100, 0); if (skill) { actor.heal(6); effect(victim, MobEffects.MOVEMENT_SLOWDOWN, 160, 0); }
+                } else {
+                    hit(actor, victim, damage * (skill ? 1.6 : 1));
+                    if (kind.equals("minecraft:stray")) effect(victim, MobEffects.MOVEMENT_SLOWDOWN, 120, 0);
+                    if (kind.equals("minecraft:bogged") || kind.equals("minecraft:cave_spider") && skill) effect(victim, MobEffects.POISON, 100, 0);
+                    if (kind.equals("minecraft:wither_skeleton")) effect(victim, MobEffects.WITHER, 100, 0);
+                    if (skill && kind.contains("zombie")) actor.heal(2);
+                    if (kind.equals("minecraft:blaze") || kind.equals("minecraft:ghast")) BattleManager.authorized(() -> victim.igniteForSeconds(skill ? 5 : 3));
+                }
+                finish(skill ? 1.4 : 1);
+            }, skill);
+        });
+    }
+    /** Collision-checked leap samples reuse native landing damage and the existing motion interpolator. */
+    boolean knockUp(LivingEntity source, LivingEntity victim, double vertical) {
+        if (b.closed || !victim.isAlive() || !b.members.containsKey(victim.getUUID()) || AquaticPath.immersed(victim, victim.position())) return false;
+        Vec3 horizontal = victim.position().subtract(source.position()).multiply(1, 0, 1).normalize().scale(.10);
+        Vec3 point = victim.position(); var samples = new ArrayList<Vec3>();
+        for (int tick = 0; tick < 80; tick++) {
+            var offset = horizontal.add(0, vertical, 0);
+            int steps = Math.max(1, (int)Math.ceil(offset.length() / .07));
+            boolean blocked = false;
+            for (int step = 0; step < steps; step++) {
+                Vec3 next = point.add(offset.scale(1. / steps));
+                if (Math.abs(next.y - b.center.y) > 6 || next.subtract(b.center).horizontalDistance() > cfg().encounterRadius + 4
+                        || !SpatialPath.canStep(victim, point, next, false)) { blocked = true; break; }
+                samples.add(next); point = next;
+            }
+            if (blocked) {
+                if (vertical < 0 && TerrainPath.supportedAt(victim, point)) break;
+                // A wall stops horizontal travel; a ceiling cuts the ascent short.
+                horizontal = Vec3.ZERO; if (vertical > 0) vertical = 0;
+                if (vertical < 0) break;
+            }
+            vertical = (vertical - .08) * .98;
+        }
+        if (samples.isEmpty()) return false;
+        var route = new TerrainPath.Result(point, MovementDistance.between(victim.position(), point), List.of(), samples);
+        b.motion = new BattleSession.Movement(victim, route, "leap"); knockback = true;
+        // Completion (including an obstructed route) is settled in tick after the native fall handler.
+        b.message("风弹命中：击飞后按实际落差结算原版摔落伤害。"); b.revision++; b.syncAll(); return true;
     }
 }

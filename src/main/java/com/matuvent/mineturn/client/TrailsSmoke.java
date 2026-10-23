@@ -166,7 +166,9 @@ final class TrailsSmoke {
             screenshot("at-qa-06-restored.png");
             MineTurn.LOGGER.info("TRAILS_ENCOUNTER_SMOKE_PASSED: avatar VS, sector/rectangle confirmation previews, saved config GUI, smooth camera, WASD, weapon/inventory, items, S-Break and restored camera");
             stage = 6;
-        } else if (stage == 6 && elapsed > 35) mc.stop();
+        } else if (stage == 6 && elapsed > 35) {
+            if (System.getProperty("mineturn.qaTag", "").startsWith("weapons")) TrailsWeaponSmoke.tick(); else mc.stop();
+        }
         if (elapsed > 400 && stage != 6) throw new IllegalStateException("Encounter smoke timed out at stage " + stage);
     }
     private static void screenshot(String file) {

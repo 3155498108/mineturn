@@ -471,4 +471,134 @@ public final class TrailsGameTests {
         }
         h.succeed();
     }
+    static void resolve(TrailsCombat rules) {
+        for (int i = 0; i < 160 && rules.busy() && !rules.b.closed; i++) rules.tick();
+        if (rules.busy()) throw new IllegalStateException("Presentation never completed");
+    }
+    @GameTest(template = "empty")
+    public static void swordAndAxeSkillsUseTheirOwnGeometryAndAt(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var front = f.mob(EntityType.ZOMBIE, 5, 8); var rear = f.mob(EntityType.ZOMBIE, 5, 2); f.start(true);
+            float hp = front.getHealth(), rearHp = rear.getHealth(); double time = f.b.clock.time();
+            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "weapon_skill", rear.getId(), 0, 0, 1));
+            h.assertTrue(f.b.trails.busy() && front.getHealth() == hp && f.b.clock.time() == time, "Sword skill skipped windup or advanced AT while animating");
+            h.assertTrue(!TrailsCombat.inventoryAllowed(f.p), "Inventory remained mutable during committed skill");
+            resolve(f.b.trails);
+            h.assertTrue(front.getHealth() < hp && rear.getHealth() == rearHp, "Sword skill ignored camera-facing fan");
+        }
+        try (var f = new Fixture(h)) {
+            var enemy = f.mob(EntityType.ZOMBIE, 7, 5); f.p.getInventory().setItem(1, new ItemStack(Items.WOODEN_AXE)); f.start(true);
+            enemy.setHealth(20); f.b.clock.recovery(enemy, 1000);
+            f.b.trails.weaponSkill(enemy.getId(), 1, new net.minecraft.world.phys.Vec3(1, 0, 0)); resolve(f.b.trails);
+            h.assertTrue(enemy.getHealth() < 20 && !f.b.closed && f.b.clock.remaining(enemy) > 0, "Axe did not damage and delay the near-ready target");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void rangedWeaponSkillsConsumeOnceAndHitTheirShapes(GameTestHelper h) {
+        for (var weapon : List.of(Items.BOW, Items.CROSSBOW, Items.TRIDENT)) {
+            try (var f = new Fixture(h)) {
+                var a = f.mob(EntityType.ZOMBIE, 5, 9); var other = f.mob(EntityType.ZOMBIE, 5, 12); var rear = f.mob(EntityType.ZOMBIE, 5, 2);
+                f.p.getInventory().setItem(1, new ItemStack(weapon)); f.p.getInventory().setItem(2, new ItemStack(Items.ARROW, 4)); f.start(true);
+                float ah = a.getHealth(), oh = other.getHealth(), rh = rear.getHealth();
+                f.b.trails.weaponSkill(a.getId(), 1, new net.minecraft.world.phys.Vec3(0, 0, 1)); resolve(f.b.trails);
+                h.assertTrue(a.getHealth() < ah && rear.getHealth() == rh, "Ranged weapon skill failed primary geometry: " + weapon);
+                h.assertTrue(weapon == Items.BOW ? other.getHealth() == oh : other.getHealth() < oh, "Single/strip distinction lost: " + weapon);
+                h.assertTrue(f.p.getInventory().getItem(2).getCount() == (weapon == Items.TRIDENT ? 4 : 3), "Skill consumed ammo per target/consumed trident");
+                h.assertTrue(f.p.getInventory().getItem(1).is(weapon), "Throw lost reusable weapon");
+            }
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void weaponSkillPreflightDoesNotSpendOnBadAimRangeOrAmmo(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var enemy = f.mob(EntityType.ZOMBIE, 12, 12); f.start(true);
+            for (var weapon : List.of(Items.BOW, Items.CROSSBOW, Items.MACE, Items.IRON_AXE)) {
+                f.p.getInventory().setItem(1, new ItemStack(weapon));
+                TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "weapon_skill", enemy.getId(), 1, 40, 0));
+                h.assertTrue(!f.b.trails.busy() && f.b.actor == f.p && f.p.getInventory().getItem(1).getDamageValue() == 0, "Rejected skill mutated action/resources: " + weapon);
+            }
+            h.assertTrue(new com.matuvent.mineturn.TrailsConfig().encounterRadius == 20, "Fresh encounter default is not 20");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void skeletonFiresFromRangeAndEnemySkillHasWindup(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            for (int i = 0; i < 61; i++) f.p.tick(); // Let native login protection expire.
+            var enemy = f.mob(EntityType.SKELETON, 5, 13); enemy.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW)); f.start(false);
+            f.b.actor = enemy; f.b.trails.onTurn(); f.b.trails.turns.put(enemy.getUUID(), 3);
+            var origin = enemy.position(); float hp = f.p.getHealth(); f.b.trails.enemyAction();
+            h.assertTrue(f.b.trails.pending != null && f.b.motion == null && f.p.getHealth() == hp, "Skeleton walked into melee or hit before windup");
+            resolve(f.b.trails);
+            h.assertTrue(enemy.position().distanceToSqr(origin) < .001 && f.p.getHealth() < hp, "Skeleton did not shoot while remaining at range: distance=" + enemy.position().distanceToSqr(origin) + " hp=" + f.p.getHealth() + "/" + hp);
+            var wither = f.mob(EntityType.WITHER_SKELETON, 13, 13);
+            h.assertTrue(!TrailsCombat.ranged(wither), "Wither skeleton incorrectly classified as an archer");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void breezeWindChargeLaunchesAndSettlesNativeFallDamage(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            for (int i = 0; i < 61; i++) f.p.tick(); // Let native login protection expire.
+            var breeze = f.mob(EntityType.BREEZE, 5, 11); f.start(false); f.b.actor = breeze; f.b.trails.onTurn();
+            var origin = breeze.position(); double ground = f.p.getY(); float hp = f.p.getHealth();
+            f.b.trails.enemyAction(); double highest = ground;
+            for (int i = 0; i < 160 && f.b.trails.busy() && !f.b.closed; i++) { f.b.trails.tick(); highest = Math.max(highest, f.p.getY()); }
+            h.assertTrue(highest > ground + 3.5 && Math.abs(f.p.getY() - ground) < .05, "Breeze failed to launch or land");
+            h.assertTrue(f.p.getHealth() < hp - 1 && breeze.position().equals(origin), "Wind/fall failure: hp=" + f.p.getHealth() + "/" + hp + " height=" + (highest-ground) + " moved=" + breeze.position().distanceTo(origin));
+            h.assertTrue(!f.b.trails.busy(), "Wind landing stranded the battle");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void lowCeilingLimitsWindLaunchAndBattleExitCancelsPendingHit(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            for (int i = 0; i < 61; i++) f.p.tick(); // Let native login protection expire.
+            var breeze = f.mob(EntityType.BREEZE, 5, 11);
+            for (int x = 3; x < 9; x++) for (int z = 3; z < 10; z++) h.setBlock(x, 3, z, Blocks.STONE);
+            f.start(false); f.b.actor = breeze; f.b.trails.onTurn(); float hp = f.p.getHealth();
+            f.b.trails.enemyAction(); resolve(f.b.trails);
+            h.assertTrue(f.p.getHealth() >= hp - 1.01 && f.p.getY() < h.absolutePos(new BlockPos(5, 2, 5)).getY(), "Ceiling was crossed or nominal apex damage was used");
+            f.b.actor = breeze; f.b.trails.onTurn(); f.b.trails.enemyAction(); var rules = f.b.trails;
+            hp = f.p.getHealth(); f.b.close("cancel windup"); rules.tickPending();
+            h.assertTrue(rules.pending == null && f.p.getHealth() == hp && !BattleManager.locked(f.p), "Exit left a delayed hit/lock behind");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void maceSkillCommitsOneChargeAndBlocksInputWhileAnimating(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var enemy = f.mob(EntityType.ZOMBIE, 5, 10); var ally = f.mob(EntityType.PIG, 6, 8);
+            enemy.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(100); enemy.setHealth(100);
+            f.p.getInventory().setItem(1, new ItemStack(Items.MACE)); f.p.getInventory().setItem(2, new ItemStack(Items.WIND_CHARGE, 3)); f.start(true);
+            float eh = enemy.getHealth(), ah = ally.getHealth(); f.b.trails.addCp(200);
+            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "weapon_skill", -1, 1, 0, 3));
+            h.assertTrue(f.p.getInventory().getItem(2).getCount() == 2 && f.b.trails.pending != null, "Mace skill failed single charge reservation");
+            TrailsCombat.request(f.p, f.cmd("guard", -1, 1)); TrailsCombat.request(f.p, f.cmd("toggle", -1, 1)); TrailsCombat.request(f.p, f.cmd("burst", enemy.getId(), 1));
+            TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, f.b.trails.turn, 100, 1, 0));
+            h.assertTrue(f.b.actor == f.p && f.b.trails.pending != null && f.b.trails.cp() == 200 && f.b.trails.inputTicks == 0, "Committed skill admitted exit/extra action/movement");
+            resolve(f.b.trails);
+            h.assertTrue(enemy.getHealth() < eh && ally.getHealth() == ah && f.p.getInventory().getItem(2).getCount() == 2, "Mace skill damaged an ally or repeated charge consumption");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void creeperChargesThenExplodesAroundItselfWithoutGrief(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            for (int i = 0; i < 61; i++) f.p.tick();
+            var creeper = f.mob(EntityType.CREEPER, 5, 8); f.start(false); f.b.actor = creeper; f.b.trails.onTurn();
+            f.b.trails.enemyAction();
+            h.assertTrue(f.b.trails.charging.contains(creeper.getUUID()), "Creeper used zombie melee instead of charging");
+            f.b.actor = creeper; f.b.trails.onTurn();
+            var safe = h.absolutePos(new BlockPos(13, 1, 13)); f.b.place(f.p, new net.minecraft.world.phys.Vec3(safe.getX()+.5, safe.getY(), safe.getZ()+.5));
+            float hp = f.p.getHealth(); f.b.trails.enemyAction(); resolve(f.b.trails);
+            h.assertTrue(f.p.getHealth() == hp && !creeper.isAlive(), "Creeper explosion teleported to the distant target or did not consume creeper");
+            h.assertBlockPresent(Blocks.STONE, new BlockPos(5, 0, 8));
+        }
+        h.succeed();
+    }
+
 }
