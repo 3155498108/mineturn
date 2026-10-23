@@ -22,7 +22,8 @@ public abstract class BattleCameraMixin {
     @Shadow public abstract float getXRot();
 
     @Inject(method = "setup", at = @At("RETURN"))
-    private void mineturn$orbit(CallbackInfo ci) {
+    private void mineturn$orbit(net.minecraft.world.level.BlockGetter level, net.minecraft.world.entity.Entity entity,
+                               boolean thirdPerson, boolean reverse, float partial, CallbackInfo ci) {
         if (!BattleClient.active()) return;
         detached = true;
         // Hand the live orbit camera to the performance player so a cut can push in from here.
@@ -35,7 +36,7 @@ public abstract class BattleCameraMixin {
             return;
         }
         setRotation(BattleClient.yaw, BattleClient.pitch, 0);
-        setPosition(BattleClient.focus);
+        setPosition(com.matuvent.mineturn.client.TrailsClient.active() ? com.matuvent.mineturn.client.TrailsClient.cameraFocus(partial) : BattleClient.focus);
         move(-Math.max(0, getMaxZoom((float) BattleClient.distance) - 0.15f), 0, 0);
     }
 }

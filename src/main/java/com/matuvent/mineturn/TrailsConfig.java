@@ -19,6 +19,7 @@ public final class TrailsConfig {
     public int cpPerAction = 15;
     public int cpOnDamage = 8;
     public int burstCost = 100;
+    public int maxBuffStacks = 10;
     public double foodHealingPerNutrition = .5;
     public Map<String, Double> bootsSpeed = new LinkedHashMap<>(Map.of(
             "minecraft:leather_boots", 12., "minecraft:chainmail_boots", 10.,
@@ -28,6 +29,23 @@ public final class TrailsConfig {
             "minecraft:bread", 4., "minecraft:cooked_beef", 6., "minecraft:golden_apple", 8.));
     public Map<String, Integer> foodHunger = new LinkedHashMap<>();
     public Map<String, Double> foodSaturation = new LinkedHashMap<>();
+
+    public static void saveRanges(double encounter, double vertical, double movement) throws java.io.IOException {
+        if (!Double.isFinite(encounter) || encounter < 2 || encounter > 64 || !Double.isFinite(vertical) || vertical < 1 || vertical > 64
+                || !Double.isFinite(movement) || movement < 0 || movement > 32) throw new IllegalArgumentException("入战半径 2–64，高度 1–64，移动半径 0–32。");
+        var path = FMLPaths.CONFIGDIR.get().resolve("mineturn-trails.json");
+        var gson = new GsonBuilder().setPrettyPrinting().create();
+        var json = Files.exists(path) ? com.google.gson.JsonParser.parseString(Files.readString(path)).getAsJsonObject() : gson.toJsonTree(current).getAsJsonObject();
+        json.addProperty("encounterRadius", encounter); json.addProperty("verticalRange", vertical); json.addProperty("movementRadius", movement);
+        Files.createDirectories(path.getParent());
+        var temporary = Files.createTempFile(path.getParent(), "mineturn-trails-", ".json.tmp");
+        try {
+            Files.writeString(temporary, gson.toJson(json));
+            try { Files.move(temporary, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE); }
+            catch (java.nio.file.AtomicMoveNotSupportedException unsupported) { Files.move(temporary, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING); }
+        } finally { Files.deleteIfExists(temporary); }
+        current.encounterRadius = encounter; current.verticalRange = vertical; current.movementRadius = movement;
+    }
 
     public static void load() {
         var path = FMLPaths.CONFIGDIR.get().resolve("mineturn-trails.json");

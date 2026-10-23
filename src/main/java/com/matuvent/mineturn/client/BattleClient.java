@@ -135,7 +135,7 @@ public final class BattleClient {
         state = packet;
         pending = false;
         mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
-        if (relocated && !moving && motionCurrent) {
+        if (relocated && !moving && motionCurrent && (!TrailsClient.active() || entering)) {
             positionLocal(packet.anchor());
             mc.player.setOldPosAndRot();
             mc.player.walkAnimation.setSpeed(0);

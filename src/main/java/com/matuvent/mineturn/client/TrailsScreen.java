@@ -1,6 +1,7 @@
 package com.matuvent.mineturn.client;
 
 import com.matuvent.mineturn.network.TrailsNetwork;
+import com.matuvent.mineturn.battle.TrailsArea;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.gui.GuiGraphics;
@@ -19,6 +20,47 @@ public final class TrailsScreen extends Screen {
     private long movementTurn = -1;
     private boolean sentMovement;
     private int movementTick;
+    private String preparing = "";
+    private long prepareTurn = -1;
+    private double aimDistance;
+    public String preparing() { return preparing; }
+    public TrailsArea previewShape() {
+        if (preparing.isEmpty() || !TrailsClient.active()) return null;
+        if (preparing.equals("skill")) {
+            var actor = minecraft.level.getEntity(TrailsClient.view.actor());
+            return actor == null ? null : TrailsArea.skill(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(actor.getType()).toString());
+        }
+        if (preparing.equals("attack") && TrailsClient.view.actor() != minecraft.player.getId()) {
+            var actor = minecraft.level.getEntity(TrailsClient.view.actor());
+            return new TrailsArea(TrailsArea.Kind.SINGLE, actor instanceof net.minecraft.world.entity.animal.Pig ? 5 : 2.2, 0, 0);
+        }
+        var stack = minecraft.player.getMainHandItem();
+        if (preparing.equals("burst")) for (int i = 0; i < 36; i++) {
+            var candidate = minecraft.player.getInventory().getItem(i);
+            if (net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(candidate.getItem()).toString().equals(TrailsClient.view.primary())) { stack = candidate; break; }
+        }
+        return TrailsArea.weapon(stack, preparing.equals("wind"), preparing.equals("burst"));
+    }
+    public net.minecraft.world.phys.Vec3 aimVector() {
+        var shape = previewShape(); double yaw = Math.toRadians(BattleClient.yaw);
+        var vector = new net.minecraft.world.phys.Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+        if (shape != null && shape.kind() == TrailsArea.Kind.DISK) return vector.scale(Math.clamp(aimDistance, 0, shape.cast()));
+        return vector;
+    }
+    private void prepare(String op) {
+        if (preparing.equals(op)) { confirm(); return; }
+        preparing = op; prepareTurn = TrailsClient.view.turn();
+        var shape = previewShape(); var actor = minecraft.level.getEntity(op.equals("burst") ? minecraft.player.getId() : TrailsClient.view.actor());
+        var victim = minecraft.level.getEntity(target);
+        aimDistance = shape == null ? 0 : victim != null && actor != null ? Math.min(shape.cast(), victim.position().subtract(actor.position()).horizontalDistance()) : shape.cast();
+        items = false; rebuild();
+    }
+    private void confirm() {
+        if (preparing.isEmpty()) return;
+        var aim = aimVector();
+        TrailsClient.send(preparing, target, minecraft.player.getInventory().selected, aim.x, aim.z);
+        preparing = ""; rebuild();
+    }
     public TrailsScreen() { super(Component.literal("AT 战斗")); }
     public int selectedTarget() { return target; }
     @Override public boolean isPauseScreen() { return false; }
@@ -43,21 +85,22 @@ public final class TrailsScreen extends Screen {
         var enemies = side(true);
         if (enemies.stream().noneMatch(e -> e.id() == target)) target = enemies.isEmpty() ? -1 : enemies.getFirst().id();
         int column = Math.min(154, width / 3 - 8);
-        roster(false, 8, 57, column);
-        roster(true, width - column - 8, 57, column);
+        roster(false, 8, 69, column);
+        roster(true, width - column - 8, 69, column);
         int y = height - 67, cell = Math.max(62, Math.min(90, (width - 24) / 5));
         int left = (width - cell * 5) / 2;
-        button("普通攻击", left, y, cell - 3, () -> command("attack"), own && target >= 0);
+        button(preparing.equals("attack") ? "确认攻击" : "普通攻击", left, y, cell - 3, () -> prepare("attack"), own);
         var actor = TrailsClient.fighters.stream().filter(f -> f.id() == view.actor()).findFirst();
         var skill = button(playerTurn ? "风弹重锤" : "战技", left + cell, y, cell - 3,
-                () -> command(playerTurn ? "wind" : "skill"), own && (!playerTurn || minecraft.player.getMainHandItem().getItem() instanceof net.minecraft.world.item.MaceItem));
+                () -> prepare(playerTurn ? "wind" : "skill"), own && (!playerTurn || minecraft.player.getMainHandItem().getItem() instanceof net.minecraft.world.item.MaceItem));
         skill.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(playerTurn ? "装备重锤，并消耗背包内 1 个风弹：扩大范围和伤害，增加 AT 硬直。"
                 : actor.map(TrailsNetwork.Fighter::skill).orElse("友军战技"))));
-        button("道具", left + cell * 2, y, cell - 3, () -> { items = !items; rebuild(); }, own && playerTurn);
+        button("道具", left + cell * 2, y, cell - 3, () -> { preparing = ""; items = !items; rebuild(); }, own && playerTurn);
         button("防御", left + cell * 3, y, cell - 3, () -> command("guard"), own);
         button("待机", left + cell * 4, y, cell - 3, () -> command("end"), own);
-        var burst = button("S-BREAK / " + view.cp() + " CP", width / 2 - 80, y - 24, 160, () -> command("burst"), view.cp() >= view.burstCost());
+        var burst = button("S-BREAK / " + view.cp() + " CP", width / 2 - 80, y - 24, 160, () -> prepare("burst"), view.cp() >= view.burstCost());
         burst.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(view.burstName() + " · 消耗 " + view.burstCost() + " CP，可打断行动顺序。")));
+        button("设置", width - 42, 3, 38, () -> minecraft.setScreen(new TrailsConfigScreen(this)), true);
     }
     private void inventory() {
         var slots = new java.util.ArrayList<Integer>();
@@ -79,7 +122,7 @@ public final class TrailsScreen extends Screen {
                 () -> { inventoryPage = (inventoryPage + 1) % pages; rebuild(); }, pages > 1);
         button("返回战斗 [Esc]", width / 2 - 70, height - 66, 140, () -> { items = false; rebuild(); }, true);
     }
-    private int rows() { return Math.max(2, Math.min(8, (height - 176) / 24)); }
+    private int rows() { return Math.max(1, Math.min(6, (height - 194) / 36)); }
     private void roster(boolean enemy, int x, int y, int column) {
         var fighters = side(enemy);
         int count = rows(), pages = Math.max(1, (fighters.size() + count - 1) / count);
@@ -87,13 +130,13 @@ public final class TrailsScreen extends Screen {
         if (enemy) enemyPage = page; else allyPage = page;
         for (int i = page * count; i < Math.min(fighters.size(), (page + 1) * count); i++) {
             var f = fighters.get(i); int row = i - page * count;
-            String name = (f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name();
-            button(font.plainSubstrByWidth(name, column - 8), x, y + row * 24, column,
-                    () -> { if (enemy) target = f.id(); else BattleClient.focus = minecraft.level.getEntity(f.id()) == null ? BattleClient.focus : minecraft.level.getEntity(f.id()).position().add(0, 1, 0); }, true);
+            var rowButton = button("", x, y + row * 36, column,
+                    () -> { if (enemy) target = f.id(); }, true);
+            rowButton.setHeight(34);
         }
         if (pages > 1) {
-            button("‹", x, y + count * 24, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + pages - 1) % pages; rebuild(); }, true);
-            button((page + 1) + "/" + pages + " ›", x + 26, y + count * 24, column - 26,
+            button("‹", x, y + count * 36, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true);
+            button((page + 1) + "/" + pages + " ›", x + 26, y + count * 36, column - 26,
                     () -> { if (enemy) enemyPage = (page + 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true);
         }
     }
@@ -102,6 +145,7 @@ public final class TrailsScreen extends Screen {
     }
     private void selectSlot(int slot) {
         if (!playerTurn()) return;
+        preparing = "";
         minecraft.player.getInventory().selected = Math.floorMod(slot, 9);
         command("select"); rebuild();
     }
@@ -129,23 +173,31 @@ public final class TrailsScreen extends Screen {
     @Override public void tick() {
         if (!TrailsClient.active()) return;
         if (!minecraft.isWindowActive()) movementKeys.clear();
+        if (!preparing.isEmpty() && prepareTurn != TrailsClient.view.turn()) preparing = "";
         if (revision != TrailsClient.view.revision()) { revision = TrailsClient.view.revision(); rebuild(); }
         movement(false);
     }
     @Override public void removed() {
         if (TrailsClient.active()) movement(true);
-        movementKeys.clear(); orbit = false;
+        movementKeys.clear(); orbit = false; preparing = "";
     }
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
         if (!TrailsClient.active()) return;
         var view = TrailsClient.view;
-        g.fill(0, 0, width, 44, 0xd20d101b);
+        g.fill(0, 0, width, 55, 0xd20d101b);
         g.drawString(font, "AT / " + (view.alliedTurn() ? "我方指令" : "敌方行动 · 可抢 S"), 10, 7, 0xffffffff);
-        String queue = view.queue().stream().limit(Math.max(2, width / 90)).map(q -> font.plainSubstrByWidth(q.name(), 55) + " " + String.format(Locale.ROOT, "%.0f", q.inAv())).reduce((a, c) -> a + " → " + c).orElse("");
-        g.drawString(font, font.plainSubstrByWidth(queue, width - 20), 10, 23, 0xffffd486);
-        g.drawString(font, "友军 " + side(false).size(), 10, 46, 0xff72f4ca);
-        g.drawString(font, "敌军 " + side(true).size(), width - Math.min(154, width / 3 - 8), 46, 0xffff7794);
-        g.drawCenteredString(font, font.plainSubstrByWidth("主武器大招：" + view.burstName(), Math.max(40, width - 180)), width / 2, 46, 0xffe3d5ff);
+        var queue = new java.util.ArrayList<com.matuvent.mineturn.network.BattleNetwork.QueueEntry>();
+        queue.add(new com.matuvent.mineturn.network.BattleNetwork.QueueEntry(view.actor(), "", 0)); queue.addAll(view.queue());
+        for (int i = 0; i < Math.min(queue.size(), (width - 12) / 29); i++) {
+            var q = queue.get(i); int x = 8 + i * 29;
+            var f = TrailsClient.fighters.stream().filter(v -> v.id() == q.id()).findFirst();
+            TrailsPortraits.draw(g, q.id(), x, 21, 19, f.map(TrailsNetwork.Fighter::enemy).orElse(false));
+            g.drawCenteredString(font, i == 0 ? "NOW" : String.format(Locale.ROOT, "%.0f", q.inAv()), x + 9, 43, i == 0 ? 0xffffd486 : 0xffe4e7f0);
+            if (mouseX >= x && mouseX < x + 20 && mouseY >= 21 && mouseY < 41 && f.isPresent()) g.renderTooltip(font, Component.literal(f.get().name()), mouseX, mouseY);
+        }
+        g.drawString(font, "友军 " + side(false).size(), 10, 58, 0xff72f4ca);
+        g.drawString(font, "敌军 " + side(true).size(), width - Math.min(154, width / 3 - 8), 58, 0xffff7794);
+        g.drawCenteredString(font, font.plainSubstrByWidth(view.burstName(), Math.max(40, width - 260)), width / 2, 58, 0xffe3d5ff);
         g.fill(0, height - 43, width, height, 0xda0d101b);
         g.drawString(font, font.plainSubstrByWidth(view.message(), width - 16), 8, height - 37, 0xffeeeeee);
         g.drawString(font, "WASD 移动 · 1–9/滚轮切武器 · E 背包 · " + TrailsClient.SWITCH.getTranslatedKeyMessage().getString() + " 退出 · "
@@ -154,33 +206,50 @@ public final class TrailsScreen extends Screen {
         selected.ifPresent(f -> g.drawString(font, String.format(Locale.ROOT, "目标 %s  HP %.1f/%.0f  SPD %.0f  AT %.1f", f.name(), f.hp(), f.maxHp(), f.spd(), f.at()), 8, height - 12, 0xffffb8c7));
         super.render(g, mouseX, mouseY, partial);
         int column = Math.min(154, width / 3 - 8);
-        if (!items) { stats(g, false, 8, column); stats(g, true, width - column - 8, column); }
+        if (!items) { stats(g, false, 8, column, mouseX, mouseY); stats(g, true, width - column - 8, column, mouseX, mouseY); }
         else g.drawCenteredString(font, "选择食物或药水 · 使用后消耗本次行动", width / 2, 64, 0xffffffff);
         if (!items) {
             int start = (width - 180) / 2;
-            for (int i = 0; i < 9; i++) {
+            for (int i = 0; preparing.isEmpty() && i < 9; i++) {
                 int x = start + i * 20, y = height - 109;
                 g.fill(x - 1, y - 1, x + 18, y + 18, minecraft.player.getInventory().selected == i ? 0xccd92e55 : 0xaa10121b);
                 g.renderItem(minecraft.player.getInventory().getItem(i), x, y);
                 g.drawString(font, Integer.toString(i + 1), x + 10, y + 9, 0xffeeeeee);
             }
             g.drawCenteredString(font, "移动半径 " + String.format(Locale.ROOT, "%.1f", view.movement()) + " 格 · 圈内自由移动", width / 2, height - 123, 0xffffffff);
+            var shape = previewShape();
+            if (shape != null) {
+                String label = switch (preparing) { case "skill" -> "战技"; case "wind" -> "风弹重锤"; case "burst" -> "S 技"; default -> "攻击"; };
+                g.drawCenteredString(font, label + "预览 · Enter确认", width / 2, 73, 0xffffda80);
+                String reach = switch (shape.kind()) {
+                    case RECTANGLE -> String.format(Locale.ROOT, "长 %.0f × 宽 %.0f", shape.radius(), shape.width());
+                    case SECTOR -> String.format(Locale.ROOT, "半径 %.1f / %.0f°", shape.radius(), shape.width());
+                    case SINGLE -> String.format(Locale.ROOT, "施放 %.1f / 单体", shape.cast());
+                    case DISK -> String.format(Locale.ROOT, "施放 %.1f / 范围 %.1f", shape.cast(), shape.radius());
+                };
+                g.drawCenteredString(font, reach, width / 2, 84, 0xffffffff);
+                g.drawCenteredString(font, shape.kind() == TrailsArea.Kind.DISK && shape.cast() > 0 ? "滚轮调落点 · Esc取消" : "右键转向 · Esc取消", width / 2, 95, 0xffb9cbe3);
+            }
         }
         TrailsClient.cutIn(g, width, height);
     }
-    private void stats(GuiGraphics g, boolean enemy, int x, int column) {
+    private void stats(GuiGraphics g, boolean enemy, int x, int column, int mouseX, int mouseY) {
         var list = side(enemy); int page = enemy ? enemyPage : allyPage;
         for (int i = page * rows(); i < Math.min(list.size(), (page + 1) * rows()); i++) {
-            var f = list.get(i); int y = 57 + (i - page * rows()) * 24;
-            g.fill(x + 2, y + 17, x + column - 2, y + 20, 0xff282536);
-            g.fill(x + 2, y + 17, x + 2 + (int) ((column - 4) * Math.clamp(f.hp() / Math.max(1, f.maxHp()), 0, 1)), y + 20,
+            var f = list.get(i); int y = 69 + (i - page * rows()) * 36;
+            TrailsPortraits.draw(g, f.id(), x + 3, y + 3, 21, enemy);
+            g.drawString(font, font.plainSubstrByWidth((f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name(), column - 30), x + 28, y + 3, -1);
+            TrailsPortraits.effects(g, f, x + 28, y + 15, Math.max(1, (column - 45) / 15), mouseX, mouseY);
+            g.fill(x + 2, y + 30, x + column - 2, y + 33, 0xff282536);
+            g.fill(x + 2, y + 30, x + 2 + (int) ((column - 4) * Math.clamp(f.hp() / Math.max(1, f.maxHp()), 0, 1)), y + 33,
                     f.id() == target ? 0xffffc766 : enemy ? 0xffec3e65 : 0xff48d6a8);
         }
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
         if (movementKey(key)) { movementKeys.add(key); return true; }
         if (TrailsClient.SWITCH.matches(key, scan)) { command("toggle"); return true; }
-        if (TrailsClient.BURST.matches(key, scan)) { command("burst"); return true; }
+        if (TrailsClient.CONFIG.matches(key, scan)) { minecraft.setScreen(new TrailsConfigScreen(this)); return true; }
+        if (TrailsClient.BURST.matches(key, scan)) { prepare("burst"); return true; }
         if (TrailsClient.PRIMARY.matches(key, scan)) { if (playerTurn()) command("primary"); return true; }
         if (minecraft.options.keyInventory.matches(key, scan) && playerTurn()) {
             minecraft.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(minecraft.player)); return true;
@@ -192,9 +261,9 @@ public final class TrailsScreen extends Screen {
         if (key >= GLFW.GLFW_KEY_1 && key <= GLFW.GLFW_KEY_9) {
             selectSlot(key - GLFW.GLFW_KEY_1); return true;
         }
-        if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_SPACE) { command("attack"); return true; }
-        if (key == GLFW.GLFW_KEY_F) { command("skill"); return true; }
-        if (key == GLFW.GLFW_KEY_ESCAPE) { items = false; rebuild(); return true; }
+        if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_SPACE) { if (preparing.isEmpty()) prepare("attack"); else confirm(); return true; }
+        if (key == GLFW.GLFW_KEY_F) { prepare(playerTurn() ? "wind" : "skill"); return true; }
+        if (key == GLFW.GLFW_KEY_ESCAPE) { preparing = ""; items = false; rebuild(); return true; }
         return super.keyPressed(key, scan, modifiers);
     }
     @Override public boolean keyReleased(int key, int scan, int modifiers) {
@@ -219,6 +288,7 @@ public final class TrailsScreen extends Screen {
     }
     @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
         if (orbit) BattleClient.distance = Math.clamp(BattleClient.distance - vertical, 3, 30);
+        else if (previewShape() != null && previewShape().kind() == TrailsArea.Kind.DISK && previewShape().cast() > 0) aimDistance = Math.clamp(aimDistance + vertical * .5, 0, previewShape().cast());
         else if (!items && vertical != 0) selectSlot(minecraft.player.getInventory().selected + (vertical > 0 ? -1 : 1));
         return true;
     }

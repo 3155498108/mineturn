@@ -5,5 +5,6 @@
   "key.mineturn.trails_switch": "AT 战斗：按住圈选，松开进入 / 我方回合退出",
   "key.mineturn.trails_burst": "S-BREAK 抢 S",
   "key.mineturn.trails_primary": "设定手持装备为主武器",
-  "key.categories.mineturn": "MineTurn AT 战术战斗"
+  "key.categories.mineturn": "MineTurn AT 战术战斗",
+  "key.mineturn.trails_config": "AT 战斗设置"
 }

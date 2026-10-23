@@ -27,6 +27,23 @@ final class TrailsSmoke {
     private static int bootTicks;
     private static CameraType previous;
     private static net.minecraft.world.phys.Vec3 moveStart, moveDirection, stoppedAt;
+    private static net.minecraft.world.phys.Vec3 previousFrame;
+    private static int motionFrames, stillFrames;
+    private static double largestFrameStep;
+    private static boolean sectorWorld, rectangleWorld;
+    static void afterWorld() {
+        if (stage == 12 && elapsed == 10 && !sectorWorld) { screenshot("at-qa-sector-world.png"); sectorWorld = true; }
+        if (stage == 13 && elapsed == 10 && !rectangleWorld) { screenshot("at-qa-rectangle-world.png"); rectangleWorld = true; }
+    }
+    static void frame(net.minecraft.world.phys.Vec3 camera) {
+        if (stage != 7 || elapsed < 10 || elapsed > 25) return;
+        if (previousFrame != null) {
+            double step = previousFrame.distanceTo(camera); motionFrames++;
+            if (step < 1e-5) stillFrames++;
+            largestFrameStep = Math.max(largestFrameStep, step);
+        }
+        previousFrame = camera;
+    }
     static void tick() {
         if (net.neoforged.fml.loading.FMLLoader.isProduction()) return;
         var mc = Minecraft.getInstance();
@@ -52,13 +69,20 @@ final class TrailsSmoke {
         if (stage == 1) {
             TrailsClient.preview = true;
             if (elapsed == 16) screenshot("at-qa-01-circle.png");
-            if (elapsed > 24) { TrailsClient.preview = false; TrailsClient.send("toggle", -1, 0, 0, 0); stage = 2; elapsed = 0; }
+            if (elapsed > 24) { mc.getToasts().clear(); TrailsClient.preview = false; TrailsClient.send("toggle", -1, 0, 0, 0); stage = 2; elapsed = 0; }
         } else if (stage == 2 && TrailsClient.active()) {
-            if (elapsed == 8) screenshot("at-qa-02-cut-in.png");
+            if (elapsed == 16) screenshot("at-qa-02-cut-in.png");
             if (elapsed > 42) {
                 if (mc.options.getCameraType() != CameraType.THIRD_PERSON_BACK || !(mc.screen instanceof TrailsScreen))
                     throw new IllegalStateException("Battle camera/screen did not activate");
                 screenshot("at-qa-03-battle.png");
+                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0); stage = 12; elapsed = 0;
+            }
+        } else if (stage == 12 && elapsed > 14) {
+                if (!(mc.screen instanceof TrailsScreen screen) || screen.previewShape() == null
+                        || screen.previewShape().kind() != com.matuvent.mineturn.battle.TrailsArea.Kind.SECTOR || TrailsClient.view.cp() != 150)
+                    throw new IllegalStateException("Sword preview committed an action or failed to show a sector");
+                screenshot("at-qa-09-sector.png");
                 moveStart = mc.player.position();
                 mc.screen.mouseClicked(100, 100, 1);
                 mc.screen.mouseDragged(140, 100, 1, 40, 0);
@@ -66,20 +90,41 @@ final class TrailsSmoke {
                 double yaw = Math.toRadians(BattleClient.yaw);
                 moveDirection = new net.minecraft.world.phys.Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
                 mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_W, 0, 0); stage = 7; elapsed = 0;
-            }
         } else if (stage == 7 && elapsed > 38) {
+            MineTurn.LOGGER.info("QA_MOTION: frames={} stationary={} largestStep={}", motionFrames, stillFrames, largestFrameStep);
+            if (motionFrames < 10 || stillFrames > motionFrames * .4) throw new IllegalStateException("Walking camera still advances in visible tick-sized steps");
             mc.screen.keyReleased(org.lwjgl.glfw.GLFW.GLFW_KEY_W, 0, 0);
             var delta = mc.player.position().subtract(moveStart).multiply(1, 0, 1);
             if (delta.length() < 3.5 || delta.length() > TrailsClient.view.movement() + .05 || delta.normalize().dot(moveDirection) < .98)
                 throw new IllegalStateException("Camera-relative W or circle boundary failed: " + delta);
             screenshot("at-qa-07-movement.png"); stage = 8; elapsed = 0;
         } else if (stage == 8) {
-            if (elapsed == 8) { stoppedAt = mc.player.position(); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_3, 0, 0); }
+            if (elapsed == 8) { stoppedAt = mc.player.position(); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE, 0, 0); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_3, 0, 0); }
             if (elapsed > 20) {
                 if (mc.player.position().distanceTo(stoppedAt) > .02 || !TrailsClient.view.primary().equals("minecraft:crossbow"))
                     throw new IllegalStateException("Key release / live primary weapon selection failed");
-                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_E, 0, 0); stage = 9; elapsed = 0;
+                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0); stage = 13; elapsed = 0;
             }
+        } else if (stage == 13 && elapsed > 12) {
+            if (!(mc.screen instanceof TrailsScreen screen) || screen.previewShape().kind() != com.matuvent.mineturn.battle.TrailsArea.Kind.RECTANGLE || TrailsClient.view.cp() != 150)
+                throw new IllegalStateException("Crossbow did not preview a rectangular strip before firing");
+            screenshot("at-qa-10-rectangle.png");
+            mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE, 0, 0); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_O, 0, 0); stage = 14; elapsed = 0;
+        } else if (stage == 14) {
+            if (elapsed == 10) {
+                if (!(mc.screen instanceof TrailsConfigScreen)) throw new IllegalStateException("Config screen did not open");
+                var boxes = mc.screen.children().stream().filter(c -> c instanceof net.minecraft.client.gui.components.EditBox)
+                        .map(c -> (net.minecraft.client.gui.components.EditBox)c).toList();
+                boxes.get(0).setValue("14"); boxes.get(1).setValue("7"); boxes.get(2).setValue("4");
+                mc.screen.children().stream().filter(c -> c instanceof net.minecraft.client.gui.components.Button b && b.getMessage().getString().equals("保存并应用"))
+                        .map(c -> (net.minecraft.client.gui.components.Button)c).findFirst().orElseThrow().onPress();
+            }
+            if (elapsed > 25) {
+                if (TrailsClient.settings.encounter() != 14 || TrailsClient.radius != 14) throw new IllegalStateException("Server did not save/synchronize settings");
+                screenshot("at-qa-11-settings.png"); mc.screen.onClose(); stage = 15; elapsed = 0;
+            }
+        } else if (stage == 15 && elapsed > 8) {
+            mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_E, 0, 0); stage = 9; elapsed = 0;
         } else if (stage == 9) {
             if (elapsed == 8) {
                 if (!(mc.screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen)) throw new IllegalStateException("E did not open vanilla inventory");
@@ -110,13 +155,16 @@ final class TrailsSmoke {
             if (elapsed > 45) {
                 if (!TrailsClient.active() || TrailsClient.view.cp() != 50 || !TrailsClient.view.alliedTurn())
                     throw new IllegalStateException("S-Break did not update CP / preserve allied control");
+                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_O, 0, 0);
                 TrailsClient.send("toggle", -1, 0, 0, 0); stage = 5; elapsed = 0;
             }
         } else if (stage == 5 && elapsed > 15) {
             if (BattleClient.active() || mc.options.getCameraType() != previous)
                 throw new IllegalStateException("Exit failed to restore camera / release screen");
+            if (mc.screen instanceof TrailsConfigScreen) mc.screen.onClose();
+            if (mc.screen instanceof TrailsScreen) throw new IllegalStateException("Config returned to a closed battle screen");
             screenshot("at-qa-06-restored.png");
-            MineTurn.LOGGER.info("TRAILS_ENCOUNTER_SMOKE_PASSED: network entry, camera-relative WASD/circle/key release, live weapon switching, vanilla inventory swap, items, S-Break and exit/camera restoration");
+            MineTurn.LOGGER.info("TRAILS_ENCOUNTER_SMOKE_PASSED: avatar VS, sector/rectangle confirmation previews, saved config GUI, smooth camera, WASD, weapon/inventory, items, S-Break and restored camera");
             stage = 6;
         } else if (stage == 6 && elapsed > 35) mc.stop();
         if (elapsed > 400 && stage != 6) throw new IllegalStateException("Encounter smoke timed out at stage " + stage);
@@ -145,6 +193,8 @@ final class TrailsSmoke {
         inv.setItem(9, new ItemStack(Items.DIAMOND_SWORD));
         p.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.DIAMOND_BOOTS));
         p.getPersistentData().putInt("mineturn.trails.cp", 150);
+        p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 1200, 1));
+        p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED, 1200, 1));
         for (int i = 0; i < 2; i++) {
             var zombie = EntityType.ZOMBIE.create(level); zombie.moveTo(2.5 + i * 2, -59, 1.5 + i * 2, 180, 0);
             zombie.setNoAi(true); zombie.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
@@ -153,6 +203,7 @@ final class TrailsSmoke {
         var pig = EntityType.PIG.create(level); pig.moveTo(-2.5, -59, 1.5, 0, 0); pig.setNoAi(true); level.addFreshEntity(pig);
         var sheep = EntityType.SHEEP.create(level); sheep.moveTo(.5, -59, 3.5, 0, 0); sheep.setNoAi(true); level.addFreshEntity(sheep);
         var wolf = EntityType.WOLF.create(level); wolf.moveTo(-1.5, -59, -2.5, 0, 0); wolf.setNoAi(true); level.addFreshEntity(wolf);
+        var chicken = EntityType.CHICKEN.create(level); chicken.moveTo(-1.5, -59, 2.5, 0, 0); chicken.setNoAi(true); level.addFreshEntity(chicken);
         prepared = true;
     }
 }

@@ -17,9 +17,14 @@ public final class TrailsNetwork {
     public static Consumer<View> receiveView = ignored -> {};
     public static Consumer<Roster> receiveRoster = ignored -> {};
     public static Consumer<Cue> receiveCue = ignored -> {};
+    public static Consumer<Settings> receiveSettings = ignored -> {};
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        var r = event.registrar("trails-2");
+        var r = event.registrar("trails-3");
+        r.playBidirectional(Settings.TYPE, Settings.CODEC, (p, ctx) -> {
+            if (ctx.flow().isServerbound() && ctx.player() instanceof ServerPlayer player) TrailsCombat.settings(player, p);
+            else receiveSettings.accept(p);
+        });
         r.playToServer(Command.TYPE, Command.CODEC, (p, ctx) -> {
             if (ctx.player() instanceof ServerPlayer player) TrailsCombat.request(player, p);
         });
@@ -50,14 +55,28 @@ public final class TrailsNetwork {
         @Override public Type<MoveInput> type() { return TYPE; }
     }
 
-    public record Fighter(int id, String name, boolean enemy, float hp, float maxHp, double spd, double at, String skill) {
+    public record Status(String effect, int level, int ticks) {
+        void write(FriendlyByteBuf b) { b.writeUtf(effect, 128); b.writeVarInt(level); b.writeVarInt(ticks); }
+        static Status read(FriendlyByteBuf b) { return new Status(b.readUtf(128), b.readVarInt(), b.readVarInt()); }
+    }
+    public record Fighter(int id, String name, boolean enemy, float hp, float maxHp, double spd, double at, String skill, List<Status> effects) {
         void write(FriendlyByteBuf b) {
             b.writeVarInt(id); b.writeUtf(name, 256); b.writeBoolean(enemy); b.writeFloat(hp); b.writeFloat(maxHp);
             b.writeDouble(spd); b.writeDouble(at); b.writeUtf(skill, 64);
+            b.writeCollection(effects, (out, s) -> s.write(out));
         }
         static Fighter read(FriendlyByteBuf b) {
-            return new Fighter(b.readVarInt(), b.readUtf(256), b.readBoolean(), b.readFloat(), b.readFloat(), b.readDouble(), b.readDouble(), b.readUtf(64));
+            return new Fighter(b.readVarInt(), b.readUtf(256), b.readBoolean(), b.readFloat(), b.readFloat(), b.readDouble(), b.readDouble(), b.readUtf(64),
+                    b.readCollection(FriendlyByteBuf.limitValue(java.util.ArrayList::new, 64), Status::read));
         }
+    }
+
+    public record Settings(double encounter, double vertical, double movement, boolean save, String message) implements CustomPacketPayload {
+        public static final Type<Settings> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_settings"));
+        public static final StreamCodec<FriendlyByteBuf, Settings> CODEC = StreamCodec.of((b, p) -> {
+            b.writeDouble(p.encounter); b.writeDouble(p.vertical); b.writeDouble(p.movement); b.writeBoolean(p.save); b.writeUtf(p.message, 256);
+        }, b -> new Settings(b.readDouble(), b.readDouble(), b.readDouble(), b.readBoolean(), b.readUtf(256)));
+        @Override public Type<Settings> type() { return TYPE; }
     }
 
     public record View(UUID battle, long revision, int actor, boolean alliedTurn, int cp, int burstCost,

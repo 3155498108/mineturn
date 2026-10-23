@@ -37,6 +37,7 @@ public final class TrailsCombat {
     boolean resolving;
     boolean pendingBurst;
     int pendingTarget = -1;
+    Vec3 pendingAim = Vec3.ZERO;
     double recovery = 1;
     int enemyWait;
     long turn, inputSequence = -1;
@@ -156,6 +157,16 @@ public final class TrailsCombat {
                 && p.containerMenu == p.inventoryMenu;
     }
 
+    public static void settings(ServerPlayer p, TrailsNetwork.Settings packet) {
+        String message = "范围设置；移动半径在下一回合生效。";
+        if (packet.save()) {
+            if (!p.server.isSingleplayerOwner(p.getGameProfile()) && !p.hasPermissions(2)) message = "只有单人存档主人或管理员可修改。";
+            else try { TrailsConfig.saveRanges(packet.encounter(), packet.vertical(), packet.movement()); message = "已保存，入战范围立即生效，移动半径下回合生效。"; }
+            catch (IllegalArgumentException | IllegalStateException | java.io.IOException | com.google.gson.JsonParseException error) { message = "保存失败：" + error.getMessage(); }
+        }
+        BattleNetwork.send(p, new TrailsNetwork.Settings(cfg().encounterRadius, cfg().verticalRange, cfg().movementRadius, false, message));
+    }
+
     public static void equipmentChanged(ServerPlayer p) {
         if (!inventoryAllowed(p)) return;
         var session = BattleManager.ACTIVE.get(p.getUUID());
@@ -243,7 +254,8 @@ public final class TrailsCombat {
                                 .map(m -> m.entity.getName().getString()).reduce((a, c) -> a + "、" + c).orElse("") + " · 防御或抢 S！", queue));
         var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity),
                 !allied(m.entity), m.entity.getHealth(), m.entity.getMaxHealth(), speed(m.entity),
-                b.clock.until(m.entity, this::speed), skillName(m.entity))).toList();
+                b.clock.until(m.entity, this::speed), skillName(m.entity), m.entity.getActiveEffects().stream().limit(64)
+                        .map(e -> new TrailsNetwork.Status(BuiltInRegistries.MOB_EFFECT.getKey(e.getEffect().value()).toString(), e.getAmplifier() + 1, e.getDuration())).toList())).toList();
         for (int from = 0, page = 0; from < roster.size(); from += 48, page++)
             BattleNetwork.send(recipient, new TrailsNetwork.Roster(b.id, b.revision, page, from + 48 >= roster.size(),
                     roster.subList(from, Math.min(from + 48, roster.size()))));
@@ -267,7 +279,7 @@ public final class TrailsCombat {
         }
         if (pendingBurst && b.motion == null) {
             pendingBurst = false;
-            try { burst(pendingTarget); } catch (IllegalArgumentException error) { b.message(error.getMessage()); }
+            try { burst(pendingTarget, pendingAim); } catch (IllegalArgumentException error) { b.message(error.getMessage()); }
             if (b.closed) return;
         }
         if (!allied(b.actor) && b.motion == null && ++enemyWait >= 28) {
@@ -293,8 +305,8 @@ public final class TrailsCombat {
     void command(TrailsNetwork.Command p) {
         if (p.operation().equals("burst")) {
             if (cp() < cfg().burstCost) throw new IllegalArgumentException("CP 不足，普通行动及受伤可积累 CP。");
-            if (b.motion != null) { pendingBurst = true; pendingTarget = p.target(); return; }
-            burst(p.target()); return;
+            if (b.motion != null) { pendingBurst = true; pendingTarget = p.target(); pendingAim = new Vec3(p.x(), 0, p.z()); return; }
+            burst(p.target(), new Vec3(p.x(), 0, p.z())); return;
         }
         if (b.actor == null || !allied(b.actor)) throw new IllegalArgumentException("敌方回合：可以抢 S，不能退出或下达普通指令。");
         if (b.motion != null) throw new IllegalArgumentException("请等待移动完成。");
@@ -312,8 +324,8 @@ public final class TrailsCombat {
         if (p.operation().equals("guard")) {
             guarding.add(b.actor.getUUID()); finish(.5); return;
         }
-        if (p.operation().equals("skill")) { companionSkill(p.target()); return; }
-        if (p.operation().equals("attack") || p.operation().equals("wind")) { attack(p.target(), p.slot(), p.operation().equals("wind")); return; }
+        if (p.operation().equals("skill")) { companionSkill(p.target(), new Vec3(p.x(), 0, p.z())); return; }
+        if (p.operation().equals("attack") || p.operation().equals("wind")) { attack(p.target(), p.slot(), p.operation().equals("wind"), new Vec3(p.x(), 0, p.z())); return; }
         if (p.operation().equals("item")) { item(p.slot()); return; }
         throw new IllegalArgumentException("未知 AT 指令。");
     }
@@ -365,9 +377,16 @@ public final class TrailsCombat {
     }
 
     void attack(int targetId, int slot, boolean wind) {
+        var victim = b.level.getEntity(targetId);
+        Vec3 aim = victim == null ? b.actor.getLookAngle().multiply(1, 0, 1) : victim.position().subtract(b.actor.position()).multiply(1, 0, 1);
+        var shape = TrailsArea.weapon(player.getInventory().getItem(Math.clamp(slot, 0, 8)), wind, false);
+        if (shape.kind() == TrailsArea.Kind.DISK && aim.length() > shape.cast()) aim = aim.normalize().scale(shape.cast());
+        attack(targetId, slot, wind, aim);
+    }
+    void attack(int targetId, int slot, boolean wind, Vec3 aim) {
         var source = b.actor;
-        var victim = target(targetId, source);
         if (source != player) {
+            var victim = target(targetId, source);
             if (wind) throw new IllegalArgumentException("友军不能使用风弹或物品。");
             if (id(source).equals("minecraft:pig") && gap(source, victim) > 2.2) {
                 requireRange(source, victim, 5);
@@ -389,36 +408,40 @@ public final class TrailsCombat {
         player.getInventory().selected = slot;
         ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
         var s = player.getMainHandItem();
+        var shape = TrailsArea.weapon(s, wind, false);
+        if (!shape.validAim(aim)) throw new IllegalArgumentException("无效瞄准方向或落点超出施放范围。");
+        var victim = shape.kind() == TrailsArea.Kind.SINGLE ? target(targetId, source) : null;
         boolean ranged = s.getItem() instanceof BowItem || s.getItem() instanceof CrossbowItem;
         double damage = baseDamage(player), delay = 1;
         if (wind && !(s.getItem() instanceof MaceItem)) throw new IllegalArgumentException("风弹组合需要手持重锤。");
-        requireRange(source, victim, ranged ? 24 : s.getItem() instanceof TridentItem ? 3.5 : 3);
+        if (victim != null) requireRange(source, victim, shape.cast());
         if (ranged) {
             int ammo = find(Items.ARROW);
             if (ammo < 0) throw new IllegalArgumentException("背包内需要箭。");
             player.getInventory().getItem(ammo).shrink(1);
             damage = s.getItem() instanceof CrossbowItem ? 10 : 8;
             delay = s.getItem() instanceof CrossbowItem ? 1.3 : 1.1;
-            hit(source, victim, damage);
+            if (s.getItem() instanceof CrossbowItem) shaped(source, shape, aim, damage);
+            else hit(source, victim, damage);
         } else if (s.getItem() instanceof MaceItem) {
             if (wind) {
                 int charge = find(Items.WIND_CHARGE);
                 if (charge < 0) throw new IllegalArgumentException("背包内需要风弹，组合技消耗 1 个。");
                 player.getInventory().getItem(charge).shrink(1);
             }
-            area(source, victim.position(), wind ? 5 : 2, Math.max(6, damage) * (wind ? 2.3 : 1));
+            shaped(source, shape, aim, Math.max(6, damage) * (wind ? 2.3 : 1));
             delay = wind ? 2.2 : 1.3;
         } else if (s.is(ItemTags.SWORDS)) {
-            Vec3 direction = victim.position().subtract(source.position()).multiply(1, 0, 1).normalize();
-            for (var m : List.copyOf(b.members.values())) {
-                Vec3 delta = m.entity.position().subtract(source.position()).multiply(1, 0, 1);
-                if (gap(source, m.entity) <= 3 && direction.dot(delta.normalize()) >= Math.cos(Math.PI / 4)
-                        && source.hasLineOfSight(m.entity)) hit(source, m.entity, damage);
-            }
+            shaped(source, shape, aim, damage);
         } else { hit(source, victim, s.is(ItemTags.AXES) ? damage * 1.15 : damage); delay = s.is(ItemTags.AXES) ? 1.2 : 1; }
         if (s.isDamageableItem()) s.hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
-        animate(source, victim, ranged); addCp(cfg().cpPerAction);
+        if (victim != null) animate(source, victim, ranged); else source.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        addCp(cfg().cpPerAction);
         finish(delay);
+    }
+    void shaped(LivingEntity source, TrailsArea shape, Vec3 aim, double damage) {
+        Vec3 origin = source.position();
+        for (var m : List.copyOf(b.members.values())) if (shape.contains(origin, aim, m.entity.position()) && source.hasLineOfSight(m.entity)) hit(source, m.entity, damage);
     }
     int find(Item item) {
         for (int i = 0; i < 36; i++) if (player.getInventory().getItem(i).is(item)) return i;
@@ -429,6 +452,9 @@ public final class TrailsCombat {
         if (slot < 0 || slot >= 36) throw new IllegalArgumentException("无效物品槽。");
         var stack = player.getInventory().getItem(slot);
         var food = stack.get(DataComponents.FOOD);
+        var potion = stack.get(DataComponents.POTION_CONTENTS);
+        var beforeEffects = new HashMap<net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect>, MobEffectInstance>();
+        for (var e : player.getActiveEffects()) beforeEffects.put(e.getEffect(), new MobEffectInstance(e));
         if (food == null && !stack.is(Items.POTION)) throw new IllegalArgumentException("请选择食物或可饮用药水。");
         if (stack.isEmpty()) throw new IllegalArgumentException("物品已用完。");
         double healing = food == null ? 0 : cfg().foodHealing.getOrDefault(itemId(stack), food.nutrition() * cfg().foodHealingPerNutrition);
@@ -438,6 +464,12 @@ public final class TrailsCombat {
         BattleManager.authorized(() -> {
             var remaining = stack.finishUsingItem(player.level(), player);
             player.getInventory().setItem(slot, remaining);
+            if (potion != null) for (var e : potion.getAllEffects()) {
+                var previous = beforeEffects.get(e.getEffect());
+                if (previous != null && e.getEffect().value().isBeneficial() && !e.getEffect().value().isInstantenous())
+                    player.addEffect(new MobEffectInstance(e.getEffect(), Math.max(previous.getDuration(), e.getDuration()),
+                            Math.min(Math.clamp(cfg().maxBuffStacks, 1, 256) - 1, previous.getAmplifier() + e.getAmplifier() + 1)));
+            }
             if (Double.isFinite(healing) && healing > 0) player.heal((float) healing);
             if (food != null && cfg().foodHunger.containsKey(foodId))
                 player.getFoodData().setFoodLevel(Math.clamp(hungerBefore + cfg().foodHunger.get(foodId), 0, 20));
@@ -482,7 +514,8 @@ public final class TrailsCombat {
             case "minecraft:sheep" -> "羊毛祝福 · 范围治疗";
             case "minecraft:wolf" -> "战吼 · 群体强化";
             case "minecraft:cow", "minecraft:mooshroom" -> "坚韧守护";
-            case "minecraft:chicken", "minecraft:parrot" -> "轻羽 · 群体加速";
+            case "minecraft:chicken" -> "振翅号令 · 范围友军 AT 归零";
+            case "minecraft:parrot" -> "轻羽 · 群体加速";
             case "minecraft:cat", "minecraft:ocelot" -> "灵巧守势";
             case "minecraft:iron_golem" -> "震地重拳";
             case "minecraft:villager", "minecraft:wandering_trader" -> "急救术";
@@ -490,18 +523,30 @@ public final class TrailsCombat {
         };
     }
     void companionSkill(int targetId) {
+        var victim = b.level.getEntity(targetId);
+        var aim = victim == null ? Vec3.ZERO : victim.position().subtract(b.actor.position()).multiply(1, 0, 1);
+        if (aim.length() > 3) aim = aim.normalize().scale(3);
+        companionSkill(targetId, aim);
+    }
+    void companionSkill(int targetId, Vec3 aim) {
         var actor = b.actor;
         if (actor == player) throw new IllegalArgumentException("玩家使用装备、道具或主武器 S 技。");
         String kind = id(actor);
+        var shape = TrailsArea.skill(kind);
+        if (!shape.validAim(aim)) throw new IllegalArgumentException("战技落点超出施放范围。");
+        if (kind.equals("minecraft:chicken")) {
+            var ready = b.members.values().stream().map(m -> m.entity).filter(e -> allied(e) && e.isAlive() && shape.contains(actor.position(), Vec3.ZERO, e.position())).toList();
+            b.clock.readyFirst(ready); addCp(10); b.message("振翅号令：范围内友军 AT 归零，优先行动！"); b.next(); return;
+        }
         if (kind.equals("minecraft:pig")) { actor.heal(2); regrowth.put(actor.getUUID(), 3); }
         else if (kind.equals("minecraft:iron_golem")) {
-            var victim = target(targetId, actor); requireRange(actor, victim, 3); area(actor, victim.position(), 3, 12);
+            shaped(actor, shape, aim, 12);
         } else {
-            for (var m : b.members.values()) if (allied(m.entity) && m.entity.distanceTo(actor) <= 6) {
+            for (var m : b.members.values()) if (allied(m.entity) && shape.contains(actor.position(), Vec3.ZERO, m.entity.position())) {
                 switch (kind) {
                     case "minecraft:sheep" -> m.entity.heal(4);
                     case "minecraft:wolf" -> effect(m.entity, MobEffects.DAMAGE_BOOST, 240, 0);
-                    case "minecraft:chicken", "minecraft:parrot" -> effect(m.entity, MobEffects.MOVEMENT_SPEED, 240, 0);
+                    case "minecraft:parrot" -> effect(m.entity, MobEffects.MOVEMENT_SPEED, 240, 0);
                     case "minecraft:cow", "minecraft:mooshroom" -> effect(m.entity, MobEffects.DAMAGE_RESISTANCE, 240, 0);
                     case "minecraft:cat", "minecraft:ocelot" -> { if (m.entity == actor) effect(actor, MobEffects.DAMAGE_RESISTANCE, 300, 1); }
                     default -> m.entity.heal(3);
@@ -513,15 +558,31 @@ public final class TrailsCombat {
         addCp(10); finish(1.3);
     }
     static void effect(LivingEntity entity, net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> type, int ticks, int amplifier) {
-        BattleManager.authorized(() -> entity.addEffect(new MobEffectInstance(type, ticks, amplifier)));
+        var previous = entity.getEffect(type);
+        if (previous != null && type.value().isBeneficial() && !type.value().isInstantenous()) {
+            amplifier = Math.min(Math.clamp(cfg().maxBuffStacks, 1, 256) - 1, previous.getAmplifier() + amplifier + 1);
+            ticks = Math.max(ticks, previous.getDuration());
+        }
+        var effect = new MobEffectInstance(type, ticks, amplifier);
+        BattleManager.authorized(() -> entity.addEffect(effect));
     }
 
     void burst(int targetId) {
+        var victim = b.level.getEntity(targetId);
+        var shape = TrailsArea.weapon(primaryStack(), false, true);
+        var aim = victim == null ? new Vec3(0, 0, 1) : victim.position().subtract(player.position()).multiply(1, 0, 1);
+        if (shape.kind() == TrailsArea.Kind.DISK && shape.cast() > 0 && aim.length() > shape.cast()) aim = aim.normalize().scale(shape.cast());
+        burst(targetId, aim);
+    }
+    void burst(int targetId, Vec3 aim) {
         if (cp() < cfg().burstCost) throw new IllegalArgumentException("CP 不足。");
         var stack = primaryStack();
         if (stack.isEmpty() || !weapon(stack)) throw new IllegalArgumentException("主武器必须仍在背包内；战外手持武器按 B 设置。");
-        var victim = target(targetId, player);
-        requireRange(player, victim, 24);
+        var shape = TrailsArea.weapon(stack, false, true);
+        if (!shape.validAim(aim)) throw new IllegalArgumentException("S 技落点超出施放范围。");
+        var victim = shape.kind() == TrailsArea.Kind.SINGLE ? target(targetId, player) : null;
+        if (victim != null) requireRange(player, victim, shape.cast());
+        inputTicks = 0; direction = Vec3.ZERO;
         int before = cp(); addCp(-cfg().burstCost);
         double multiplier = before == 200 ? 1.5 : 1;
         double weaponDamage = 1, baseMultiplier = 0, totalMultiplier = 1;
@@ -535,18 +596,8 @@ public final class TrailsCombat {
         }
         weaponDamage = (weaponDamage + baseMultiplier) * totalMultiplier;
         double damage = Math.max(6, weaponDamage) * 3.2 * multiplier;
-        if (stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof TridentItem) {
-            Vec3 forward = victim.position().subtract(player.position()).normalize();
-            for (var m : List.copyOf(b.members.values())) {
-                Vec3 delta = m.entity.position().subtract(player.position());
-                double along = delta.dot(forward);
-                if (along >= 0 && along <= 24 && delta.subtract(forward.scale(along)).length() <= 3
-                        && player.hasLineOfSight(m.entity)) hit(player, m.entity, damage);
-            }
-        } else if (stack.is(ItemTags.AXES)) hit(player, victim, damage * 1.8);
-        else if (stack.getItem() instanceof BowItem) area(player, victim.position(), 5, damage);
-        else if (stack.getItem() instanceof MaceItem) area(player, victim.position(), 6, damage * 1.2);
-        else area(player, player.position(), 10, damage);
+        if (victim != null) hit(player, victim, damage * 1.8);
+        else shaped(player, shape, aim, damage * (stack.getItem() instanceof MaceItem ? 1.2 : 1));
         BattleNetwork.send(player, new TrailsNetwork.Cue("burst", burstName(stack), 36, cfg().encounterRadius));
         b.level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EXPLODE.value(), net.minecraft.sounds.SoundSource.PLAYERS, .7f, 1.3f);
         b.message("S-BREAK · " + burstName(stack));

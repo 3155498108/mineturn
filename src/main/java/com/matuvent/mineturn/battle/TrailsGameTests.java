@@ -377,6 +377,91 @@ public final class TrailsGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void cameraSectorIgnoresSelectedEnemyAndKeepsFriendlySafe(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var forward = f.mob(EntityType.ZOMBIE, 5, 7); var selectedBehind = f.mob(EntityType.ZOMBIE, 5, 3); var pig = f.mob(EntityType.PIG, 6, 7);
+            f.start(true); float a = forward.getHealth(), c = selectedBehind.getHealth(), friend = pig.getHealth();
+            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "attack", selectedBehind.getId(), 0, 0, 1));
+            h.assertTrue(forward.getHealth() < a && selectedBehind.getHealth() == c && pig.getHealth() == friend,
+                    "Camera sector locked to the selected enemy or hit friendly units");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void crossbowRectangleHitsMultipleWithoutTargetLock(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var a = f.mob(EntityType.ZOMBIE, 5, 9); var c = f.mob(EntityType.ZOMBIE, 6, 12); var outside = f.mob(EntityType.ZOMBIE, 9, 9);
+            f.p.getInventory().setItem(1, new ItemStack(Items.CROSSBOW)); f.p.getInventory().setItem(2, new ItemStack(Items.ARROW, 3));
+            f.start(true); float ah = a.getHealth(), ch = c.getHealth(), oh = outside.getHealth();
+            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "attack", outside.getId(), 1, 0, 1));
+            h.assertTrue(a.getHealth() < ah && c.getHealth() < ch && outside.getHealth() == oh, "Crossbow did not use the displayed rectangular strip");
+            h.assertTrue(f.p.getInventory().getItem(2).getCount() == 2, "Rectangle consumed ammo per target instead of per shot");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void invalidCastDoesNotSpendItemsOrTurn(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var enemy = f.mob(EntityType.ZOMBIE, 7, 5); f.p.getInventory().setItem(1, new ItemStack(Items.MACE));
+            f.p.getInventory().setItem(2, new ItemStack(Items.WIND_CHARGE, 3)); f.start(true); double time = f.b.clock.time();
+            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "wind", enemy.getId(), 1, 40, 0));
+            h.assertTrue(f.b.actor == f.p && f.b.clock.time() == time && f.p.getInventory().getItem(2).getCount() == 3,
+                    "Out-of-cast-range aim spent a turn or wind charge");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void chickenReadiesOnlyNearbyAlliesAheadOfTiedEnemy(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var enemy = f.mob(EntityType.ZOMBIE, 9, 5); var pig = f.mob(EntityType.PIG, 6, 5);
+            var chicken = f.mob(EntityType.CHICKEN, 6, 6); var far = f.mob(EntityType.PIG, 14, 14); f.start(true);
+            f.b.actor = chicken; f.b.trails.onTurn(); f.b.clock.recovery(enemy, 0); f.b.clock.recovery(far, 3456); f.b.clock.recovery(pig, 4567);
+            double time = f.b.clock.time(); f.b.trails.companionSkill(-1);
+            h.assertTrue(f.b.actor == f.p && f.b.clock.remaining(pig) == 0 && f.b.clock.remaining(chicken) == 0, "Chicken did not ready the entire nearby allied group including itself");
+            h.assertTrue(f.b.clock.remaining(far) == 3456 && f.b.clock.remaining(enemy) == 0 && f.b.clock.time() == time, "Chicken changed out-of-area/enemy progress or advanced AT");
+            f.b.trails.finish(1); h.assertTrue(f.b.trails.allied(f.b.actor), "Tied enemy cut ahead of readied allies");
+            f.b.trails.finish(1); h.assertTrue(f.b.trails.allied(f.b.actor), "A second readied ally lost its priority");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void repeatedCompanionBuffAndPotionStackVanillaLevels(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 12, 12); var wolf = f.mob(EntityType.WOLF, 5, 6); f.start(true);
+            f.b.actor = wolf; f.b.trails.companionSkill(-1); f.b.actor = wolf; f.b.trails.companionSkill(-1);
+            h.assertTrue(f.p.getEffect(MobEffects.DAMAGE_BOOST).getAmplifier() == 1, "Repeated wolf warcry did not stack Strength levels");
+            TrailsCombat.effect(f.p, MobEffects.MOVEMENT_SPEED, 240, 0);
+            var potion = new ItemStack(Items.POTION); potion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SWIFTNESS));
+            f.p.getInventory().setItem(1, potion); f.b.actor = f.p; f.b.trails.item(1);
+            h.assertTrue(f.p.getEffect(MobEffects.MOVEMENT_SPEED).getAmplifier() == 1 && f.p.hasEffect(MobEffects.DAMAGE_BOOST), "Potion did not stack Speed while preserving Strength");
+            h.assertTrue(f.p.getInventory().getItem(1).is(Items.GLASS_BOTTLE), "Stacking duplicated/lost potion container");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void settingsPersistRangesWithoutReplacingOtherFields(GameTestHelper h) throws Exception {
+        var path = net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("mineturn-trails.json");
+        byte[] saved = java.nio.file.Files.readAllBytes(path);
+        var gson = new com.google.gson.Gson(); var previous = gson.fromJson(gson.toJson(com.matuvent.mineturn.TrailsConfig.current), com.matuvent.mineturn.TrailsConfig.class);
+        try {
+            var json = com.google.gson.JsonParser.parseString(new String(saved, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+            json.addProperty("qaPreserveUnknown", 731); java.nio.file.Files.writeString(path, gson.toJson(json));
+            com.matuvent.mineturn.TrailsConfig.saveRanges(14, 7, 5);
+            var result = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(path)).getAsJsonObject();
+            h.assertTrue(result.get("qaPreserveUnknown").getAsInt() == 731 && result.get("encounterRadius").getAsDouble() == 14,
+                    "Settings discarded unrelated/unknown config fields or failed to persist range");
+            try { com.matuvent.mineturn.TrailsConfig.saveRanges(Double.NaN, 7, 5); throw new IllegalStateException("Nonfinite setting was accepted"); }
+            catch (IllegalArgumentException expected) { }
+        } finally { java.nio.file.Files.write(path, saved); com.matuvent.mineturn.TrailsConfig.current = previous; }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void waitingDoesNotAdvanceAtOrRunAlliedAi(GameTestHelper h) {
         try (var f = new Fixture(h)) {
             f.mob(EntityType.ZOMBIE, 8, 5); var pig = f.mob(EntityType.PIG, 6, 5); f.start(false);

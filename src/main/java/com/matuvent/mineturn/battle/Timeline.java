@@ -19,6 +19,13 @@ public final class Timeline<T> {
             throw new IllegalArgumentException("Invalid recovery");
         remaining.put(actor, distance);
     }
+    /** Ready this group ahead of tied opponents; do not advance time or discard others' progress. */
+    public void readyFirst(List<T> actors) {
+        var updated = new LinkedHashMap<T, Double>();
+        for (var actor : actors) if (remaining.containsKey(actor)) updated.put(actor, 0.0);
+        remaining.forEach(updated::putIfAbsent);
+        remaining.clear(); remaining.putAll(updated);
+    }
     /** Replace an entity identity without adding a fresh lap or changing tie order/time. */
     public boolean replace(T previous,T replacement) {
         java.util.Objects.requireNonNull(previous);java.util.Objects.requireNonNull(replacement);
