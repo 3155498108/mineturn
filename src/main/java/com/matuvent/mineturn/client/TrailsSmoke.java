@@ -24,11 +24,17 @@ import net.minecraft.world.level.storage.LevelResource;
 final class TrailsSmoke {
     private static int stage, elapsed;
     private static volatile boolean prepared;
+    private static int bootTicks;
     private static CameraType previous;
+    private static net.minecraft.world.phys.Vec3 moveStart, moveDirection, stoppedAt;
     static void tick() {
         if (net.neoforged.fml.loading.FMLLoader.isProduction()) return;
         var mc = Minecraft.getInstance();
-        if (mc.player == null || mc.getSingleplayerServer() == null) return;
+        if (mc.player == null || mc.getSingleplayerServer() == null) {
+            if (++bootTicks % 100 == 0) MineTurn.LOGGER.info("QA waiting for world, screen={}", mc.screen == null ? "none" : mc.screen.getClass().getName());
+            if (bootTicks > 600) throw new IllegalStateException("QA world did not start");
+            return;
+        }
         if (stage == 0) {
             var server = mc.getSingleplayerServer();
             String qaWorld = System.getProperty("mineturn.qaWorld", "AT-QA-20261023");
@@ -53,8 +59,45 @@ final class TrailsSmoke {
                 if (mc.options.getCameraType() != CameraType.THIRD_PERSON_BACK || !(mc.screen instanceof TrailsScreen))
                     throw new IllegalStateException("Battle camera/screen did not activate");
                 screenshot("at-qa-03-battle.png");
-                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_I, 0, 0); stage = 3; elapsed = 0;
+                moveStart = mc.player.position();
+                mc.screen.mouseClicked(100, 100, 1);
+                mc.screen.mouseDragged(140, 100, 1, 40, 0);
+                mc.screen.mouseReleased(140, 100, 1);
+                double yaw = Math.toRadians(BattleClient.yaw);
+                moveDirection = new net.minecraft.world.phys.Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_W, 0, 0); stage = 7; elapsed = 0;
             }
+        } else if (stage == 7 && elapsed > 38) {
+            mc.screen.keyReleased(org.lwjgl.glfw.GLFW.GLFW_KEY_W, 0, 0);
+            var delta = mc.player.position().subtract(moveStart).multiply(1, 0, 1);
+            if (delta.length() < 3.5 || delta.length() > TrailsClient.view.movement() + .05 || delta.normalize().dot(moveDirection) < .98)
+                throw new IllegalStateException("Camera-relative W or circle boundary failed: " + delta);
+            screenshot("at-qa-07-movement.png"); stage = 8; elapsed = 0;
+        } else if (stage == 8) {
+            if (elapsed == 8) { stoppedAt = mc.player.position(); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_3, 0, 0); }
+            if (elapsed > 20) {
+                if (mc.player.position().distanceTo(stoppedAt) > .02 || !TrailsClient.view.primary().equals("minecraft:crossbow"))
+                    throw new IllegalStateException("Key release / live primary weapon selection failed");
+                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_E, 0, 0); stage = 9; elapsed = 0;
+            }
+        } else if (stage == 9) {
+            if (elapsed == 8) {
+                if (!(mc.screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen)) throw new IllegalStateException("E did not open vanilla inventory");
+                mc.gameMode.handleInventoryMouseClick(mc.player.inventoryMenu.containerId, 9, 2,
+                        net.minecraft.world.inventory.ClickType.SWAP, mc.player);
+            }
+            if (elapsed > 20) {
+                if (!mc.player.getMainHandItem().is(Items.DIAMOND_SWORD) || !TrailsClient.view.primary().equals("minecraft:diamond_sword"))
+                    throw new IllegalStateException("Actual inventory packet did not equip/update primary weapon");
+                screenshot("at-qa-08-inventory.png"); mc.screen.onClose(); stage = 10; elapsed = 0;
+            }
+        } else if (stage == 10 && elapsed > 10) {
+            if (!(mc.screen instanceof TrailsScreen)) throw new IllegalStateException("Battle screen did not resume after inventory");
+            stoppedAt = mc.player.position(); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_S, 0, 0); stage = 11; elapsed = 0;
+        } else if (stage == 11 && elapsed > 10) {
+            mc.screen.keyReleased(org.lwjgl.glfw.GLFW.GLFW_KEY_S, 0, 0);
+            if (mc.player.position().distanceTo(stoppedAt) < .6) throw new IllegalStateException("Movement did not resume after inventory / sequence reset");
+            mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_I, 0, 0); stage = 3; elapsed = 0;
         } else if (stage == 3) {
             if (elapsed == 8) screenshot("at-qa-04-items.png");
             if (elapsed > 20) {
@@ -73,10 +116,10 @@ final class TrailsSmoke {
             if (BattleClient.active() || mc.options.getCameraType() != previous)
                 throw new IllegalStateException("Exit failed to restore camera / release screen");
             screenshot("at-qa-06-restored.png");
-            MineTurn.LOGGER.info("TRAILS_ENCOUNTER_SMOKE_PASSED: actual network entry, third-person GUI, S-Break CP and exit/camera restoration");
+            MineTurn.LOGGER.info("TRAILS_ENCOUNTER_SMOKE_PASSED: network entry, camera-relative WASD/circle/key release, live weapon switching, vanilla inventory swap, items, S-Break and exit/camera restoration");
             stage = 6;
         } else if (stage == 6 && elapsed > 35) mc.stop();
-        if (elapsed > 400 && stage < 6) throw new IllegalStateException("Encounter smoke timed out at stage " + stage);
+        if (elapsed > 400 && stage != 6) throw new IllegalStateException("Encounter smoke timed out at stage " + stage);
     }
     private static void screenshot(String file) {
         var mc = Minecraft.getInstance();
@@ -99,6 +142,7 @@ final class TrailsSmoke {
         inv.setItem(6, new ItemStack(Items.BREAD, 8));
         var potion = new ItemStack(Items.POTION); potion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SWIFTNESS));
         inv.setItem(7, potion); inv.setItem(8, new ItemStack(Items.IRON_AXE)); inv.selected = 0;
+        inv.setItem(9, new ItemStack(Items.DIAMOND_SWORD));
         p.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.DIAMOND_BOOTS));
         p.getPersistentData().putInt("mineturn.trails.cp", 150);
         for (int i = 0; i < 2; i++) {

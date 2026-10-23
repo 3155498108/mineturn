@@ -25,7 +25,7 @@ public final class BattleNetwork {
     public static Consumer<ActionAnimation> receiveActionAnimation=ignored->{};
     private BattleNetwork() {}
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("23-trails");
+        var registrar = event.registrar("24-trails");
         registrar.playToClient(ProjectileVisual.TYPE,ProjectileVisual.CODEC,(payload,context)->receiveProjectile.accept(payload));
         registrar.playToServer(AmmoUse.TYPE,AmmoUse.CODEC,(payload,context)->{
             if(context.player() instanceof ServerPlayer player) BattleManager.request(player,payload.request(),payload);

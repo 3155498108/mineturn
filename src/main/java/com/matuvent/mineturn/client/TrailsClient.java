@@ -28,6 +28,7 @@ public final class TrailsClient {
     private static final List<TrailsNetwork.Fighter> assembling = new ArrayList<>();
     public static boolean preview;
     public static double radius = 12;
+    static long movementSequence;
     private static int readyTicks, cutTicks, cutTotal;
     private static String cutText = "";
     private static boolean burstCut;
@@ -64,6 +65,7 @@ public final class TrailsClient {
     public static boolean active() { return view != null && BattleClient.active() && view.battle().equals(BattleClient.state.battle()); }
     public static void reset() {
         view = null; fighters = List.of(); assembling.clear(); preview = false; held = false; readyTicks = 0;
+        movementSequence = 0;
         if (!burstCut || Minecraft.getInstance().level == null) cutTicks = 0;
     }
     public static void send(String op, int target, int slot, double x, double z) {
@@ -82,7 +84,14 @@ public final class TrailsClient {
             mc.stop(); return;
         }
         if (mc.player == null || mc.level == null) { reset(); return; }
-        if (active()) { held = false; preview = false; return; }
+        if (active()) {
+            held = false; preview = false;
+            if (mc.screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen
+                    && (!view.alliedTurn() || view.actor() != mc.player.getId())) mc.setScreen(new TrailsScreen());
+            var actor = mc.level.getEntity(view.actor());
+            if (actor != null && view.alliedTurn()) BattleClient.focus = BattleClient.focus.lerp(actor.position().add(0, 1, 0), .4);
+            return;
+        }
         if (mc.screen != null) { held = false; preview = false; return; }
         boolean down = SWITCH.isDown();
         if (down && !held) { preview = true; send("preview", -1, 0, 0, 0); }
@@ -118,6 +127,11 @@ public final class TrailsClient {
             LevelRenderer.renderLineBox(pose, lines, new AABB(x - .045, center.y + .08, z - .045, x + .045, center.y + .15, z + .045), 1, .12f, .26f, 1);
         }
         if (active() && mc.screen instanceof TrailsScreen screen) {
+            if (view.alliedTurn()) for (int i = 0; i < 128; i++) {
+                var origin = view.origin(); double a = i * Math.PI / 64;
+                double x = origin.x + view.movement() * Math.cos(a), z = origin.z + view.movement() * Math.sin(a);
+                LevelRenderer.renderLineBox(pose, lines, new AABB(x - .025, origin.y + .06, z - .025, x + .025, origin.y + .10, z + .025), .2f, 1, .65f, .85f);
+            }
             var victim = mc.level.getEntity(screen.selectedTarget());
             var actor = mc.level.getEntity(view.actor());
             if (victim != null && actor != null) {

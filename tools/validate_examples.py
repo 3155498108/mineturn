@@ -149,7 +149,7 @@ LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 # the shipped project, so scanning them only produces noise (node_modules alone has hundreds of
 # third-party READMEs with links that are broken on purpose).
 EXCLUDED_DIRS = {
-    ".git", ".gradle", ".idea", ".github", "build", "run", "run-gametest", "outputs",
+    ".git", ".gradle", ".idea", ".github", "build", "dist", "run", "run-gametest", "outputs",
     "node_modules", "repo", "__pycache__",
 }
 

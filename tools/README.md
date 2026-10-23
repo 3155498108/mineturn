@@ -36,6 +36,7 @@ python tools/validate_examples.py
 
 退出码 `0` 表示全部通过；`1` 表示至少有一处问题，并在末尾逐条列出。
 **只用 Python 标准库**，无第三方依赖，不需要启动游戏或 Gradle。
+文档链接扫描跳过 `build`、`dist` 等产物目录，避免把历史试玩包里的文档副本当作当前源码；当前文档与数据包仍逐项检查。
 
 ## 成品 JAR 结构核验（`tools/verify_release_jar.py`）
 

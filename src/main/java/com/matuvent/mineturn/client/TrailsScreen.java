@@ -15,7 +15,10 @@ public final class TrailsScreen extends Screen {
     private boolean items;
     private long revision = -1;
     private boolean orbit;
-    private double previousX, previousY;
+    private final java.util.Set<Integer> movementKeys = new java.util.HashSet<>();
+    private long movementTurn = -1;
+    private boolean sentMovement;
+    private int movementTick;
     public TrailsScreen() { super(Component.literal("AT 战斗")); }
     public int selectedTarget() { return target; }
     @Override public boolean isPauseScreen() { return false; }
@@ -55,10 +58,6 @@ public final class TrailsScreen extends Screen {
         button("待机", left + cell * 4, y, cell - 3, () -> command("end"), own);
         var burst = button("S-BREAK / " + view.cp() + " CP", width / 2 - 80, y - 24, 160, () -> command("burst"), view.cp() >= view.burstCost());
         burst.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(view.burstName() + " · 消耗 " + view.burstCost() + " CP，可打断行动顺序。")));
-        button("↑", width / 2 - 12, height / 2 - 42, 24, () -> move(0, -1), own);
-        button("←", width / 2 - 40, height / 2 - 20, 24, () -> move(-1, 0), own);
-        button("↓", width / 2 - 12, height / 2 - 20, 24, () -> move(0, 1), own);
-        button("→", width / 2 + 16, height / 2 - 20, 24, () -> move(1, 0), own);
     }
     private void inventory() {
         var slots = new java.util.ArrayList<Integer>();
@@ -98,14 +97,44 @@ public final class TrailsScreen extends Screen {
                     () -> { if (enemy) enemyPage = (page + 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true);
         }
     }
-    private void move(int x, int z) {
-        // Camera-relative one-block steps; terrain tracing still checks real collision and support.
-        double a = Math.toRadians(BattleClient.yaw);
-        TrailsClient.send("move", target, 0, x * Math.cos(a) - z * Math.sin(a), x * Math.sin(a) + z * Math.cos(a));
+    private boolean playerTurn() {
+        return TrailsClient.active() && TrailsClient.view.alliedTurn() && minecraft.player != null && TrailsClient.view.actor() == minecraft.player.getId();
+    }
+    private void selectSlot(int slot) {
+        if (!playerTurn()) return;
+        minecraft.player.getInventory().selected = Math.floorMod(slot, 9);
+        command("select"); rebuild();
+    }
+    private void movement(boolean forceStop) {
+        var view = TrailsClient.view;
+        if (movementTurn != view.turn()) {
+            movementTurn = view.turn(); movementKeys.clear(); sentMovement = false;
+        }
+        double x = 0, z = 0;
+        if (!forceStop && !items && view.alliedTurn() && minecraft.isWindowActive()) {
+            x = (movementKeys.contains(GLFW.GLFW_KEY_D) ? 1 : 0) - (movementKeys.contains(GLFW.GLFW_KEY_A) ? 1 : 0);
+            z = (movementKeys.contains(GLFW.GLFW_KEY_W) ? 1 : 0) - (movementKeys.contains(GLFW.GLFW_KEY_S) ? 1 : 0);
+        }
+        boolean moving = x != 0 || z != 0;
+        if (!moving && !sentMovement) return;
+        if (moving && ++movementTick % 2 != 0) return;
+        double a = Math.toRadians(BattleClient.yaw), length = Math.max(1, Math.sqrt(x * x + z * z));
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TrailsNetwork.MoveInput(view.battle(), view.turn(), ++TrailsClient.movementSequence,
+                (-x * Math.cos(a) - z * Math.sin(a)) / length, (-x * Math.sin(a) + z * Math.cos(a)) / length));
+        sentMovement = moving;
+    }
+    private static boolean movementKey(int key) {
+        return key == GLFW.GLFW_KEY_W || key == GLFW.GLFW_KEY_A || key == GLFW.GLFW_KEY_S || key == GLFW.GLFW_KEY_D;
     }
     @Override public void tick() {
         if (!TrailsClient.active()) return;
+        if (!minecraft.isWindowActive()) movementKeys.clear();
         if (revision != TrailsClient.view.revision()) { revision = TrailsClient.view.revision(); rebuild(); }
+        movement(false);
+    }
+    @Override public void removed() {
+        if (TrailsClient.active()) movement(true);
+        movementKeys.clear(); orbit = false;
     }
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
         if (!TrailsClient.active()) return;
@@ -116,10 +145,11 @@ public final class TrailsScreen extends Screen {
         g.drawString(font, font.plainSubstrByWidth(queue, width - 20), 10, 23, 0xffffd486);
         g.drawString(font, "友军 " + side(false).size(), 10, 46, 0xff72f4ca);
         g.drawString(font, "敌军 " + side(true).size(), width - Math.min(154, width / 3 - 8), 46, 0xffff7794);
+        g.drawCenteredString(font, font.plainSubstrByWidth("主武器大招：" + view.burstName(), Math.max(40, width - 180)), width / 2, 46, 0xffe3d5ff);
         g.fill(0, height - 43, width, height, 0xda0d101b);
         g.drawString(font, font.plainSubstrByWidth(view.message(), width - 16), 8, height - 37, 0xffeeeeee);
-        g.drawString(font, "1–9 选择武器槽 · " + TrailsClient.SWITCH.getTranslatedKeyMessage().getString() + " 我方退出 · "
-                + TrailsClient.BURST.getTranslatedKeyMessage().getString() + " 抢 S · 右键拖动镜头", 8, height - 24, 0xffaab6ca);
+        g.drawString(font, "WASD 移动 · 1–9/滚轮切武器 · E 背包 · " + TrailsClient.SWITCH.getTranslatedKeyMessage().getString() + " 退出 · "
+                + TrailsClient.BURST.getTranslatedKeyMessage().getString() + " 抢 S · 右键转视角", 8, height - 24, 0xffaab6ca);
         var selected = TrailsClient.fighters.stream().filter(f -> f.id() == target).findFirst();
         selected.ifPresent(f -> g.drawString(font, String.format(Locale.ROOT, "目标 %s  HP %.1f/%.0f  SPD %.0f  AT %.1f", f.name(), f.hp(), f.maxHp(), f.spd(), f.at()), 8, height - 12, 0xffffb8c7));
         super.render(g, mouseX, mouseY, partial);
@@ -134,7 +164,7 @@ public final class TrailsScreen extends Screen {
                 g.renderItem(minecraft.player.getInventory().getItem(i), x, y);
                 g.drawString(font, Integer.toString(i + 1), x + 10, y + 9, 0xffeeeeee);
             }
-            g.drawCenteredString(font, "移动剩余 " + String.format(Locale.ROOT, "%.1f", view.movement()) + " 格", width / 2, height / 2 - 54, 0xffffffff);
+            g.drawCenteredString(font, "移动半径 " + String.format(Locale.ROOT, "%.1f", view.movement()) + " 格 · 圈内自由移动", width / 2, height - 123, 0xffffffff);
         }
         TrailsClient.cutIn(g, width, height);
     }
@@ -148,22 +178,35 @@ public final class TrailsScreen extends Screen {
         }
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
+        if (movementKey(key)) { movementKeys.add(key); return true; }
         if (TrailsClient.SWITCH.matches(key, scan)) { command("toggle"); return true; }
         if (TrailsClient.BURST.matches(key, scan)) { command("burst"); return true; }
+        if (TrailsClient.PRIMARY.matches(key, scan)) { if (playerTurn()) command("primary"); return true; }
+        if (minecraft.options.keyInventory.matches(key, scan) && playerTurn()) {
+            minecraft.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(minecraft.player)); return true;
+        }
         if (key == GLFW.GLFW_KEY_I && TrailsClient.view.alliedTurn() && TrailsClient.view.actor() == minecraft.player.getId()) {
             items = !items; rebuild(); return true;
         }
         // Number keys select the actual vanilla hotbar slot; action commands use that server-validated slot.
         if (key >= GLFW.GLFW_KEY_1 && key <= GLFW.GLFW_KEY_9) {
-            minecraft.player.getInventory().selected = key - GLFW.GLFW_KEY_1; return true;
+            selectSlot(key - GLFW.GLFW_KEY_1); return true;
         }
         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_SPACE) { command("attack"); return true; }
         if (key == GLFW.GLFW_KEY_F) { command("skill"); return true; }
         if (key == GLFW.GLFW_KEY_ESCAPE) { items = false; rebuild(); return true; }
         return super.keyPressed(key, scan, modifiers);
     }
+    @Override public boolean keyReleased(int key, int scan, int modifiers) {
+        if (movementKey(key)) { movementKeys.remove(key); movement(false); return true; }
+        return super.keyReleased(key, scan, modifiers);
+    }
     @Override public boolean mouseClicked(double x, double y, int button) {
-        if (button == 1) { orbit = true; previousX = x; previousY = y; return true; }
+        if (button == 1) { orbit = true; return true; }
+        int start = (width - 180) / 2;
+        if (button == 0 && !items && y >= height - 110 && y <= height - 91 && x >= start && x < start + 180) {
+            selectSlot((int) ((x - start) / 20)); return true;
+        }
         return super.mouseClicked(x, y, button);
     }
     @Override public boolean mouseReleased(double x, double y, int button) {
@@ -175,6 +218,8 @@ public final class TrailsScreen extends Screen {
         return super.mouseDragged(x, y, button, dx, dy);
     }
     @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
-        BattleClient.distance = Math.clamp(BattleClient.distance - vertical, 3, 30); return true;
+        if (orbit) BattleClient.distance = Math.clamp(BattleClient.distance - vertical, 3, 30);
+        else if (!items && vertical != 0) selectSlot(minecraft.player.getInventory().selected + (vertical > 0 ? -1 : 1));
+        return true;
     }
 }

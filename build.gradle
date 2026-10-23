@@ -65,6 +65,7 @@ neoForge {
                 systemProperty 'mineturn.clientSmoke', 'true'
             }
             if (providers.gradleProperty('encounterSmoke').isPresent()) {
+                gameDirectory = project.file(providers.gradleProperty('qaRunDir').getOrElse('run'))
                 systemProperty 'mineturn.encounterSmoke', 'true'
                 systemProperty 'mineturn.qaWorld', providers.gradleProperty('qaWorld').getOrElse('AT-QA-20261023')
                 systemProperty 'mineturn.qaTag', providers.gradleProperty('qaTag').getOrElse('v1')

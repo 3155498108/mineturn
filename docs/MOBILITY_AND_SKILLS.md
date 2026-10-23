@@ -1,5 +1,8 @@
 # 飞行、水下移动与特殊技能接口
 
+> AT 原型分支：`TrailsCombat` / `TrailsScreen` 使用 WASD 与固定回合起点的圆形移动范围，圈内往返不扣累计距离；`TrailsConfig.movementRadius` 默认 4 格。右键拖动转视角，右键+滚轮缩放。下方累计路程、点击移动及周身控制规则是上游旧模式，不能用于解释此分支的自由移动。当前规则见 [原型说明](TRAILS_PROTOTYPE.md)。
+
+
 ## 生物移动方式
 
 生物 JSON 和 AI 模板支持 `movement_mode`，默认 `ground`。这是生物 AI 配置；玩家根据脚部是否处于水中自动切换地面和游泳移动，不开放自由飞行。

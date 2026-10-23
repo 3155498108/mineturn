@@ -11,6 +11,7 @@ public final class TrailsConfig {
     public static TrailsConfig current = new TrailsConfig();
     public double encounterRadius = 12;
     public double verticalRange = 6;
+    public double movementRadius = 4;
     public double backstabSeconds = 6;
     public double ambushHealthFraction = .25;
     public double elytraSpeed = 30;
@@ -36,6 +37,7 @@ public final class TrailsConfig {
                 var loaded = gson.fromJson(Files.readString(path), TrailsConfig.class);
                 if (loaded == null || !Double.isFinite(loaded.encounterRadius) || loaded.encounterRadius < 2
                         || loaded.encounterRadius > 64 || !Double.isFinite(loaded.verticalRange) || loaded.verticalRange < 1
+                        || !Double.isFinite(loaded.movementRadius) || loaded.movementRadius < 0 || loaded.movementRadius > 32
                         || loaded.bootsSpeed == null || loaded.foodHealing == null || loaded.foodHunger == null
                         || loaded.foodSaturation == null || loaded.burstCost < 1
                         || loaded.burstCost > 200 || !Double.isFinite(loaded.ambushHealthFraction)

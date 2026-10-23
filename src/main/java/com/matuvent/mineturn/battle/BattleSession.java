@@ -632,7 +632,7 @@ final class BattleSession {
         sendMotion(player,true);
         message("正在沿路线移动…");
     }
-    private void sendMotion(LivingEntity entity, boolean active) {
+    void sendMotion(LivingEntity entity, boolean active) {
         if(entity instanceof ServerPlayer player)BattleNetwork.send(player,new BattleNetwork.Motion(id,++motionSequence,player.position(),active));
     }
     void cancelRidingMotion(LivingEntity entity) {sendMotion(entity,false);motion=null;}

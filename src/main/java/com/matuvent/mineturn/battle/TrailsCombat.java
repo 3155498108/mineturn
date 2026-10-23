@@ -39,6 +39,10 @@ public final class TrailsCombat {
     int pendingTarget = -1;
     double recovery = 1;
     int enemyWait;
+    long turn, inputSequence = -1;
+    Vec3 movementOrigin = Vec3.ZERO, direction = Vec3.ZERO;
+    double movementRadius;
+    int inputTicks;
     private static final String CP = "mineturn.trails.cp";
     private static final String PRIMARY = "mineturn.trails.primary";
     private static final String AMBUSH = "mineturn.trails.ambushUntil";
@@ -132,6 +136,34 @@ public final class TrailsCombat {
         }
     }
 
+    public static void input(ServerPlayer p, TrailsNetwork.MoveInput packet) {
+        var session = BattleManager.ACTIVE.get(p.getUUID());
+        if (session == null || session.closed || session.trails == null || !session.id.equals(packet.battle())) return;
+        var rules = session.trails;
+        if (rules.player != p || !p.isAlive() || session.actor == null || !rules.allied(session.actor) || session.motion != null || rules.resolving
+                || packet.turn() != rules.turn || packet.sequence() <= rules.inputSequence
+                || !Double.isFinite(packet.x()) || !Double.isFinite(packet.z()) || Math.abs(packet.x()) > 1 || Math.abs(packet.z()) > 1) return;
+        rules.inputSequence = packet.sequence();
+        var direction = new Vec3(packet.x(), 0, packet.z());
+        rules.direction = direction.lengthSqr() > 1 ? direction.normalize() : direction;
+        rules.inputTicks = 5;
+    }
+
+    public static boolean inventoryAllowed(ServerPlayer p) {
+        var session = BattleManager.ACTIVE.get(p.getUUID());
+        return session != null && !session.closed && session.trails != null && session.trails.player == p
+                && session.actor == p && session.motion == null && !session.trails.resolving && p.isAlive()
+                && p.containerMenu == p.inventoryMenu;
+    }
+
+    public static void equipmentChanged(ServerPlayer p) {
+        if (!inventoryAllowed(p)) return;
+        var session = BattleManager.ACTIVE.get(p.getUUID());
+        ((com.matuvent.mineturn.mixin.StatusAccess) p).mineturn$equipment();
+        if (weapon(p.getMainHandItem())) p.getPersistentData().putString(PRIMARY, itemId(p.getMainHandItem()));
+        session.revision++; session.syncAll();
+    }
+
     static BattleSession start(ServerPlayer p) {
         if (!BattleManager.eligible(p) || p.isPassenger() || p.isVehicle() || BattleManager.reloading()) throw new IllegalArgumentException("请在生存或冒险模式、非骑乘状态下进入战斗。");
         var candidates = p.serverLevel().getEntitiesOfClass(LivingEntity.class,
@@ -206,7 +238,7 @@ public final class TrailsCombat {
         var queue = b.clock.forecast(16, this::speed).stream()
                 .map(t -> new BattleNetwork.QueueEntry(t.actor().getId(), b.displayName(t.actor()), t.inAv())).toList();
         BattleNetwork.send(recipient, new TrailsNetwork.View(b.id, b.revision, b.actor.getId(), allied(b.actor), cp(), cfg().burstCost,
-                primary(), burstName(primaryStack()), b.budget.remaining(), charging.isEmpty() ? b.lastMessage
+                primary(), burstName(primaryStack()), movementRadius, turn, movementOrigin, charging.isEmpty() ? b.lastMessage
                         : "危险蓄力：" + b.members.values().stream().filter(m -> charging.contains(m.entity.getUUID()))
                                 .map(m -> m.entity.getName().getString()).reduce((a, c) -> a + "、" + c).orElse("") + " · 防御或抢 S！", queue));
         var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity),
@@ -221,6 +253,10 @@ public final class TrailsCombat {
         b.prune(); if (b.closed) return;
         b.ticks++; b.turnTicks++;
         b.tickMotion(); if (b.closed) return;
+        if (inputTicks > 0 && --inputTicks >= 0 && allied(b.actor) && b.motion == null && direction.lengthSqr() > 1e-8) {
+            move(direction.x * .215, direction.z * .215);
+            if (b.closed) return;
+        }
         for (var m : List.copyOf(b.members.values())) {
             var e = m.entity;
             e.setDeltaMovement(Vec3.ZERO); e.fallDistance = 0;
@@ -242,10 +278,12 @@ public final class TrailsCombat {
     }
 
     void onTurn() {
+        turn++; inputSequence = -1; inputTicks = 0; direction = Vec3.ZERO;
         enemyWait = 0;
         recovery = 1;
         var actor = b.actor;
         if (actor == null) return;
+        movementOrigin = actor.position(); movementRadius = cfg().movementRadius;
         guarding.remove(actor.getUUID());
         int left = regrowth.getOrDefault(actor.getUUID(), 0);
         if (left > 0) { actor.heal(2); regrowth.put(actor.getUUID(), left - 1); }
@@ -261,11 +299,19 @@ public final class TrailsCombat {
         if (b.actor == null || !allied(b.actor)) throw new IllegalArgumentException("敌方回合：可以抢 S，不能退出或下达普通指令。");
         if (b.motion != null) throw new IllegalArgumentException("请等待移动完成。");
         if (p.operation().equals("toggle")) { b.close("已退出 AT 战斗，恢复即时战斗。"); return; }
+        if (p.operation().equals("select") || p.operation().equals("primary")) {
+            if (b.actor != player) throw new IllegalArgumentException("只能在玩家回合切换武器。");
+            if (p.slot() < 0 || p.slot() > 8) throw new IllegalArgumentException("无效武器槽。");
+            player.getInventory().selected = p.slot();
+            ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
+            if (p.operation().equals("primary")) setPrimary(player);
+            else if (weapon(player.getMainHandItem())) player.getPersistentData().putString(PRIMARY, itemId(player.getMainHandItem()));
+            b.revision++; b.syncAll(); return;
+        }
         if (p.operation().equals("end")) { finish(.7); return; }
         if (p.operation().equals("guard")) {
             guarding.add(b.actor.getUUID()); finish(.5); return;
         }
-        if (p.operation().equals("move")) { move(p.x(), p.z()); return; }
         if (p.operation().equals("skill")) { companionSkill(p.target()); return; }
         if (p.operation().equals("attack") || p.operation().equals("wind")) { attack(p.target(), p.slot(), p.operation().equals("wind")); return; }
         if (p.operation().equals("item")) { item(p.slot()); return; }
@@ -273,6 +319,7 @@ public final class TrailsCombat {
     }
 
     void finish(double delay) {
+        inputTicks = 0; direction = Vec3.ZERO;
         if (b.closed) return;
         var actor = b.actor;
         b.prune(); if (b.closed) return;
@@ -403,14 +450,30 @@ public final class TrailsCombat {
     }
 
     void move(double dx, double dz) {
-        if (!Double.isFinite(dx) || !Double.isFinite(dz) || Math.abs(dx) + Math.abs(dz) > b.budget.remaining() + .001)
-            throw new IllegalArgumentException("超过剩余移动范围。");
+        if (b.actor == null || !allied(b.actor) || b.motion != null || !Double.isFinite(dx) || !Double.isFinite(dz)) return;
         var entity = b.actor;
-        var route = TerrainPath.trace(entity, new Vec3(dx, 0, dz), ignored -> true);
-        if (route.cost() < .01 || route.cost() > b.budget.remaining()) throw new IllegalArgumentException("路径被阻挡或距离不足。");
-        b.budget.move(route.cost());
-        b.motion = new BattleSession.Movement(entity, route, "ground");
-        b.revision++; b.syncAll();
+        Vec3 offset = new Vec3(dx, 0, dz);
+        if (offset.length() > .215) offset = offset.normalize().scale(.215);
+        Vec3 radial = entity.position().add(offset).subtract(movementOrigin).multiply(1, 0, 1);
+        if (radial.length() > movementRadius) offset = movementOrigin.add(radial.normalize().scale(movementRadius))
+                .subtract(entity.position()).multiply(1, 0, 1);
+        if (offset.lengthSqr() < 1e-10) return;
+        var route = TerrainPath.trace(entity, offset,
+                point -> point.subtract(movementOrigin).horizontalDistanceSqr() <= movementRadius * movementRadius + 1e-8);
+        if (route.cost() < 1e-6) return;
+        Vec3 start = entity.position();
+        // Reuse supported collision samples, contact/fall rules and authoritative motion packets.
+        for (var point : route.samples()) {
+            var previous = entity.position();
+            entity.setPos(point); b.member(entity).anchor = point;
+            BattleRealm.contact(b, entity, previous, point);
+            BattleFields.contact(b, entity, previous, point, true);
+            if (!entity.isAlive() || b.closed || !b.members.containsKey(entity.getUUID())) { b.prune(); return; }
+        }
+        BattleFacing.along(entity, entity.position().subtract(start));
+        for (var landing : route.landings()) { b.fall(entity, landing); if (b.closed || !entity.isAlive()) { b.prune(); return; } }
+        entity.setDeltaMovement(Vec3.ZERO); entity.fallDistance = 0;
+        b.sendMotion(entity, false);
     }
 
     static String skillName(LivingEntity e) {

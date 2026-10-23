@@ -276,6 +276,107 @@ public final class TrailsGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void freeMovementUsesCircleAndNeverSpendsTravelDistance(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 13, 13); f.start(true);
+            var rules = f.b.trails; var origin = f.p.position(); double time = f.b.clock.time();
+            double budget = f.b.budget.remaining();
+            for (int i = 0; i < 80; i++) rules.move(1, 1);
+            h.assertTrue(Math.abs(f.p.position().subtract(origin).horizontalDistance() - rules.movementRadius) < .02, "Diagonal movement did not reach the Euclidean circle edge");
+            for (int i = 0; i < 20; i++) rules.move(-1, -1);
+            h.assertTrue(f.p.position().distanceTo(origin) < .4, "Returning inside the circle was blocked by accumulated travel");
+            h.assertTrue(rules.movementOrigin.equals(origin) && f.b.budget.remaining() == budget && f.b.clock.time() == time,
+                    "Moving shifted the circle, spent travel budget or advanced AT");
+            var nextOrigin = f.p.position(); rules.onTurn();
+            h.assertTrue(rules.movementOrigin.equals(nextOrigin), "New turn did not reset its circle center");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void movementInputStopsExpiresAndRejectsOldTurns(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 13, 13); f.start(true);
+            var rules = f.b.trails; var origin = f.p.position();
+            for (int i = 0; i < 50; i++) TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, rules.turn, i, 1, 0));
+            rules.tick();
+            h.assertTrue(f.p.position().distanceTo(origin) <= .216, "Packet spam moved more than once per server tick");
+            var stopped = f.p.position();
+            TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, rules.turn, 51, 0, 0));
+            TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, rules.turn, 50, 1, 0));
+            for (int i = 0; i < 10; i++) rules.tick();
+            h.assertTrue(f.p.position().equals(stopped), "Release or sequence protection failed");
+            TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, rules.turn, 52, 1, 0));
+            for (int i = 0; i < 8; i++) rules.tick();
+            stopped = f.p.position(); rules.tick();
+            h.assertTrue(f.p.position().equals(stopped), "Input kept moving after heartbeat expired");
+            long oldTurn = rules.turn; rules.onTurn();
+            TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, oldTurn, 999, 1, 0));
+            TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, rules.turn, 1000, Double.NaN, 0));
+            rules.tick();
+            h.assertTrue(f.p.position().equals(stopped), "Stale turn / nonfinite direction was accepted");
+            f.b.actor = zombie; rules.onTurn();
+            TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, rules.turn, 1, 1, 0));
+            rules.tick();
+            h.assertTrue(f.p.position().equals(stopped) && rules.inputTicks == 0, "Enemy turn accepted player movement");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void circleMovementCannotCrossTallWallAndControlsAllies(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            f.mob(EntityType.ZOMBIE, 13, 13); var pig = f.mob(EntityType.PIG, 3, 3); f.start(true);
+            for (int z = 0; z < 16; z++) for (int y = 1; y < 4; y++) h.setBlock(7, y, z, Blocks.STONE);
+            for (int i = 0; i < 30; i++) f.b.trails.move(1, 0);
+            double wall = h.absolutePos(new BlockPos(7, 1, 5)).getX();
+            h.assertTrue(f.p.getBoundingBox().maxX <= wall + 1e-6, "WASD crossed a tall solid wall");
+            f.b.actor = pig; f.b.trails.onTurn(); var start = pig.position();
+            TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, f.b.trails.turn, 1, 0, 1));
+            f.b.trails.tick();
+            h.assertTrue(pig.getZ() > start.z, "WASD did not control the active allied creature");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void ownTurnWeaponSwitchUpdatesPrimaryWithoutSpendingAction(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 13, 13); f.start(true);
+            f.p.getInventory().setItem(1, new ItemStack(Items.CROSSBOW));
+            double time = f.b.clock.time(); int cp = f.b.trails.cp();
+            TrailsCombat.request(f.p, f.cmd("select", -1, 1));
+            h.assertTrue(f.p.getMainHandItem().is(Items.CROSSBOW) && f.b.trails.primary().equals("minecraft:crossbow"), "Selected slot did not become primary weapon");
+            h.assertTrue(f.b.actor == f.p && f.b.clock.time() == time && f.b.trails.cp() == cp, "Switching weapons consumed a turn or CP");
+            f.b.actor = zombie;
+            TrailsCombat.request(f.p, f.cmd("select", -1, 0));
+            h.assertTrue(f.p.getInventory().selected == 1, "Weapon switching was allowed during an enemy turn");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void vanillaInventoryPacketsWorkOnlyOnPlayersTurn(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var zombie = f.mob(EntityType.ZOMBIE, 13, 13); f.start(true);
+            f.p.getInventory().setItem(1, new ItemStack(Items.BOW));
+            f.p.getInventory().setItem(9, new ItemStack(Items.CROSSBOW));
+            f.p.connection.handleSetCarriedItem(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(1));
+            h.assertTrue(f.p.getMainHandItem().is(Items.BOW), "Vanilla hotbar packet was blocked on player turn");
+            var menu = f.p.inventoryMenu;
+            var swap = new net.minecraft.network.protocol.game.ServerboundContainerClickPacket(menu.containerId, menu.getStateId(), 9, 1,
+                    net.minecraft.world.inventory.ClickType.SWAP, ItemStack.EMPTY, new it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap<>());
+            f.p.connection.handleContainerClick(swap);
+            h.assertTrue(f.p.getMainHandItem().is(Items.CROSSBOW) && f.b.trails.primary().equals("minecraft:crossbow"), "Inventory swap did not update the actual held / primary weapon");
+            f.b.actor = zombie;
+            f.p.connection.handleSetCarriedItem(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(0));
+            f.p.connection.handleContainerClick(swap);
+            h.assertTrue(f.p.getInventory().selected == 1 && f.p.getMainHandItem().is(Items.CROSSBOW), "Enemy turn accepted vanilla inventory changes");
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void waitingDoesNotAdvanceAtOrRunAlliedAi(GameTestHelper h) {
         try (var f = new Fixture(h)) {
             f.mob(EntityType.ZOMBIE, 8, 5); var pig = f.mob(EntityType.PIG, 6, 5); f.start(false);
