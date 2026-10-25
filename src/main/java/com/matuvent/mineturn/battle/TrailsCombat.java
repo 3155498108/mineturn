@@ -41,16 +41,30 @@ public final class TrailsCombat {
     double recovery = 1;
     int enemyWait;
     Pending pending;
+    Pending burstAction;
+    final Map<UUID, String[]> performances = new HashMap<>();
+    final Map<UUID, TrailsNetwork.Performance> lastPerformances = new HashMap<>();
     boolean knockback;
     private record Pending(LivingEntity source, long turn, int ticks, Runnable release, boolean red) {}
-    boolean busy() { return pending != null || b.motion != null || knockback; }
+    boolean busy() { return pending != null || burstAction != null || b.motion != null || knockback; }
     void perform(LivingEntity source, String animation, int ticks, boolean red, Vec3 aim) {
-        BattleNetwork.send(player, new TrailsNetwork.Performance(b.id, ++b.actionSequence, source.getId(), animation, ticks, red, aim));
+        var entry = performances.get(source.getUUID());
+        String style = animation.equals("support") ? "support" : entry != null ? entry[0] : TrailsChoreography.style(source, source.getMainHandItem());
+        String title = animation.equals("support") ? skillName(source) : entry != null ? entry[1] : red ? skillName(source) : "普通攻击";
+        perform(source, animation, ticks, red, aim, style, title);
+    }
+    void perform(LivingEntity source, String animation, int ticks, boolean red, Vec3 aim, String style, String title) {
+        if(b.closed)return;
+        var packet=new TrailsNetwork.Performance(b.id, ++b.actionSequence, source.getId(), animation, ticks, red, aim, style, title);
+        lastPerformances.put(source.getUUID(),packet);BattleNetwork.send(player,packet);
     }
     void windup(LivingEntity source, LivingEntity victim, int ticks, boolean red, Runnable release) {
+        windupAt(source, victim == null ? source.position().add(source.getLookAngle()) : victim.getEyePosition(), ticks, red, release);
+    }
+    void windupAt(LivingEntity source, Vec3 aim, int ticks, boolean red, Runnable release) {
         inputTicks = 0; direction = Vec3.ZERO;
         pending = new Pending(source, turn, ticks, release, red);
-        perform(source, "draw", ticks, red, victim == null ? source.position().add(source.getLookAngle()) : victim.position());
+        perform(source, "draw", ticks, red, aim);
         b.revision++; b.syncAll();
     }
     void tickPending() {
@@ -70,7 +84,7 @@ public final class TrailsCombat {
         finally { resolving = previous; }
         if (!b.closed) { b.revision++; b.syncAll(); }
     }
-    void clear() { pending = null; knockback = false; pendingBurst = false; direction = Vec3.ZERO; inputTicks = 0; }
+    void clear() { burstAction = null; performances.clear(); lastPerformances.clear(); pending = null; knockback = false; pendingBurst = false; direction = Vec3.ZERO; inputTicks = 0; }
     long turn, inputSequence = -1;
     Vec3 movementOrigin = Vec3.ZERO, direction = Vec3.ZERO;
     double movementRadius;
@@ -296,9 +310,9 @@ public final class TrailsCombat {
         b.prune(); if (b.closed) return;
         b.ticks++; b.turnTicks++;
         boolean wasKnockback = knockback;
-        b.tickMotion(); if (b.closed) return;
-        if (wasKnockback && b.motion == null && knockback) { knockback = false; finish(1.4); if (b.closed) return; }
-        tickPending(); if (b.closed) return;
+        if (burstAction == null) b.tickMotion(); if (b.closed) return;
+        if (wasKnockback && b.motion == null && knockback) { knockback = false; recover(b.actor, 1.4); if (b.closed) return; }
+        if (burstAction != null) tickBurst(); else tickPending(); if (b.closed) return;
         if (inputTicks > 0 && --inputTicks >= 0 && allied(b.actor) && !busy() && direction.lengthSqr() > 1e-8) {
             move(direction.x * .215, direction.z * .215);
             if (b.closed) return;
@@ -339,8 +353,8 @@ public final class TrailsCombat {
     void command(TrailsNetwork.Command p) {
         if (p.operation().equals("burst")) {
             if (cp() < cfg().burstCost) throw new IllegalArgumentException("CP 不足，普通行动及受伤可积累 CP。");
+            if (burstAction != null) throw new IllegalArgumentException("请等待 S 技演出结束。");
             if (pending != null && b.actor == player) throw new IllegalArgumentException("请等待自己的战技完成后再抢 S。");
-            if (b.motion != null) { pendingBurst = true; pendingTarget = p.target(); pendingAim = new Vec3(p.x(), 0, p.z()); return; }
             burst(p.target(), new Vec3(p.x(), 0, p.z())); return;
         }
         if (b.actor == null || !allied(b.actor)) throw new IllegalArgumentException("敌方回合：可以抢 S，不能退出或下达普通指令。");
@@ -372,6 +386,7 @@ public final class TrailsCombat {
         var actor = b.actor;
         b.prune(); if (b.closed) return;
         if (b.actor != actor) return;
+        if (actor != null) { performances.remove(actor.getUUID()); lastPerformances.remove(actor.getUUID()); }
         if (actor != null && b.members.containsKey(actor.getUUID())) b.clock.recovery(actor, Timeline.LAP * delay);
         b.next();
     }
@@ -387,12 +402,15 @@ public final class TrailsCombat {
     }
     void hit(LivingEntity source, LivingEntity target, double damage) {
         if (b.closed || !source.isAlive() || !target.isAlive() || !b.members.containsKey(target.getUUID()) || !enemy(source, target)) return;
+        float before = target.getHealth() + target.getAbsorptionAmount();
         BattleManager.authorized(() -> {
             target.invulnerableTime = 0;
             var damageSource = source instanceof ServerPlayer p ? source.damageSources().playerAttack(p) : source.damageSources().mobAttack(source);
             if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, damageSource, (float) damage);
             else target.hurt(damageSource, (float) damage);
         });
+        float lost = Math.max(0, before - target.getHealth() - target.getAbsorptionAmount());
+        BattleNetwork.send(player, new TrailsNetwork.Impact(b.id, ++b.actionSequence, target.getId(), lost, target.getEyePosition().add(0, .35, 0)));
         b.level.sendParticles(ParticleTypes.CRIT, target.getX(), target.getY() + .7, target.getZ(), 8, .25, .3, .25, .1);
     }
     void area(LivingEntity source, Vec3 center, double radius, double damage) {
@@ -432,55 +450,28 @@ public final class TrailsCombat {
                 if (route.cost() < .01 || route.cost() > b.budget.remaining()) throw new IllegalArgumentException("冲撞路线被阻挡或距离不足。");
                 b.budget.move(route.cost()); b.motion = new BattleSession.Movement(source, route, "ground");
                 b.motion.onLanding = () -> {
-                    if (victim.isAlive() && gap(source, victim) <= 2.2) { hit(source, victim, baseDamage(source)); animate(source, victim, false); addCp(cfg().cpPerAction); }
-                    finish(1.1);
+                    if (victim.isAlive() && gap(source, victim) <= 2.2) friendAttack(source, victim, false);
+                    else finish(1.1);
                 };
                 b.revision++; b.syncAll(); return;
             }
             boolean snowball = source instanceof SnowGolem;
             requireRange(source, victim, snowball ? 20 : 2.2);
-            hit(source, victim, id(source).equals("minecraft:iron_golem") ? 10 : snowball ? 2 : baseDamage(source));
+            friendAttack(source, victim, snowball); return;
+        }
+        playerAction(targetId, slot, wind, aim, false);
+    }
+    void friendAttack(LivingEntity source, LivingEntity victim, boolean snowball) {
+        performances.put(source.getUUID(), new String[]{TrailsChoreography.style(source, source.getMainHandItem()), snowball ? "雪球投掷" : id(source).equals("minecraft:pig") ? "冲撞" : "普通攻击"});
+        windup(source, victim, 10, false, () -> {
+            perform(source, "strike", snowball ? TrailsChoreography.flight(source.distanceTo(victim)) : 4, false, victim.position()); source.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
             if (snowball) projectile(source, victim.getEyePosition(), Items.SNOWBALL);
-            animate(source, victim, snowball); addCp(cfg().cpPerAction); finish(1); return;
-        }
-        if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
-        player.getInventory().selected = slot;
-        ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
-        var s = player.getMainHandItem();
-        var shape = TrailsArea.weapon(s, wind, false);
-        if (!shape.validAim(aim)) throw new IllegalArgumentException("无效瞄准方向或落点超出施放范围。");
-        var victim = shape.kind() == TrailsArea.Kind.SINGLE ? target(targetId, source) : null;
-        boolean ranged = s.getItem() instanceof BowItem || s.getItem() instanceof CrossbowItem;
-        double damage = baseDamage(player), delay = 1;
-        if (wind && !(s.getItem() instanceof MaceItem)) throw new IllegalArgumentException("风弹组合需要手持重锤。");
-        if (victim != null) requireRange(source, victim, shape.cast());
-        if (ranged) {
-            int ammo = find(Items.ARROW);
-            if (ammo < 0) throw new IllegalArgumentException("背包内需要箭。");
-            player.getInventory().getItem(ammo).shrink(1);
-            damage = s.getItem() instanceof CrossbowItem ? 10 : 8;
-            delay = s.getItem() instanceof CrossbowItem ? 1.3 : 1.1;
-            if (s.getItem() instanceof CrossbowItem) shaped(source, shape, aim, damage);
-            else hit(source, victim, damage);
-        } else if (s.getItem() instanceof MaceItem) {
-            if (wind) {
-                int charge = find(Items.WIND_CHARGE);
-                if (charge < 0) throw new IllegalArgumentException("背包内需要风弹，组合技消耗 1 个。");
-                player.getInventory().getItem(charge).shrink(1);
-            }
-            shaped(source, shape, aim, Math.max(6, damage) * (wind ? 2.3 : 1));
-            delay = wind ? 2.2 : 1.3;
-        } else if (s.is(ItemTags.SWORDS)) {
-            shaped(source, shape, aim, damage);
-        } else { hit(source, victim, s.is(ItemTags.AXES) ? damage * 1.15 : damage); delay = s.is(ItemTags.AXES) ? 1.2 : 1; }
-        if (s.isDamageableItem()) s.hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
-        if (ranged) {
-            Vec3 end = victim != null ? victim.getEyePosition() : source.getEyePosition().add(shape.direction(aim).scale(shape.radius()));
-            projectile(source, end, Items.ARROW);
-        }
-        if (victim != null) animate(source, victim, ranged); else { perform(source, "strike", 12, false, source.position().add(aim)); source.swing(net.minecraft.world.InteractionHand.MAIN_HAND); }
-        addCp(cfg().cpPerAction);
-        finish(delay);
+            pending = new Pending(source, turn, snowball ? TrailsChoreography.flight(source.distanceTo(victim)) : 4, () -> {
+                if (victim.isAlive() && b.members.containsKey(victim.getUUID()) && gap(source, victim) <= (snowball ? 20 : 2.2) && source.hasLineOfSight(victim))
+                    hit(source, victim, source instanceof IronGolem ? 10 : snowball ? 2 : baseDamage(source));
+                addCp(cfg().cpPerAction); recover(source, 1);
+            }, false);
+        });
     }
     void projectile(LivingEntity source, Vec3 end, Item item) {
         var from = source.getEyePosition();
@@ -489,57 +480,80 @@ public final class TrailsCombat {
         if (wall.getType() != net.minecraft.world.phys.HitResult.Type.MISS) end = wall.getLocation();
         com.matuvent.mineturn.api.CombatVisuals.flight(b.level, from, end, new ItemStack(item), true, false);
     }
-    void weaponSkill(int targetId, int slot, Vec3 aim) {
+    void weaponSkill(int targetId, int slot, Vec3 aim) { playerAction(targetId, slot, false, aim, true); }
+    void recover(LivingEntity source, double delay) {
+        if (b.closed || b.actor != source || !source.isAlive()) return;
+        perform(source, "recover", 8, false, source.position().add(source.getLookAngle()));
+        pending = new Pending(source, turn, 8, () -> finish(delay), false);
+    }
+    void playerAction(int targetId, int slot, boolean wind, Vec3 aim, boolean skill) {
         if (b.actor != player) throw new IllegalArgumentException("只有玩家能使用武器战技。");
+        if (busy()) throw new IllegalArgumentException("请等待当前动作完成。");
         if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
         var stack = player.getInventory().getItem(slot);
-        if (!weapon(stack)) throw new IllegalArgumentException("请先装备武器。");
-        var shape = TrailsWeaponSkills.shape(stack);
-        if (!shape.validAim(aim)) throw new IllegalArgumentException("战技方向或落点无效。");
+        if (skill && !weapon(stack)) throw new IllegalArgumentException("请先装备武器。");
+        if (wind && !(stack.getItem() instanceof MaceItem)) throw new IllegalArgumentException("风弹组合需要手持重锤。");
+        var shape = skill ? TrailsWeaponSkills.shape(stack) : TrailsArea.weapon(stack, wind, false);
+        if (!shape.validAim(aim)) throw new IllegalArgumentException("攻击方向或落点无效。");
         var victim = shape.kind() == TrailsArea.Kind.SINGLE ? target(targetId, player) : null;
         if (victim != null) requireRange(player, victim, shape.cast());
         boolean bow = stack.getItem() instanceof BowItem, crossbow = stack.getItem() instanceof CrossbowItem;
-        int resource = bow || crossbow ? find(Items.ARROW) : stack.getItem() instanceof MaceItem ? find(Items.WIND_CHARGE) : -2;
-        if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "战技需要 1 支箭。" : "战技需要 1 个风弹。");
+        boolean mace = stack.getItem() instanceof MaceItem, trident = stack.getItem() instanceof TridentItem;
+        boolean charged = wind || skill && mace;
+        int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.WIND_CHARGE) : -2;
+        if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "背包内需要 1 支普通箭。" : "背包内需要 1 个风弹。");
         player.getInventory().selected = slot;
         ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
-        if (resource >= 0) player.getInventory().getItem(resource).shrink(1);
         double base = baseDamage(player);
         var snapshot = stack.copy();
-        if (stack.isDamageableItem()) stack.hurtAndBreak(2, player, EquipmentSlot.MAINHAND);
-        windup(player, victim, bow || crossbow ? 20 : 10, false, () -> {
-            if (victim != null && (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || gap(player, victim) > shape.cast() || !player.hasLineOfSight(victim))) {
-                b.message("目标已离场或离开射程，战技落空。"); finish(1.5); return;
+        if (resource >= 0) player.getInventory().getItem(resource).shrink(1);
+        String style = TrailsChoreography.style(player, snapshot), title = skill || wind ? TrailsWeaponSkills.name(snapshot) : "普通攻击 · " + snapshot.getHoverName().getString();
+        performances.put(player.getUUID(), new String[]{style, title});
+        Vec3 end = victim != null ? victim.getEyePosition() : shape.kind() == TrailsArea.Kind.DISK ? shape.center(player.position(), aim).add(0, 1, 0)
+                : player.getEyePosition().add(shape.direction(aim).scale(Math.max(2, shape.radius())));
+        BattleFacing.along(player, shape.direction(aim));
+        windupAt(player, end, TrailsChoreography.windup(style, skill || wind), false, () -> {
+            perform(player, "strike", bow || crossbow || skill && trident ? TrailsChoreography.flight(player.getEyePosition().distanceTo(end)) : 4, false, end); player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            if (bow || crossbow || skill && trident) {
+                Item arrow = trident ? Items.TRIDENT : Items.ARROW;
+                projectile(player, end, arrow);
+                if (skill && crossbow) {
+                    var forward = shape.direction(aim); var across = new Vec3(forward.z, 0, -forward.x);
+                    for (int lane : new int[]{-1, 1}) projectile(player, end.add(across.scale(lane * 3)), Items.ARROW);
+                }
+                player.playSound(trident ? SoundEvents.TRIDENT_THROW.value() : crossbow ? SoundEvents.CROSSBOW_SHOOT : SoundEvents.ARROW_SHOOT, 1, 1);
             }
-            Vec3 end = victim == null ? player.getEyePosition().add(shape.direction(aim).scale(shape.radius())) : victim.getEyePosition();
-            double delay = 1.5;
-            if (bow) { hit(player, victim, 14); projectile(player, end, Items.ARROW); delay = 1.6; }
-            else if (crossbow) {
-                shaped(player, shape, aim, 12);
-                var forward = shape.direction(aim); var across = new Vec3(forward.z, 0, -forward.x);
-                for (int lane = -1; lane <= 1; lane++) projectile(player, end.add(across.scale(lane * 3)), Items.ARROW);
-                delay = 1.8;
-            } else if (snapshot.is(ItemTags.AXES)) {
-                hit(player, victim, base * 1.8);
-                if (victim.isAlive() && b.members.containsKey(victim.getUUID())) b.clock.recovery(victim, b.clock.remaining(victim) + 30 * speed(victim));
-                delay = 1.7;
-            } else if (snapshot.getItem() instanceof MaceItem) {
-                shaped(player, shape, aim, Math.max(6, base) * 2.3); delay = 2.2;
-                var point = shape.center(player.position(), aim);
-                b.level.sendParticles(ParticleTypes.GUST_EMITTER_SMALL, point.x, point.y + .2, point.z, 1, 0, 0, 0, 0);
-                player.playSound(SoundEvents.MACE_SMASH_GROUND_HEAVY, 1, 1);
-            } else if (snapshot.getItem() instanceof TridentItem) {
-                shaped(player, shape, aim, Math.max(8, base) * 1.5); projectile(player, end, Items.TRIDENT);
-                delay = 1.6;
-            } else {
-                shaped(player, shape, aim, base * 1.4);
-                var sweep = player.position().add(shape.direction(aim).scale(1.5));
-                b.level.sendParticles(ParticleTypes.SWEEP_ATTACK, sweep.x, sweep.y + 1, sweep.z, 2, .3, 0, .3, 0);
-                player.playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1, 1);
-            }
-            perform(player, "strike", 12, false, end); player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-            b.message(TrailsWeaponSkills.name(snapshot)); addCp(cfg().cpPerAction); finish(delay);
+            pending = new Pending(player, turn, bow || crossbow || skill && trident ? TrailsChoreography.flight(player.getEyePosition().distanceTo(end)) : 4, () -> {
+                if (victim != null && (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || gap(player, victim) > shape.cast() || !player.hasLineOfSight(victim))) {
+                    b.message("目标已离场或离开射程，攻击落空。"); recover(player, 1.5); return;
+                }
+                double damage = bow ? (skill ? 14 : 8) : crossbow ? (skill ? 12 : 10) : mace ? Math.max(6, base) * (charged ? 2.3 : 1)
+                        : skill && trident ? Math.max(8, base) * 1.5 : snapshot.is(ItemTags.AXES) ? base * (skill ? 1.8 : 1.15) : base * (skill ? 1.4 : 1);
+                double delay = bow ? (skill ? 1.6 : 1.1) : crossbow ? (skill ? 1.8 : 1.3) : mace ? (charged ? 2.2 : 1.3)
+                        : snapshot.is(ItemTags.AXES) ? (skill ? 1.7 : 1.2) : skill ? (trident ? 1.6 : 1.5) : 1;
+                if (victim != null) hit(player, victim, damage); else shaped(player, shape, aim, damage);
+                if (skill && snapshot.is(ItemTags.AXES) && victim != null && victim.isAlive() && b.members.containsKey(victim.getUUID()))
+                    b.clock.recovery(victim, b.clock.remaining(victim) + 30 * speed(victim));
+                if (snapshot.is(ItemTags.SWORDS)) {
+                    var point = player.position().add(shape.direction(aim).scale(1.5));
+                    b.level.sendParticles(ParticleTypes.SWEEP_ATTACK, point.x, point.y + 1, point.z, skill ? 3 : 1, .2, 0, .2, 0);
+                    player.playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1, 1);
+                }
+                if (mace) {
+                    shockwave(shape.center(player.position(), aim), shape.radius(), charged);
+                    player.playSound(SoundEvents.MACE_SMASH_GROUND_HEAVY, .9f, charged ? .8f : 1.1f);
+                }
+                if (stack.isDamageableItem()) stack.hurtAndBreak(skill ? 2 : 1, player, EquipmentSlot.MAINHAND);
+                b.message(title); addCp(cfg().cpPerAction); recover(player, delay);
+            }, false);
         });
+    }
+    void shockwave(Vec3 center, double radius, boolean wind) {
+        for (int i = 0; i < 24; i++) {
+            double angle = i * Math.PI / 12;
+            b.level.sendParticles(wind ? ParticleTypes.GUST : ParticleTypes.CLOUD, center.x + Math.cos(angle) * radius, center.y + .15,
+                    center.z + Math.sin(angle) * radius, 1, 0, .05, 0, .02);
+        }
     }
     void shaped(LivingEntity source, TrailsArea shape, Vec3 aim, double damage) {
         Vec3 origin = source.position();
@@ -644,10 +658,19 @@ public final class TrailsCombat {
         String kind = id(actor);
         var shape = TrailsArea.skill(kind);
         if (!shape.validAim(aim)) throw new IllegalArgumentException("战技落点超出施放范围。");
+        if (busy()) throw new IllegalArgumentException("请等待当前动作完成。");
         perform(actor, "support", 26, false, actor.position());
+        inputTicks=0; direction=Vec3.ZERO;
+        pending=new Pending(actor,turn,12,()->{
+            companionEffect(actor,kind,shape,aim);
+        },false);
+        b.revision++;b.syncAll();
+    }
+    void companionEffect(LivingEntity actor,String kind,TrailsArea shape,Vec3 aim) {
         if (kind.equals("minecraft:chicken")) {
             var ready = b.members.values().stream().map(m -> m.entity).filter(e -> allied(e) && e.isAlive() && shape.contains(actor.position(), Vec3.ZERO, e.position())).toList();
-            b.clock.readyFirst(ready); addCp(10); b.message("振翅号令：范围内友军 AT 归零，优先行动！"); b.next(); return;
+            b.clock.readyFirst(ready); addCp(10); b.message("振翅号令：范围内友军 AT 归零，优先行动！");
+            pending=new Pending(actor,turn,8,()->b.next(),false); return;
         }
         if (kind.equals("minecraft:pig")) { actor.heal(2); regrowth.put(actor.getUUID(), 3); }
         else if (kind.equals("minecraft:iron_golem")) {
@@ -666,7 +689,7 @@ public final class TrailsCombat {
             }
         }
         b.message(actor.getName().getString() + " 使用 " + skillName(actor));
-        addCp(10); finish(1.3);
+        addCp(10); recover(actor,1.3);
     }
     static void effect(LivingEntity entity, net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> type, int ticks, int amplifier) {
         var previous = entity.getEffect(type);
@@ -687,6 +710,7 @@ public final class TrailsCombat {
     }
     void burst(int targetId, Vec3 aim) {
         if (cp() < cfg().burstCost) throw new IllegalArgumentException("CP 不足。");
+        if (burstAction != null || b.actor == player && pending != null) throw new IllegalArgumentException("请等待当前演出完成。");
         var stack = primaryStack();
         if (stack.isEmpty() || !weapon(stack)) throw new IllegalArgumentException("主武器必须仍在背包内；战外手持武器按 B 设置。");
         var shape = TrailsArea.weapon(stack, false, true);
@@ -707,16 +731,51 @@ public final class TrailsCombat {
         }
         weaponDamage = (weaponDamage + baseMultiplier) * totalMultiplier;
         double damage = Math.max(6, weaponDamage) * 3.2 * multiplier;
-        if (victim != null) hit(player, victim, damage * 1.8);
-        else shaped(player, shape, aim, damage * (stack.getItem() instanceof MaceItem ? 1.2 : 1));
-        BattleNetwork.send(player, new TrailsNetwork.Cue("burst", burstName(stack), 36, cfg().encounterRadius));
-        b.level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EXPLODE.value(), net.minecraft.sounds.SoundSource.PLAYERS, .7f, 1.3f);
-        b.message("S-BREAK · " + burstName(stack));
-        // The interrupted actor keeps its turn and partial AT; only the player's next action is delayed.
-        if (b.actor == player) { finish(2.5); enemyWait = -12; return; }
-        enemyWait = -12;
-        b.clock.recovery(player, b.clock.remaining(player) + Timeline.LAP * 1.5);
-        b.revision++; b.prune(); if (!b.closed) b.syncAll();
+        boolean ownTurn = b.actor == player;
+        if (!ownTurn) b.clock.recovery(player, b.clock.remaining(player) + Timeline.LAP * 1.5);
+        String style = "burst_" + TrailsChoreography.style(player, stack), title = burstName(stack);
+        Vec3 end = victim != null ? victim.getEyePosition() : shape.kind() == TrailsArea.Kind.DISK ? shape.center(player.position(), aim).add(0, 1, 0)
+                : player.getEyePosition().add(shape.direction(aim).scale(Math.max(3, shape.radius())));
+        BattleNetwork.send(player, new TrailsNetwork.Cue("burst", title, 22, cfg().encounterRadius));
+        perform(player, "draw", 26, false, end, style, title);
+        burstAction = new Pending(player, turn, 26, () -> {
+            boolean projectile = stack.getItem() instanceof BowItem || stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof TridentItem;
+            perform(player,"strike",projectile?TrailsChoreography.flight(player.getEyePosition().distanceTo(end)):6,false,end,style,title);
+            player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            if (projectile) {
+                Item item = stack.getItem() instanceof TridentItem ? Items.TRIDENT : Items.ARROW;
+                for (int lane = -1; lane <= 1; lane++) projectile(player, end.add(lane * .8, 0, 0), item);
+            }
+            burstAction = new Pending(player, turn, projectile ? TrailsChoreography.flight(player.getEyePosition().distanceTo(end)) : 6, () -> {
+                if (victim != null) {
+                    if (victim.isAlive() && b.members.containsKey(victim.getUUID()) && player.hasLineOfSight(victim) && gap(player, victim) <= shape.cast()) hit(player, victim, damage * 1.8);
+                } else shaped(player, shape, aim, damage * (stack.getItem() instanceof MaceItem ? 1.2 : 1));
+                if(b.closed)return;
+                perform(player,"recover",12,false,end,style,title);
+                shockwave(shape.center(player.position(), aim), shape.kind() == TrailsArea.Kind.DISK ? shape.radius() : 4, stack.getItem() instanceof MaceItem);
+                b.level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EXPLODE.value(), net.minecraft.sounds.SoundSource.PLAYERS, .7f, 1.3f);
+                b.message("S-BREAK · " + title);
+                burstAction = new Pending(player, turn, 12, () -> {
+                    if (ownTurn && b.actor == player) finish(2.5);
+                    enemyWait = -12; b.prune();
+                    if(!b.closed && pending!=null && b.actor==pending.source && pending.source.isAlive()) {
+                        var paused=lastPerformances.get(pending.source.getUUID());
+                        if(paused!=null)perform(pending.source,paused.animation(),Math.max(1,pending.ticks),paused.red(),paused.aim(),paused.style(),paused.title());
+                    }
+                    if (!b.closed) { b.revision++; b.syncAll(); }
+                }, false);
+            }, false);
+        }, false);
+        b.revision++; b.syncAll();
+    }
+    void tickBurst() {
+        var action = burstAction; if (action == null) return;
+        if (!player.isAlive() || !b.members.containsKey(player.getUUID())) { burstAction = null; return; }
+        if (action.ticks > 1) { burstAction = new Pending(player, action.turn, action.ticks - 1, action.release, false); return; }
+        burstAction = null;
+        boolean previous = resolving; resolving = true;
+        try { action.release.run(); } finally { resolving = previous; }
+        if (!b.closed) { b.revision++; b.syncAll(); }
     }
 
     static boolean ranged(LivingEntity actor) {
@@ -776,7 +835,6 @@ public final class TrailsCombat {
         windup(actor, victim, shooting ? 20 : 10, skill, () -> {
             if (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || !actor.hasLineOfSight(victim)
                     || gap(actor, victim) > (shooting ? 24 : 2.4)) { finish(1); return; }
-            perform(actor, "strike", 16, skill, victim.position()); actor.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
             Item projectile = switch (kind) {
                 case "minecraft:breeze" -> Items.WIND_CHARGE;
                 case "minecraft:skeleton", "minecraft:stray", "minecraft:bogged", "minecraft:pillager" -> Items.ARROW;
@@ -793,7 +851,8 @@ public final class TrailsCombat {
                     projectile(actor, victim.getEyePosition().add(-.3, 0, 0), Items.ARROW);
                 }
             }
-            int flight = projectile == null ? 1 : (int)Math.clamp(Math.ceil(actor.getEyePosition().distanceTo(victim.getEyePosition()) * 1.2), 6, 16);
+            int flight = projectile == null ? 4 : TrailsChoreography.flight(actor.getEyePosition().distanceTo(victim.getEyePosition()));
+            perform(actor,"strike",flight,skill,victim.position()); actor.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
             pending = new Pending(actor, turn, flight, () -> {
                 if (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || !actor.hasLineOfSight(victim)) { finish(1); return; }
                 double damage = Math.min(12, Math.max(3, baseDamage(actor)));
@@ -811,7 +870,7 @@ public final class TrailsCombat {
                     if (skill && kind.contains("zombie")) actor.heal(2);
                     if (kind.equals("minecraft:blaze") || kind.equals("minecraft:ghast")) BattleManager.authorized(() -> victim.igniteForSeconds(skill ? 5 : 3));
                 }
-                finish(skill ? 1.4 : 1);
+                recover(actor, skill ? 1.4 : 1);
             }, skill);
         });
     }

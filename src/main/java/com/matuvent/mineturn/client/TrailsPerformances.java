@@ -13,6 +13,26 @@ import net.minecraft.world.entity.monster.breeze.Breeze;
 public final class TrailsPerformances {
     private static final Map<Integer, PoseState> ACTIVE = new HashMap<>();
     private static long sequence = -1;
+    public static long renderedPoses, visualWeaponFrames;
+    public record Frame(String style, String phase, double progress, com.matuvent.mineturn.battle.TrailsChoreography.Pose pose) {}
+    public static Frame frame(LivingEntity e) {
+        var state=ACTIVE.get(e.getId()); if (state==null || state.entity!=e) return null;
+        double progress=1-(state.expires-System.nanoTime())/(state.packet.ticks()*50_000_000.);
+        if (progress<0 || progress>1) return null;
+        return new Frame(state.packet.style(),state.packet.animation(),progress,
+                com.matuvent.mineturn.battle.TrailsChoreography.pose(state.packet.style(),state.packet.animation(),progress));
+    }
+    public static net.minecraft.world.item.ItemStack visualItem(LivingEntity e,net.minecraft.world.item.ItemStack original,HumanoidArm arm) {
+        var frame=frame(e);var mc=Minecraft.getInstance();
+        if(frame==null || !frame.style().startsWith("burst_") || e!=mc.player || arm!=e.getMainArm())return original;
+        for(int i=0;i<36;i++) {
+            var candidate=mc.player.getInventory().getItem(i);
+            if(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(candidate.getItem()).toString().equals(TrailsClient.view.primary())) {
+                visualWeaponFrames++;return candidate;
+            }
+        }
+        return original;
+    }
     private record PoseState(LivingEntity entity, Pose original, boolean aggressive, float pitch, boolean using, InteractionHand hand, int remaining, float walk, boolean crossbow, boolean ghast, boolean blaze, int beam, int swell,
                              TrailsNetwork.Performance packet, long expires) {
         void restore() {
@@ -29,6 +49,11 @@ public final class TrailsPerformances {
             if (entity instanceof Breeze b) { b.shoot.stop(); b.inhale.stop(); }
         }
     }
+    static boolean bursting() {
+        var player=Minecraft.getInstance().player;if(player==null)return false;
+        var state=ACTIVE.get(player.getId());
+        return state!=null && state.packet.style().startsWith("burst_") && System.nanoTime()<state.expires;
+    }
     public static void reset() { ACTIVE.values().forEach(PoseState::restore); ACTIVE.clear(); sequence = -1; }
     public static boolean red(LivingEntity e) { var s = ACTIVE.get(e.getId()); return s != null && s.entity == e && s.packet.red() && System.nanoTime() < s.expires; }
     static int count() { return ACTIVE.size(); }
@@ -44,8 +69,8 @@ public final class TrailsPerformances {
                 e instanceof Guardian g && g.getActiveAttackTarget() != null ? g.getActiveAttackTarget().getId() : 0,
                 e instanceof Creeper c ? c.getSwellDir() : -1, p,
                 System.nanoTime() + p.ticks() * 50_000_000L));
-        boolean windup = p.animation().equals("draw");
-        if (!windup) {
+        TrailsCinematics.receive(p); TrailsEffects.receive(p);
+        if (p.animation().equals("strike") || p.animation().equals("support")) {
             e.swing(InteractionHand.MAIN_HAND);
             if (e instanceof IronGolem || e instanceof Ravager) e.handleEntityEvent((byte)4);
             if (e instanceof Sheep && p.animation().equals("support")) e.handleEntityEvent((byte)10);
@@ -62,6 +87,7 @@ public final class TrailsPerformances {
             float yaw = (float)Math.toDegrees(Math.atan2(-delta.x, delta.z));
             e.setYRot(yaw); e.yBodyRot = yaw; e.setYHeadRot(yaw);
         }
+        if (p.animation().equals("recover")) return;
         if (e instanceof Mob mob) mob.setAggressive(true);
         if (draw && (e.getMainHandItem().getItem() instanceof net.minecraft.world.item.BowItem
                 || e.getMainHandItem().getItem() instanceof net.minecraft.world.item.CrossbowItem

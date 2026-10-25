@@ -719,7 +719,7 @@ final class BattleSession {
         if(functionMove && members.containsKey(player.getUUID()) && player.isAlive() && actor==player) {
             callback(member(player),"on_move_finished","",target,success);drainCallbacks();
         }
-        if(!closed && motion==null && player instanceof Mob && actor==player)next();
+        if(!closed && motion==null && player instanceof Mob && actor==player && (trails==null || !trails.busy()))next();
     }
     TerrainPath.Result validateDestination(ServerPlayer player, Vec3 destination) {
         requireMovement(player);

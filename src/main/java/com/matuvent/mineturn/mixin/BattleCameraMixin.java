@@ -28,7 +28,7 @@ public abstract class BattleCameraMixin {
         detached = true;
         // Hand the live orbit camera to the performance player so a cut can push in from here.
         ActionAnimations.noteFreeCamera(new ActionAnimations.CameraPose(getPosition(), getYRot(), getXRot()));
-        var pose = ActionAnimations.cameraPose();
+        var pose = com.matuvent.mineturn.client.TrailsClient.active() ? com.matuvent.mineturn.client.TrailsCinematics.cameraPose() : ActionAnimations.cameraPose();
         if (pose != null) {
             // Fixed cut: absolute world position plus a locked look direction.
             setPosition(pose.position());

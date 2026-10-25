@@ -6,13 +6,20 @@ import net.minecraft.world.phys.Vec3;
 
 /** Bounded client-only model flights; never adds an entity to the world. */
 final class ProjectileAnimations {
-    private record Flight(ProjectileVisual packet,long started,net.minecraft.world.entity.Entity model){}
+    private static final class Flight {
+        final ProjectileVisual packet; final net.minecraft.world.entity.Entity model; final boolean burst=TrailsPerformances.bursting();
+        long elapsed,last=System.nanoTime();
+        Flight(ProjectileVisual packet,net.minecraft.world.entity.Entity model){this.packet=packet;this.model=model;}
+        void advance(long now){if(burst || !TrailsPerformances.bursting())elapsed+=Math.max(0,now-last);else pausedFrames++;last=now;}
+    }
+    static long pausedFrames;
+    static void clear(){FLIGHTS.clear();}
     private static final java.util.ArrayDeque<Flight> FLIGHTS=new java.util.ArrayDeque<>();
     private static net.minecraft.client.multiplayer.ClientLevel world;
     private static void checkWorld(){var current=Minecraft.getInstance().level;if(world!=current){FLIGHTS.clear();world=current;}}
     static void receive(ProjectileVisual packet){
         checkWorld();if(world==null || !packet.valid() || !world.dimension().location().equals(packet.dimension()))return;
-        if(FLIGHTS.size()>=64)FLIGHTS.removeFirst();FLIGHTS.addLast(new Flight(packet,System.nanoTime(),createModel(packet)));
+        if(FLIGHTS.size()>=64)FLIGHTS.removeFirst();FLIGHTS.addLast(new Flight(packet,createModel(packet)));
     }
     /** Detached render proxies: never add to ClientLevel, tick, or invoke hit methods. */
     private static net.minecraft.world.entity.Entity createModel(ProjectileVisual p){
@@ -24,14 +31,14 @@ final class ProjectileAnimations {
         if(item.is(net.minecraft.world.item.Items.WIND_CHARGE))return new net.minecraft.world.entity.projectile.windcharge.BreezeWindCharge(net.minecraft.world.entity.EntityType.BREEZE_WIND_CHARGE,world);
         if(item.is(net.minecraft.world.item.Items.FIRE_CHARGE))return new net.minecraft.world.entity.projectile.SmallFireball(net.minecraft.world.entity.EntityType.SMALL_FIREBALL,world);
         if(item.is(net.minecraft.world.item.Items.SNOWBALL))return new net.minecraft.world.entity.projectile.Snowball(world,from.x,from.y,from.z);
-        if(item.is(net.minecraft.world.item.Items.WIND_CHARGE))return new net.minecraft.world.entity.projectile.windcharge.BreezeWindCharge(net.minecraft.world.entity.EntityType.BREEZE_WIND_CHARGE,world);
         return null;
     }
     static void tick(){
         checkWorld();if(world==null)return;long now=System.nanoTime();
         var iterator=FLIGHTS.iterator();while(iterator.hasNext()){
-            var flight=iterator.next();var p=flight.packet();
-            if(now-flight.started()<p.ticks()*50_000_000L)continue;
+            var flight=iterator.next();var p=flight.packet;
+            flight.advance(now);
+            if(flight.elapsed<p.ticks()*50_000_000L)continue;
             iterator.remove();if(!p.hit())continue;
             if(p.firework()){
                 var data=p.item().get(net.minecraft.core.component.DataComponents.FIREWORKS);
@@ -46,13 +53,13 @@ final class ProjectileAnimations {
         if(event.getStage()!=net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS)return;
         checkWorld();if(world==null)return;var mc=Minecraft.getInstance();var buffers=mc.renderBuffers().bufferSource();var camera=event.getCamera().getPosition();long now=System.nanoTime();
         for(var flight:FLIGHTS){
-            var p=flight.packet();double t=Math.clamp((double)(now-flight.started())/(p.ticks()*50_000_000L),0,1);
+            var p=flight.packet;flight.advance(now);double t=Math.clamp((double)flight.elapsed/(p.ticks()*50_000_000L),0,1);
             Vec3 at=p.from().lerp(p.to(),t).add(0,Math.sin(Math.PI*t)*Math.min(1,p.from().distanceTo(p.to())*.08),0);
             var pose=new com.mojang.blaze3d.vertex.PoseStack();
             Vec3 direction=p.to().subtract(p.from()).add(0,Math.cos(Math.PI*t)*Math.PI*Math.min(1,p.from().distanceTo(p.to())*.08),0);
-            var model=flight.model();
+            var model=flight.model;
             if(model!=null){
-                model.setPos(at);model.setDeltaMovement(direction);
+                model.tickCount=(int)(t*p.ticks());model.setPos(at);model.setDeltaMovement(direction);
                 float yaw=(float)(Math.atan2(direction.x,direction.z)*180/Math.PI);
                 float pitch=(float)(Math.atan2(direction.y,direction.horizontalDistance())*180/Math.PI);
                 model.setYRot(yaw);model.yRotO=yaw;model.setXRot(pitch);model.xRotO=pitch;

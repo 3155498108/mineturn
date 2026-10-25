@@ -199,6 +199,13 @@ public final class TrailsScreen extends Screen {
             g.drawCenteredString(font, i == 0 ? "NOW" : String.format(Locale.ROOT, "%.0f", q.inAv()), x + 9, 43, i == 0 ? 0xffffd486 : 0xffe4e7f0);
             if (mouseX >= x && mouseX < x + 20 && mouseY >= 21 && mouseY < 41 && f.isPresent()) g.renderTooltip(font, Component.literal(f.get().name()), mouseX, mouseY);
         }
+        boolean performance=view.busy() && TrailsCinematics.active();
+        for (var child : children()) if (child instanceof net.minecraft.client.gui.components.AbstractWidget widget) widget.visible=!performance;
+        if (performance) {
+            TrailsCinematics.hud(g,width,height);
+            g.drawCenteredString(font, view.alliedTurn()?"行动演出中":"敌方演出中 · V 抢 S",width/2,height-12,0xffc2cad8);
+            TrailsClient.cutIn(g,width,height); return;
+        }
         g.drawString(font, "友军 " + side(false).size(), 10, 58, 0xff72f4ca);
         g.drawString(font, "敌军 " + side(true).size(), width - Math.min(154, width / 3 - 8), 58, 0xffff7794);
         g.drawCenteredString(font, font.plainSubstrByWidth(view.burstName(), Math.max(40, width - 260)), width / 2, 58, 0xffe3d5ff);
@@ -235,6 +242,7 @@ public final class TrailsScreen extends Screen {
                 g.drawCenteredString(font, shape.kind() == TrailsArea.Kind.DISK && shape.cast() > 0 ? "滚轮调落点 · Esc取消" : "右键转向 · Esc取消", width / 2, 95, 0xffb9cbe3);
             }
         }
+        TrailsCinematics.hud(g, width, height);
         TrailsClient.cutIn(g, width, height);
     }
     private void stats(GuiGraphics g, boolean enemy, int x, int column, int mouseX, int mouseY) {
@@ -287,6 +295,7 @@ public final class TrailsScreen extends Screen {
         return super.mouseReleased(x, y, button);
     }
     @Override public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+        if (TrailsClient.view.busy() && TrailsPresentationOptions.camera) return true;
         if (orbit) { BattleClient.yaw += (float) dx * .4f; BattleClient.pitch = Math.clamp(BattleClient.pitch + (float) dy * .3f, 10, 80); return true; }
         return super.mouseDragged(x, y, button, dx, dy);
     }

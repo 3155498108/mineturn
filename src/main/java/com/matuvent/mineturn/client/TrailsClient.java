@@ -44,6 +44,11 @@ public final class TrailsClient {
         bus.addListener((RegisterKeyMappingsEvent e) -> { e.register(SWITCH); e.register(BURST); e.register(PRIMARY); e.register(CONFIG); });
         net.neoforged.fml.ModList.get().getModContainerById("mineturn").orElseThrow().registerExtensionPoint(
                 net.neoforged.neoforge.client.gui.IConfigScreenFactory.class, (container, parent) -> new TrailsConfigScreen(parent));
+        TrailsPresentationOptions.load();
+        TrailsNetwork.receiveImpact = TrailsImpacts::receive;
+        NeoForge.EVENT_BUS.addListener(TrailsImpacts::render);
+        NeoForge.EVENT_BUS.addListener(TrailsEffects::render);
+        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event)->TrailsEffects.tick());
         TrailsNetwork.receivePerformance = TrailsPerformances::receive;
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> TrailsPerformances.tick());
         TrailsNetwork.receiveSettings = p -> {
@@ -79,6 +84,7 @@ public final class TrailsClient {
     public static boolean active() { return view != null && BattleClient.active() && view.battle().equals(BattleClient.state.battle()); }
     public static net.minecraft.world.phys.Vec3 cameraFocus(float partial) { return previousFocus.lerp(BattleClient.focus, Math.clamp(partial, 0, 1)); }
     public static void reset() {
+        TrailsCinematics.reset(); TrailsImpacts.reset(); TrailsEffects.reset(); ProjectileAnimations.clear();
         TrailsPerformances.reset();
         view = null; fighters = List.of(); assembling.clear(); preview = false; held = false; readyTicks = 0;
         movementSequence = 0;
@@ -138,6 +144,7 @@ public final class TrailsClient {
         if (mc.player == null || e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         if (Boolean.getBoolean("mineturn.encounterSmoke")) TrailsSmoke.frame(e.getCamera().getPosition());
         if (!preview && !(active() && mc.screen instanceof TrailsScreen)) return;
+        if(active() && view.busy() && TrailsCinematics.active())return;
         var center = mc.player.position(); var camera = e.getCamera().getPosition();
         var pose = new PoseStack(); pose.translate(-camera.x, -camera.y, -camera.z);
         var buffers = mc.renderBuffers().bufferSource(); var lines = buffers.getBuffer(RenderType.lines());

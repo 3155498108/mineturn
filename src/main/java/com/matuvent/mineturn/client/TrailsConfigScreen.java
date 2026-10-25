@@ -21,8 +21,20 @@ public final class TrailsConfigScreen extends Screen {
         encounter = field(66, settings.encounter()); vertical = field(104, settings.vertical()); movement = field(142, settings.movement());
         addRenderableWidget(Button.builder(Component.literal("保存并应用"), b -> save()).bounds(width / 2 - 106, 188, 104, 20).build());
         addRenderableWidget(Button.builder(Component.literal("返回"), b -> onClose()).bounds(width / 2 + 2, 188, 104, 20).build());
+        int cell=Math.min(104,(width-28)/4), left=(width-cell*4-12)/2;
+        toggle("camera", "演出镜头", left, cell, TrailsPresentationOptions.camera);
+        toggle("numbers", "伤害数字", left+cell+4, cell, TrailsPresentationOptions.numbers);
+        toggle("shake", "命中微震", left+cell*2+8, cell, TrailsPresentationOptions.shake);
+        toggle("effects", "武器特效", left+cell*3+12, cell, TrailsPresentationOptions.effects);
         if (minecraft.player != null) PacketDistributor.sendToServer(new TrailsNetwork.Settings(0, 0, 0, false, ""));
         else message = "请先进入单人存档，再修改该存档的战斗范围。";
+    }
+    private void toggle(String key,String name,int x,int width,boolean value) {
+        addRenderableWidget(Button.builder(Component.literal(name+"："+(value?"开":"关")), b -> {
+            TrailsPresentationOptions.toggle(key);
+            boolean current=switch(key) { case "camera" -> TrailsPresentationOptions.camera; case "numbers" -> TrailsPresentationOptions.numbers; case "effects" -> TrailsPresentationOptions.effects; default -> TrailsPresentationOptions.shake; };
+            b.setMessage(Component.literal(name+"："+(current?"开":"关")));
+        }).bounds(x,height-29,width,20).build());
     }
     private EditBox field(int y, double value) {
         var box = new EditBox(font, width / 2 + 16, y, 86, 20, Component.literal("范围"));

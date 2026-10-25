@@ -49,7 +49,10 @@
     "BattleCameraMixin",
     "BattleClientMovementMixin",
     "BattleRendererMixin",
-    "TrailsSkillTintMixin"
+    "TrailsSkillTintMixin",
+    "TrailsHumanoidAnimationMixin",
+    "TrailsRootAnimationMixin",
+    "TrailsHeldItemMixin"
   ],
   "injectors": {
     "defaultRequire": 1

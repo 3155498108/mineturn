@@ -18,10 +18,12 @@ public final class TrailsNetwork {
     public static Consumer<Roster> receiveRoster = ignored -> {};
     public static Consumer<Cue> receiveCue = ignored -> {};
     public static Consumer<Settings> receiveSettings = ignored -> {};
+    public static Consumer<Impact> receiveImpact = ignored -> {};
     public static Consumer<Performance> receivePerformance = ignored -> {};
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        var r = event.registrar("trails-4");
+        var r = event.registrar("trails-5");
+        r.playToClient(Impact.TYPE, Impact.CODEC, (p, ctx) -> receiveImpact.accept(p));
         r.playToClient(Performance.TYPE, Performance.CODEC, (p, ctx) -> receivePerformance.accept(p));
         r.playBidirectional(Settings.TYPE, Settings.CODEC, (p, ctx) -> {
             if (ctx.flow().isServerbound() && ctx.player() instanceof ServerPlayer player) TrailsCombat.settings(player, p);
@@ -99,13 +101,22 @@ public final class TrailsNetwork {
 
     /** Visual-only native poses. No client entity/projectile may apply combat effects. */
     public record Performance(UUID battle, long sequence, int actor, String animation, int ticks, boolean red,
-                              net.minecraft.world.phys.Vec3 aim) implements CustomPacketPayload {
+                              net.minecraft.world.phys.Vec3 aim, String style, String title) implements CustomPacketPayload {
         public static final Type<Performance> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_performance"));
         public static final StreamCodec<FriendlyByteBuf, Performance> CODEC = StreamCodec.of((b, p) -> {
             b.writeUUID(p.battle); b.writeVarLong(p.sequence); b.writeVarInt(p.actor); b.writeUtf(p.animation, 24);
-            b.writeVarInt(p.ticks); b.writeBoolean(p.red); b.writeVec3(p.aim);
-        }, b -> new Performance(b.readUUID(), b.readVarLong(), b.readVarInt(), b.readUtf(24), b.readVarInt(), b.readBoolean(), b.readVec3()));
+            b.writeVarInt(p.ticks); b.writeBoolean(p.red); b.writeVec3(p.aim); b.writeUtf(p.style, 32); b.writeUtf(p.title, 96);
+        }, b -> new Performance(b.readUUID(), b.readVarLong(), b.readVarInt(), b.readUtf(24), b.readVarInt(), b.readBoolean(), b.readVec3(), b.readUtf(32), b.readUtf(96)));
         @Override public Type<Performance> type() { return TYPE; }
+    }
+
+    /** Actual post-mitigation health/absorption loss; presentation cannot cause damage. */
+    public record Impact(UUID battle, long sequence, int target, float amount, net.minecraft.world.phys.Vec3 position) implements CustomPacketPayload {
+        public static final Type<Impact> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_impact"));
+        public static final StreamCodec<FriendlyByteBuf, Impact> CODEC = StreamCodec.of((b, p) -> {
+            b.writeUUID(p.battle); b.writeVarLong(p.sequence); b.writeVarInt(p.target); b.writeFloat(p.amount); b.writeVec3(p.position);
+        }, b -> new Impact(b.readUUID(), b.readVarLong(), b.readVarInt(), b.readFloat(), b.readVec3()));
+        @Override public Type<Impact> type() { return TYPE; }
     }
 
     public record Roster(UUID battle, long revision, int page, boolean last, List<Fighter> fighters) implements CustomPacketPayload {

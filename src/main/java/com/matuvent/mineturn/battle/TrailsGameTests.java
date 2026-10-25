@@ -130,6 +130,8 @@ public final class TrailsGameTests {
             var original = f.b.actor; long revision = f.b.revision;
             var request = f.cmd("burst", zombie.getId(), 0);
             TrailsCombat.request(f.p, request);
+            h.assertTrue(zombie.getHealth() == 200 && f.b.trails.burstAction != null, "S-Break skipped anticipation");
+            resolve(f.b.trails);
             h.assertTrue(zombie.getHealth() < 200 && f.b.actor == original, "S-Break did not interrupt while retaining enemy turn");
             h.assertTrue(f.b.trails.cp() == 50 && f.b.revision > revision, "Burst CP cost");
             TrailsCombat.request(f.p, request);
@@ -173,7 +175,7 @@ public final class TrailsGameTests {
             var front = f.mob(EntityType.ZOMBIE, 7, 5);
             var behind = f.mob(EntityType.ZOMBIE, 3, 5); var pig = f.mob(EntityType.PIG, 6, 5);
             f.start(false); float hp = front.getHealth(), behindHp = behind.getHealth(), pigHp = pig.getHealth();
-            f.b.trails.attack(front.getId(), 0, false);
+            f.b.trails.attack(front.getId(), 0, false); resolve(f.b.trails);
             h.assertTrue(front.getHealth() < hp, "Sword missed cone target");
             h.assertTrue(behind.getHealth() == behindHp && pig.getHealth() == pigHp,
                     "Sword hit behind or friendly target: behind=" + behind.getHealth() + "/" + behindHp + ", ally=" + pig.getHealth() + "/" + pigHp);
@@ -189,7 +191,7 @@ public final class TrailsGameTests {
             TrailsCombat.request(f.p, f.cmd("attack", zombie.getId(), 1));
             h.assertTrue(zombie.getHealth() == hp && f.b.actor == f.p, "Missing ammo still attacked/spent turn");
             f.p.getInventory().setItem(2, new ItemStack(Items.ARROW, 3));
-            f.b.trails.attack(zombie.getId(), 1, false);
+            f.b.trails.attack(zombie.getId(), 1, false); resolve(f.b.trails);
             h.assertTrue(zombie.getHealth() < hp && f.p.getInventory().getItem(2).getCount() == 2, "Ranged attack/ammo consumption");
         }
         h.succeed();
@@ -200,7 +202,7 @@ public final class TrailsGameTests {
         try (var f = new Fixture(h)) {
             var a = f.mob(EntityType.ZOMBIE, 7, 5); var c = f.mob(EntityType.ZOMBIE, 9, 5);
             f.p.getInventory().setItem(1, new ItemStack(Items.MACE)); f.p.getInventory().setItem(2, new ItemStack(Items.WIND_CHARGE, 2));
-            f.start(false); float hp = c.getHealth(); f.b.trails.attack(a.getId(), 1, true);
+            f.start(false); float hp = c.getHealth(); f.b.trails.attack(a.getId(), 1, true); resolve(f.b.trails);
             h.assertTrue(c.getHealth() < hp && f.p.getInventory().getItem(2).getCount() == 1, "Wind combo area/resource");
             h.assertTrue(f.b.clock.until(f.p, f.b::agility) > 100, "Heavy combo did not lengthen recovery");
         }
@@ -212,10 +214,10 @@ public final class TrailsGameTests {
         try (var f = new Fixture(h)) {
             f.mob(EntityType.ZOMBIE, 9, 5); var pig = f.mob(EntityType.PIG, 6, 5); var sheep = f.mob(EntityType.SHEEP, 5, 6);
             f.start(false); pig.setHealth(2); f.p.setHealth(8);
-            f.b.actor = pig; f.b.trails.companionSkill(-1); float hp = pig.getHealth();
+            f.b.actor = pig; f.b.trails.companionSkill(-1); resolve(f.b.trails); float hp = pig.getHealth();
             f.b.actor = pig; f.b.trails.onTurn();
             h.assertTrue(pig.getHealth() == hp + 2, "Pig did not regenerate on later own turn");
-            f.b.actor = sheep; f.b.trails.companionSkill(-1);
+            f.b.actor = sheep; f.b.trails.companionSkill(-1); resolve(f.b.trails);
             h.assertTrue(f.p.getHealth() >= 12, "Sheep did not heal nearby party");
         }
         h.succeed();
@@ -381,7 +383,7 @@ public final class TrailsGameTests {
         try (var f = new Fixture(h)) {
             var forward = f.mob(EntityType.ZOMBIE, 5, 7); var selectedBehind = f.mob(EntityType.ZOMBIE, 5, 3); var pig = f.mob(EntityType.PIG, 6, 7);
             f.start(true); float a = forward.getHealth(), c = selectedBehind.getHealth(), friend = pig.getHealth();
-            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "attack", selectedBehind.getId(), 0, 0, 1));
+            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "attack", selectedBehind.getId(), 0, 0, 1)); resolve(f.b.trails);
             h.assertTrue(forward.getHealth() < a && selectedBehind.getHealth() == c && pig.getHealth() == friend,
                     "Camera sector locked to the selected enemy or hit friendly units");
         }
@@ -394,7 +396,7 @@ public final class TrailsGameTests {
             var a = f.mob(EntityType.ZOMBIE, 5, 9); var c = f.mob(EntityType.ZOMBIE, 6, 12); var outside = f.mob(EntityType.ZOMBIE, 9, 9);
             f.p.getInventory().setItem(1, new ItemStack(Items.CROSSBOW)); f.p.getInventory().setItem(2, new ItemStack(Items.ARROW, 3));
             f.start(true); float ah = a.getHealth(), ch = c.getHealth(), oh = outside.getHealth();
-            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "attack", outside.getId(), 1, 0, 1));
+            TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "attack", outside.getId(), 1, 0, 1)); resolve(f.b.trails);
             h.assertTrue(a.getHealth() < ah && c.getHealth() < ch && outside.getHealth() == oh, "Crossbow did not use the displayed rectangular strip");
             h.assertTrue(f.p.getInventory().getItem(2).getCount() == 2, "Rectangle consumed ammo per target instead of per shot");
         }
@@ -419,7 +421,7 @@ public final class TrailsGameTests {
             var enemy = f.mob(EntityType.ZOMBIE, 9, 5); var pig = f.mob(EntityType.PIG, 6, 5);
             var chicken = f.mob(EntityType.CHICKEN, 6, 6); var far = f.mob(EntityType.PIG, 14, 14); f.start(true);
             f.b.actor = chicken; f.b.trails.onTurn(); f.b.clock.recovery(enemy, 0); f.b.clock.recovery(far, 3456); f.b.clock.recovery(pig, 4567);
-            double time = f.b.clock.time(); f.b.trails.companionSkill(-1);
+            double time = f.b.clock.time(); f.b.trails.companionSkill(-1); resolve(f.b.trails);
             h.assertTrue(f.b.actor == f.p && f.b.clock.remaining(pig) == 0 && f.b.clock.remaining(chicken) == 0, "Chicken did not ready the entire nearby allied group including itself");
             h.assertTrue(f.b.clock.remaining(far) == 3456 && f.b.clock.remaining(enemy) == 0 && f.b.clock.time() == time, "Chicken changed out-of-area/enemy progress or advanced AT");
             f.b.trails.finish(1); h.assertTrue(f.b.trails.allied(f.b.actor), "Tied enemy cut ahead of readied allies");
@@ -432,7 +434,7 @@ public final class TrailsGameTests {
     public static void repeatedCompanionBuffAndPotionStackVanillaLevels(GameTestHelper h) {
         try (var f = new Fixture(h)) {
             f.mob(EntityType.ZOMBIE, 12, 12); var wolf = f.mob(EntityType.WOLF, 5, 6); f.start(true);
-            f.b.actor = wolf; f.b.trails.companionSkill(-1); f.b.actor = wolf; f.b.trails.companionSkill(-1);
+            f.b.actor = wolf; f.b.trails.companionSkill(-1); resolve(f.b.trails); f.b.actor = wolf; f.b.trails.companionSkill(-1); resolve(f.b.trails);
             h.assertTrue(f.p.getEffect(MobEffects.DAMAGE_BOOST).getAmplifier() == 1, "Repeated wolf warcry did not stack Strength levels");
             TrailsCombat.effect(f.p, MobEffects.MOVEMENT_SPEED, 240, 0);
             var potion = new ItemStack(Items.POTION); potion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SWIFTNESS));
@@ -472,7 +474,7 @@ public final class TrailsGameTests {
         h.succeed();
     }
     static void resolve(TrailsCombat rules) {
-        for (int i = 0; i < 160 && rules.busy() && !rules.b.closed; i++) rules.tick();
+        for (int i = 0; i < 240 && rules.busy() && !rules.b.closed; i++) rules.tick();
         if (rules.busy()) throw new IllegalStateException("Presentation never completed");
     }
     @GameTest(template = "empty")
@@ -597,6 +599,96 @@ public final class TrailsGameTests {
             float hp = f.p.getHealth(); f.b.trails.enemyAction(); resolve(f.b.trails);
             h.assertTrue(f.p.getHealth() == hp && !creeper.isAlive(), "Creeper explosion teleported to the distant target or did not consume creeper");
             h.assertBlockPresent(Blocks.STONE, new BlockPos(5, 0, 8));
+        }
+        h.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void normalAttackHasWindupOneImpactAndRecoveryWithoutMoving(GameTestHelper h) {
+        try (var f = new Fixture(h)) {
+            var enemy=f.mob(EntityType.ZOMBIE,7,5); f.start(false);
+            float hp=enemy.getHealth(); var position=f.p.position(); double time=f.b.clock.time();
+            f.b.trails.attack(enemy.getId(),0,false);
+            h.assertTrue(f.b.trails.busy() && enemy.getHealth()==hp,"Normal attack did not wait for its swing");
+            for(int i=0;i<9;i++) f.b.trails.tick();
+            h.assertTrue(enemy.getHealth()==hp && f.b.clock.time()==time,"Thinking/anticipation advanced AT or dealt early damage");
+            for(int i=0;i<6;i++) f.b.trails.tick();
+            float impacted=enemy.getHealth(); h.assertTrue(impacted<hp && f.b.trails.busy(),"Impact/recovery timing is missing");
+            resolve(f.b.trails);
+            h.assertTrue(enemy.getHealth()==impacted && f.p.position().equals(position),"Animation dealt damage twice or moved world position");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void arrowsLandAfterFlightAndCancelIfObstructed(GameTestHelper h) {
+        try(var f=new Fixture(h)) {
+            var enemy=f.mob(EntityType.ZOMBIE,12,5);f.p.getInventory().setItem(1,new ItemStack(Items.BOW));f.p.getInventory().setItem(2,new ItemStack(Items.ARROW,3));f.start(false);
+            float hp=enemy.getHealth();f.b.trails.attack(enemy.getId(),1,false);
+            for(int i=0;i<18;i++) f.b.trails.tick();
+            h.assertTrue(enemy.getHealth()==hp && f.p.getInventory().getItem(2).getCount()==2,"Arrow damaged before flight or did not reserve once");
+            for(int y=1;y<4;y++)h.setBlock(9,y,5,Blocks.STONE);
+            resolve(f.b.trails);
+            h.assertTrue(enemy.getHealth()==hp && f.p.getInventory().getItem(2).getCount()==2,"Arrow crossed a new wall or duplicated ammo reservation");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void burstFreezesEnemyCastAndResumesItOnlyAfterFinishing(GameTestHelper h) {
+        try(var f=new Fixture(h)) {
+            for(int i=0;i<61;i++)f.p.tick();
+            var enemy=f.mob(EntityType.SKELETON,5,10);enemy.setItemSlot(EquipmentSlot.MAINHAND,new ItemStack(Items.BOW));
+            enemy.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(80);enemy.setHealth(80);
+            f.start(false);f.b.actor=enemy;f.b.trails.onTurn();f.b.trails.enemyAction();
+            var saved=f.b.trails.pending;float hp=f.p.getHealth();f.b.trails.addCp(200);
+            TrailsCombat.request(f.p,new TrailsNetwork.Command(f.b.id,f.b.revision,"burst",enemy.getId(),0,0,1));
+            for(int i=0;i<25;i++) f.b.trails.tick();
+            h.assertTrue(f.b.trails.pending==saved && f.p.getHealth()==hp && f.b.trails.cp()==100,"S-Break did not suspend enemy's pending cast");
+            int safety=0;while(f.b.trails.burstAction!=null && safety++<100) f.b.trails.tick();
+            h.assertTrue(f.b.actor==enemy && f.b.trails.pending==saved,"S-Break erased enemy turn/pending progress");
+            resolve(f.b.trails);h.assertTrue(f.p.getHealth()<hp,"Surviving enemy never resumed its bow shot");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void closingDuringStrikeCancelsImpactAndBurstPresentation(GameTestHelper h) {
+        try(var f=new Fixture(h)) {
+            var enemy=f.mob(EntityType.ZOMBIE,7,5);f.start(false);float hp=enemy.getHealth();
+            f.b.trails.attack(enemy.getId(),0,false);for(int i=0;i<11;i++)f.b.trails.tick();
+            var rules=f.b.trails;f.b.close("test during swing");rules.tickPending();rules.tickBurst();
+            h.assertTrue(enemy.getHealth()==hp && rules.pending==null && rules.burstAction==null,"Closed performance landed a stale hit");
+        }
+        h.succeed();
+    }
+    @GameTest(template = "empty")
+    public static void weaponPoseCurvesStayBoundedAndDistinguishHeavyAndRanged(GameTestHelper h) {
+        for(String style:List.of("sword","axe","mace","bow","crossbow","trident","charge","burst_mace")) {
+            for(String phase:List.of("draw","strike","recover"))for(int i=0;i<=100;i++) {
+                var pose=TrailsChoreography.pose(style,phase,i/100.);
+                h.assertTrue(Float.isFinite(pose.arm()) && Math.abs(pose.arm())<=3.1 && Math.abs(pose.advance())<=.5 && pose.lift()<=1.11,"Unbounded weapon pose: "+style);
+            }
+        }
+        h.assertTrue(TrailsChoreography.pose("mace","draw",1).lift()>.5 && !TrailsChoreography.pose("bow","draw",1).arms(),"Mace lift or native bow pose distinction missing");
+        h.succeed();
+    }
+
+    @GameTest(template="empty")
+    public static void lethalBurstCancelsTheInterruptedEnemyShot(GameTestHelper h) {
+        try(var f=new Fixture(h)) {
+            for(int i=0;i<61;i++)f.p.tick();
+            var enemy=f.mob(EntityType.SKELETON,5,10);enemy.setHealth(10);enemy.setItemSlot(EquipmentSlot.MAINHAND,new ItemStack(Items.BOW));
+            f.mob(EntityType.ZOMBIE,14,14);f.start(false);f.b.actor=enemy;f.b.trails.onTurn();f.b.trails.enemyAction();
+            float hp=f.p.getHealth();f.b.trails.addCp(200);f.b.trails.burst(enemy.getId());resolve(f.b.trails);
+            h.assertTrue(!enemy.isAlive() && f.b.trails.pending==null && f.p.getHealth()==hp,"Killed interrupted caster left a live arrow timer");
+        }
+        h.succeed();
+    }
+    @GameTest(template="empty")
+    public static void closingDuringBurstCannotLandItsReservedAttack(GameTestHelper h) {
+        try(var f=new Fixture(h)) {
+            var enemy=f.mob(EntityType.ZOMBIE,7,5);f.start(false);f.b.trails.addCp(200);float hp=enemy.getHealth();
+            f.b.trails.burst(enemy.getId());for(int i=0;i<12;i++)f.b.trails.tick();
+            var rules=f.b.trails;f.b.close("cancel S animation");rules.tickBurst();
+            h.assertTrue(enemy.getHealth()==hp && rules.burstAction==null && rules.cp()==100,"Canceled S animation hit/refunded after exit");
         }
         h.succeed();
     }

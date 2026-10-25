@@ -1,6 +1,6 @@
 # 动作动画与镜头演出系统
 
-> 当前 AT 分支的原版姿态由 `TrailsPerformances` 和 `TrailsNetwork.Performance` 驱动，敌方战技使用 `TrailsSkillTintMixin` 的原版红色叠层；`TrailsCombat.Pending` 管理蓄力/命中时间，客户端不结算伤害。种类与边界见 [分支规则](TRAILS_PROTOTYPE.md)，本次实际验证只记录在 [任务表](TASKS.md) 顶部。下方为上游原有演出设计。
+> 当前 AT 分支已新增固定攻击镜头、分阶段命中、人形武器动作、光效与浮字，见 [攻击演出](ATTACK_PRESENTATIONS.md)。原版姿态由 `TrailsPerformances` 和 `TrailsNetwork.Performance` 驱动，敌方战技使用 `TrailsSkillTintMixin` 的原版红色叠层；`TrailsCombat.Pending` 管理蓄力/命中时间，客户端不结算伤害。种类与边界见 [分支规则](TRAILS_PROTOTYPE.md)，本次实际验证只记录在 [任务表](TASKS.md) 顶部。下方为上游原有演出设计。
 
 
 > 本文描述"行动动画 + 演出镜头"系统的**设计**与**已实现范围**，覆盖玩家与生物的攻击、进食、

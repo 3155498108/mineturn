@@ -14,25 +14,31 @@ public final class TrailsSmokeScenario {
         if (net.neoforged.fml.loading.FMLLoader.isProduction() || !Boolean.getBoolean("mineturn.encounterSmoke")
                 || !p.server.getWorldPath(LevelResource.ROOT).normalize().getFileName().toString().matches("AT-QA-[A-Za-z0-9-]+"))
             throw new IllegalStateException("QA scenario refused outside named QA save");
+        boolean counter=mode==24;if(counter)mode=7;
         var previous = BattleManager.ACTIVE.get(p.getUUID()); if (previous != null) previous.close("QA scenario transition");
         for (var e : spawned) e.discard(); spawned.clear();
+        for (var mob : p.serverLevel().getEntitiesOfClass(Mob.class,p.getBoundingBox().inflate(32))) mob.discard();
         p.teleportTo(.5, -59, .5); p.setHealth(20); p.setYRot(0);
         p.getInventory().setItem(4, new ItemStack(Items.ARROW, 32)); p.getInventory().setItem(5, new ItemStack(Items.WIND_CHARGE, 16));
         var type = mode == 6 ? EntityType.BREEZE : mode == 7 ? EntityType.SKELETON : EntityType.ZOMBIE;
-        var enemy = type.create(p.serverLevel()); enemy.moveTo(.5, -59, mode >= 6 ? 8.5 : 3.5, 180, 0); enemy.setNoAi(true);
+        var enemy = type.create(p.serverLevel()); enemy.moveTo(.5, -59, mode == 6 || mode == 7 ? 8.5 : 3.5, 180, 0); enemy.setNoAi(true);
         enemy.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
         if (mode == 7) enemy.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         enemy.getAttribute(Attributes.MAX_HEALTH).setBaseValue(500); enemy.setHealth(500); p.serverLevel().addFreshEntity(enemy); spawned.add(enemy);
         LivingEntity friend = null;
-        if (mode >= 8) {
+        if (mode >= 8 && mode <= 10) {
             var friendlyType = mode == 8 ? EntityType.SHEEP : mode == 9 ? EntityType.IRON_GOLEM : EntityType.CHICKEN;
             var animal = friendlyType.create(p.serverLevel()); animal.moveTo(-1.5, -59, 1.5, 0, 0); animal.setNoAi(true);
             p.serverLevel().addFreshEntity(animal); spawned.add(animal); friend = animal;
         }
         var b = new BattleSession(p, List.copyOf(spawned), false);
-        if (mode < 6) {
+        if (mode < 6 || mode >= 11) {
             var weapons = List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.MACE, Items.TRIDENT);
-            p.getInventory().setItem(0, new ItemStack(weapons.get(mode))); p.getInventory().selected = 0;
+            int weaponIndex=mode==23?0:mode<6?mode:mode<17?mode-11:mode-17;
+            p.getInventory().setItem(0, new ItemStack(weapons.get(weaponIndex)));
+            p.getPersistentData().putInt("mineturn.trails.cp", 200);
+ p.getInventory().selected = 0;
+            TrailsCombat.setPrimary(p);
             p.inventoryMenu.broadcastChanges();
             p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket(0));
             ((com.matuvent.mineturn.mixin.StatusAccess)p).mineturn$equipment();
@@ -40,9 +46,10 @@ public final class TrailsSmokeScenario {
         } else if (mode < 8) {
             b.actor = enemy; b.trails.onTurn(); b.trails.turns.put(enemy.getUUID(), 3);
             // A high-health QA target must still exercise the normal species skill, not the generic boss loop.
-            enemy.getAttribute(Attributes.MAX_HEALTH).setBaseValue(mode == 6 ? 30 : 20); enemy.setHealth(enemy.getMaxHealth());
+            enemy.getAttribute(Attributes.MAX_HEALTH).setBaseValue(mode == 6 ? 30 : counter ? 80 : 20); enemy.setHealth(enemy.getMaxHealth());
             b.trails.enemyWait = 20;
         } else { b.actor = friend; b.trails.onTurn(); }
+        if(mode==23)for(int z=-4;z<=2;z++)for(int y=-59;y<=-53;y++)p.serverLevel().setBlock(new net.minecraft.core.BlockPos(3,y,z),net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(),3);
         b.revision++; b.syncAll();
     }
     public static void stop(ServerPlayer p) {
