@@ -50,6 +50,8 @@
     "BattleClientMovementMixin",
     "BattleRendererMixin",
     "TrailsSkillTintMixin",
+    "TrailsDragonGlowMixin",
+    "TrailsSpellAccess",
     "TrailsHumanoidAnimationMixin",
     "TrailsRootAnimationMixin",
     "TrailsHeldItemMixin"

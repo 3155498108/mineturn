@@ -15,6 +15,7 @@ public final class TrailsCinematics {
     public static long sampledFrames;
     static void receive(TrailsNetwork.Performance p) {
         if (!TrailsPresentationOptions.camera) return;
+        if(p.animation().equals("telegraph"))return;
         var mc=Minecraft.getInstance();
         if (mc.level==null || !(mc.level.getEntity(p.actor()) instanceof LivingEntity actor)) return;
         boolean continuation=shot!=null && shot.packet.actor()==p.actor() && !p.animation().equals("draw");
@@ -56,7 +57,7 @@ public final class TrailsCinematics {
         forward=forward.horizontalDistanceSqr()>1e-6 ? forward.normalize() : new Vec3(0,0,1);
         Vec3 side=new Vec3(forward.z,0,-forward.x);
         boolean ranged=p.style().contains("bow") || p.style().contains("trident") || p.style().equals("breeze");
-        double size=Math.min(2.5,Math.max(1,actor.getBbWidth()));
+        double size=Math.min(6,Math.max(1,actor.getBbWidth()));
         Vec3 look=source.add(forward.scale(ranged?2:1.1)).add(0,p.style().contains("mace")?.35:0,0);
         // Clamp the subject first, then the fixed camera, so neither endpoint starts inside a wall.
         var lookHit=actor.level().clip(new net.minecraft.world.level.ClipContext(source,look,net.minecraft.world.level.ClipContext.Block.COLLIDER,

@@ -33,7 +33,8 @@ public final class TrailsScreen extends Screen {
         }
         if (preparing.equals("attack") && TrailsClient.view.actor() != minecraft.player.getId()) {
             var actor = minecraft.level.getEntity(TrailsClient.view.actor());
-            return new TrailsArea(TrailsArea.Kind.SINGLE, actor instanceof net.minecraft.world.entity.animal.Pig ? 5 : 2.2, 0, 0);
+            var profile=actor instanceof net.minecraft.world.entity.LivingEntity living?com.matuvent.mineturn.battle.TrailsBestiary.get(living):null;
+            return profile==null?new TrailsArea(TrailsArea.Kind.SINGLE,2.2,0,0):profile.basic().area();
         }
         var stack = minecraft.player.getMainHandItem();
         if (preparing.equals("burst")) for (int i = 0; i < 36; i++) {
@@ -196,6 +197,7 @@ public final class TrailsScreen extends Screen {
             var q = queue.get(i); int x = 8 + i * 29;
             var f = TrailsClient.fighters.stream().filter(v -> v.id() == q.id()).findFirst();
             TrailsPortraits.draw(g, q.id(), x, 21, 19, f.map(TrailsNetwork.Fighter::enemy).orElse(false));
+            if(f.isPresent() && f.get().threat()!=null){g.renderOutline(x-1,20,21,21,f.get().threat().golden()?0xffffd23c:0xffff3458);g.drawString(font,f.get().threat().golden()?"S":"!",x+13,19,f.get().threat().golden()?0xffffd23c:0xffff3458);}
             g.drawCenteredString(font, i == 0 ? "NOW" : String.format(Locale.ROOT, "%.0f", q.inAv()), x + 9, 43, i == 0 ? 0xffffd486 : 0xffe4e7f0);
             if (mouseX >= x && mouseX < x + 20 && mouseY >= 21 && mouseY < 41 && f.isPresent()) g.renderTooltip(font, Component.literal(f.get().name()), mouseX, mouseY);
         }
@@ -250,6 +252,12 @@ public final class TrailsScreen extends Screen {
         for (int i = page * rows(); i < Math.min(list.size(), (page + 1) * rows()); i++) {
             var f = list.get(i); int y = 69 + (i - page * rows()) * 36;
             TrailsPortraits.draw(g, f.id(), x + 3, y + 3, 21, enemy);
+            if(f.threat()!=null){
+                int color=f.threat().golden()?0xffffd23c:0xffff3458;
+                g.renderOutline(x,y,column,34,color);
+                g.drawString(font,"!",x+column-10,y+3,color);
+                if(mouseX>=x && mouseX<x+column && mouseY>=y && mouseY<y+34)g.renderTooltip(font,Component.literal((f.threat().golden()?"S 技金色蓄力：":"危险蓄力：")+f.threat().name()+" · 下次自身回合发动，危险范围已锁定"),mouseX,mouseY);
+            }
             g.drawString(font, font.plainSubstrByWidth((f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name(), column - 30), x + 28, y + 3, -1);
             TrailsPortraits.effects(g, f, x + 28, y + 15, Math.max(1, (column - 45) / 15), mouseX, mouseY);
             g.fill(x + 2, y + 30, x + column - 2, y + 33, 0xff282536);

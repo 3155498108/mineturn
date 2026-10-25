@@ -55,5 +55,29 @@ public final class TrailsSmokeScenario {
     public static void stop(ServerPlayer p) {
         var b = BattleManager.ACTIVE.get(p.getUUID()); if (b != null) b.close("QA presentation complete");
     }
+    public static void bestiary(ServerPlayer p,String id,boolean ultimate) {
+        if(net.neoforged.fml.loading.FMLLoader.isProduction() || !Boolean.getBoolean("mineturn.encounterSmoke")
+                || !p.server.getWorldPath(LevelResource.ROOT).normalize().getFileName().toString().matches("AT-QA-[A-Za-z0-9-]+"))throw new IllegalStateException("QA save required");
+        stop(p);for(var e:spawned)e.discard();spawned.clear();
+        for(var mob:p.serverLevel().getEntitiesOfClass(Mob.class,p.getBoundingBox().inflate(40)))mob.discard();
+        p.teleportTo(.5,-59,.5);p.getAttribute(Attributes.MAX_HEALTH).setBaseValue(500);p.setHealth(500);p.removeAllEffects();
+        p.getInventory().setItem(0,new ItemStack(Items.IRON_SWORD));p.getInventory().selected=0;p.inventoryMenu.broadcastChanges();
+        var type=net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.get(net.minecraft.resources.ResourceLocation.withDefaultNamespace(id));
+        var actor=(Mob)type.create(p.serverLevel());actor.moveTo(.5,id.equals("ender_dragon")?-55:-59,8.5,180,0);actor.setNoAi(true);
+        if(actor instanceof net.minecraft.world.entity.boss.wither.WitherBoss wither)wither.setInvulnerableTicks(0);
+        actor.getAttribute(Attributes.MAX_HEALTH).setBaseValue(500);actor.setHealth(500);p.serverLevel().addFreshEntity(actor);spawned.add(actor);
+        if(TrailsCombat.friendly(actor,p)){
+            actor.moveTo(-1.5,-59,1.5,0,0);var z=EntityType.ZOMBIE.create(p.serverLevel());z.moveTo(-1.5,-59,3,180,0);z.setNoAi(true);z.getAttribute(Attributes.MAX_HEALTH).setBaseValue(500);z.setHealth(500);p.serverLevel().addFreshEntity(z);spawned.add(z);
+        }
+        var b=new BattleSession(p,List.copyOf(spawned),false);b.actor=actor;b.trails.onTurn();b.trails.turns.put(actor.getUUID(),3);
+        if(ultimate){TrailsBestiaryActions.prepare(b.trails,actor,p,TrailsBestiary.get(actor).ultimate(),true);b.actor=p;b.trails.onTurn();}
+        else b.trails.enemyWait=-12;
+        b.revision++;b.syncAll();
+    }
+    public static void releaseBestiary(ServerPlayer p){
+        var b=BattleManager.ACTIVE.get(p.getUUID());var actor=spawned.getFirst();b.actor=actor;b.trails.onTurn();
+        if(b.trails.allied(actor))b.trails.companionSkill(b.enemies(actor).getFirst().getId());else b.trails.enemyAction();
+        b.revision++;b.syncAll();
+    }
     private TrailsSmokeScenario() {}
 }

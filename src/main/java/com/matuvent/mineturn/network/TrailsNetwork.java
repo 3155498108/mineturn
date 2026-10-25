@@ -22,7 +22,7 @@ public final class TrailsNetwork {
     public static Consumer<Performance> receivePerformance = ignored -> {};
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        var r = event.registrar("trails-5");
+        var r = event.registrar("trails-6");
         r.playToClient(Impact.TYPE, Impact.CODEC, (p, ctx) -> receiveImpact.accept(p));
         r.playToClient(Performance.TYPE, Performance.CODEC, (p, ctx) -> receivePerformance.accept(p));
         r.playBidirectional(Settings.TYPE, Settings.CODEC, (p, ctx) -> {
@@ -63,16 +63,21 @@ public final class TrailsNetwork {
         void write(FriendlyByteBuf b) { b.writeUtf(effect, 128); b.writeVarInt(level); b.writeVarInt(ticks); }
         static Status read(FriendlyByteBuf b) { return new Status(b.readUtf(128), b.readVarInt(), b.readVarInt()); }
     }
-    public record Fighter(int id, String name, boolean enemy, float hp, float maxHp, double spd, double at, String skill, List<Status> effects) {
+    public record Fighter(int id, String name, boolean enemy, float hp, float maxHp, double spd, double at, String skill, List<Status> effects, Threat threat) {
         void write(FriendlyByteBuf b) {
             b.writeVarInt(id); b.writeUtf(name, 256); b.writeBoolean(enemy); b.writeFloat(hp); b.writeFloat(maxHp);
             b.writeDouble(spd); b.writeDouble(at); b.writeUtf(skill, 64);
-            b.writeCollection(effects, (out, s) -> s.write(out));
+            b.writeCollection(effects, (out, s) -> s.write(out)); b.writeBoolean(threat!=null);if(threat!=null)threat.write(b);
         }
         static Fighter read(FriendlyByteBuf b) {
             return new Fighter(b.readVarInt(), b.readUtf(256), b.readBoolean(), b.readFloat(), b.readFloat(), b.readDouble(), b.readDouble(), b.readUtf(64),
-                    b.readCollection(FriendlyByteBuf.limitValue(java.util.ArrayList::new, 64), Status::read));
+                    b.readCollection(FriendlyByteBuf.limitValue(java.util.ArrayList::new, 64), Status::read),b.readBoolean()?Threat.read(b):null);
         }
+    }
+
+    public record Threat(String name,boolean golden,net.minecraft.world.phys.Vec3 origin,net.minecraft.world.phys.Vec3 aim,com.matuvent.mineturn.battle.TrailsArea area) {
+        void write(FriendlyByteBuf b){b.writeUtf(name,96);b.writeBoolean(golden);b.writeVec3(origin);b.writeVec3(aim);b.writeVarInt(area.kind().ordinal());b.writeDouble(area.cast());b.writeDouble(area.radius());b.writeDouble(area.width());}
+        static Threat read(FriendlyByteBuf b){return new Threat(b.readUtf(96),b.readBoolean(),b.readVec3(),b.readVec3(),new com.matuvent.mineturn.battle.TrailsArea(com.matuvent.mineturn.battle.TrailsArea.Kind.values()[b.readVarInt()],b.readDouble(),b.readDouble(),b.readDouble()));}
     }
 
     public record Settings(double encounter, double vertical, double movement, boolean save, String message) implements CustomPacketPayload {

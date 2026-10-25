@@ -34,8 +34,9 @@ public final class TrailsPerformances {
         return original;
     }
     private record PoseState(LivingEntity entity, Pose original, boolean aggressive, float pitch, boolean using, InteractionHand hand, int remaining, float walk, boolean crossbow, boolean ghast, boolean blaze, int beam, int swell,
-                             TrailsNetwork.Performance packet, long expires) {
+                             Runnable nativeRestore, TrailsNetwork.Performance packet, long expires) {
         void restore() {
+            nativeRestore.run();
             entity.setPose(original); entity.setXRot(pitch); entity.walkAnimation.setSpeed(walk); entity.stopUsingItem();
             var access = (com.matuvent.mineturn.mixin.StatusAccess)entity;
             access.mineturn$useFlag(1, false);
@@ -55,7 +56,7 @@ public final class TrailsPerformances {
         return state!=null && state.packet.style().startsWith("burst_") && System.nanoTime()<state.expires;
     }
     public static void reset() { ACTIVE.values().forEach(PoseState::restore); ACTIVE.clear(); sequence = -1; }
-    public static boolean red(LivingEntity e) { var s = ACTIVE.get(e.getId()); return s != null && s.entity == e && s.packet.red() && System.nanoTime() < s.expires; }
+    public static boolean red(LivingEntity e) { var s = ACTIVE.get(e.getId()); var threat=TrailsWarnings.threat(e); return !TrailsWarnings.gold(e) && (threat!=null && !threat.golden() || s != null && s.entity == e && s.packet.red() && System.nanoTime() < s.expires); }
     static int count() { return ACTIVE.size(); }
     static void receive(TrailsNetwork.Performance p) {
         var mc = Minecraft.getInstance();
@@ -63,12 +64,18 @@ public final class TrailsPerformances {
                 || p.ticks() < 1 || p.ticks() > 100 || mc.level == null) return;
         sequence = p.sequence();
         if (!(mc.level.getEntity(p.actor()) instanceof LivingEntity e)) return;
-        var old = ACTIVE.remove(p.actor()); if (old != null) old.restore();
+        var old = ACTIVE.remove(p.actor());
+        AnimationState sonic=null;
+        if(e instanceof net.minecraft.world.entity.monster.warden.Warden w && old!=null && old.entity==e && old.packet.style().equals(p.style()) && p.style().contains("sonic")){
+            sonic=w.sonicBoomAnimationState;w.sonicBoomAnimationState=new AnimationState();
+        }
+        if (old != null) old.restore();
         ACTIVE.put(p.actor(), new PoseState(e, e.getPose(), e instanceof Mob m && m.isAggressive(), e.getXRot(), e.isUsingItem(), e.getUsedItemHand(), e.getUseItemRemainingTicks(), e.walkAnimation.speed(),
                 e instanceof Pillager v && v.isChargingCrossbow(), e instanceof Ghast g && g.isCharging(), e instanceof Blaze blaze && blaze.isOnFire(),
                 e instanceof Guardian g && g.getActiveAttackTarget() != null ? g.getActiveAttackTarget().getId() : 0,
-                e instanceof Creeper c ? c.getSwellDir() : -1, p,
+                e instanceof Creeper c ? c.getSwellDir() : -1, TrailsSpeciesAnimations.begin(e,p), p,
                 System.nanoTime() + p.ticks() * 50_000_000L));
+        if(sonic!=null && sonic.isStarted() && e instanceof net.minecraft.world.entity.monster.warden.Warden w)w.sonicBoomAnimationState=sonic;
         TrailsCinematics.receive(p); TrailsEffects.receive(p);
         if (p.animation().equals("strike") || p.animation().equals("support")) {
             e.swing(InteractionHand.MAIN_HAND);
@@ -81,6 +88,7 @@ public final class TrailsPerformances {
     }
     private static void pose(PoseState state) {
         var e = state.entity; var p = state.packet;
+        TrailsSpeciesAnimations.pose(e,p);
         boolean draw = p.animation().equals("draw");
         var delta = p.aim().subtract(e.position());
         if (delta.horizontalDistanceSqr() > 1e-6) {

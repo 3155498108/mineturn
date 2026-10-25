@@ -45,6 +45,8 @@ public final class TrailsClient {
         net.neoforged.fml.ModList.get().getModContainerById("mineturn").orElseThrow().registerExtensionPoint(
                 net.neoforged.neoforge.client.gui.IConfigScreenFactory.class, (container, parent) -> new TrailsConfigScreen(parent));
         TrailsPresentationOptions.load();
+        bus.addListener(TrailsWarnings::layers);
+        NeoForge.EVENT_BUS.addListener(TrailsWarnings::render);
         TrailsNetwork.receiveImpact = TrailsImpacts::receive;
         NeoForge.EVENT_BUS.addListener(TrailsImpacts::render);
         NeoForge.EVENT_BUS.addListener(TrailsEffects::render);
@@ -166,7 +168,8 @@ public final class TrailsClient {
                 for (var fighter : fighters) {
                     var entity = mc.level.getEntity(fighter.id());
                     if (entity == null) continue;
-                    boolean friendlySkill = screen.preparing().equals("skill") && !(actor instanceof net.minecraft.world.entity.animal.IronGolem);
+                    var profile=actor instanceof net.minecraft.world.entity.LivingEntity living?com.matuvent.mineturn.battle.TrailsBestiary.get(living):null;
+                    boolean friendlySkill = screen.preparing().equals("skill") && profile!=null && profile.skill().friendly();
                     boolean side = friendlySkill ? !fighter.enemy() : fighter.enemy();
                     if (side && (shape.kind() == com.matuvent.mineturn.battle.TrailsArea.Kind.SINGLE ? fighter.id() == screen.selectedTarget() : shape.contains(actor.position(), aim, entity.position())))
                         LevelRenderer.renderLineBox(pose, lines, entity.getBoundingBox().inflate(.06), 1, .75f, .2f, 1);

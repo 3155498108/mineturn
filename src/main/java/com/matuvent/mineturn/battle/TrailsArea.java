@@ -21,12 +21,10 @@ public record TrailsArea(Kind kind, double cast, double radius, double width) {
         return new TrailsArea(Kind.SINGLE, stack.getItem() instanceof BowItem ? 24 : stack.getItem() instanceof TridentItem ? 3.5 : 3, 0, 0);
     }
     public static TrailsArea skill(String entity) {
-        return switch (entity) {
-            case "minecraft:pig", "minecraft:cat", "minecraft:ocelot" -> new TrailsArea(Kind.DISK, 0, .8, 0);
-            case "minecraft:iron_golem" -> new TrailsArea(Kind.DISK, 3, 3, 0);
-            default -> new TrailsArea(Kind.DISK, 0, 6, 0);
-        };
+        var profile=TrailsBestiary.get(entity);
+        return profile==null?new TrailsArea(Kind.DISK,0,6,0):profile.skill().area();
     }
+
     public Vec3 direction(Vec3 aim) { return aim.horizontalDistanceSqr() < 1e-8 ? new Vec3(0, 0, 1) : aim.multiply(1, 0, 1).normalize(); }
     public Vec3 center(Vec3 origin, Vec3 aim) { return origin.add(cast > 0 && kind == Kind.DISK ? aim.multiply(1, 0, 1) : Vec3.ZERO); }
     public boolean validAim(Vec3 aim) {

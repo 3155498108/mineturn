@@ -31,6 +31,10 @@ final class ProjectileAnimations {
         if(item.is(net.minecraft.world.item.Items.WIND_CHARGE))return new net.minecraft.world.entity.projectile.windcharge.BreezeWindCharge(net.minecraft.world.entity.EntityType.BREEZE_WIND_CHARGE,world);
         if(item.is(net.minecraft.world.item.Items.FIRE_CHARGE))return new net.minecraft.world.entity.projectile.SmallFireball(net.minecraft.world.entity.EntityType.SMALL_FIREBALL,world);
         if(item.is(net.minecraft.world.item.Items.SNOWBALL))return new net.minecraft.world.entity.projectile.Snowball(world,from.x,from.y,from.z);
+        if(item.is(net.minecraft.world.item.Items.WITHER_SKELETON_SKULL))return new net.minecraft.world.entity.projectile.WitherSkull(net.minecraft.world.entity.EntityType.WITHER_SKULL,world);
+        if(item.is(net.minecraft.world.item.Items.DRAGON_BREATH))return new net.minecraft.world.entity.projectile.DragonFireball(net.minecraft.world.entity.EntityType.DRAGON_FIREBALL,world);
+        if(item.is(net.minecraft.world.item.Items.SHULKER_SHELL))return new net.minecraft.world.entity.projectile.ShulkerBullet(net.minecraft.world.entity.EntityType.SHULKER_BULLET,world);
+        if(item.is(net.minecraft.world.item.Items.SLIME_BALL))return new net.minecraft.world.entity.projectile.LlamaSpit(net.minecraft.world.entity.EntityType.LLAMA_SPIT,world);
         return null;
     }
     static void tick(){

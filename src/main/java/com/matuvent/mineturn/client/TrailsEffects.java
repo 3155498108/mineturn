@@ -20,11 +20,11 @@ public final class TrailsEffects {
         Effect(TrailsNetwork.Performance p,LivingEntity e) {
             packet=p;origin=e.position();Vec3 delta=p.aim().subtract(origin).multiply(1,0,1);
             forward=delta.lengthSqr()>1e-6?delta.normalize():new Vec3(0,0,1);
-            burst=p.style().startsWith("burst_");draw=p.animation().equals("draw");ticks=draw?p.ticks():burst?28:20;
+            burst=(p.style().startsWith("burst_") || p.style().startsWith("boss_"));draw=p.animation().equals("draw");ticks=draw?p.ticks():burst?28:20;
             rgb=p.red()?0xff3458:switch(style()) { case "axe"->0xffb749;case "bow"->0x7affb0;case "crossbow"->0xff7763;
-                case "mace"->0xb98aff;case "trident"->0x58cfff;case "support"->0x75ffb8;default->0x82eaff;};
+                case "mace"->0xb98aff;case "trident"->0x58cfff;case "wither"->0xc5a0ff;case "dragon","phantom","vex","spell","fangs"->0xc16aff;case "sonic","guardian"->0x4dffe5;case "support","allay","chicken","sheep","villager","armadillo","frog","turtle","parrot"->0x75ffb8;default->0x82eaff;};
         }
-        String style(){return burst?packet.style().substring(6):packet.style();}
+        String style(){return packet.style().replaceFirst("^(burst_|boss_|gold_|warn_)", "");}
         double age(){return Math.clamp((System.nanoTime()-start)/(ticks*50_000_000.),0,1);}
     }
     public static long renderedEffects, spawnedParticles;
@@ -52,6 +52,15 @@ public final class TrailsEffects {
                     case "mace"->i==0?ParticleTypes.CLOUD:ParticleTypes.ELECTRIC_SPARK;
                     case "breeze"->f.emitted%8==0?ParticleTypes.GUST:ParticleTypes.CLOUD;
                     case "support"->ParticleTypes.HAPPY_VILLAGER;
+                    case "dragon"->ParticleTypes.DRAGON_BREATH;
+                    case "wither","vex","phantom"->ParticleTypes.SOUL;
+                    case "spell","fangs"->ParticleTypes.WITCH;
+                    case "sonic","guardian"->ParticleTypes.ELECTRIC_SPARK;
+                    case "swim"->ParticleTypes.BUBBLE;
+                    case "shadow"->ParticleTypes.PORTAL;
+                    case "fire"->ParticleTypes.FLAME;
+                    case "potion","pufferfish"->ParticleTypes.WITCH;
+                    case "ink"->ParticleTypes.SQUID_INK;
                     case "axe"->ParticleTypes.CRIT;
                     default->f.burst?ParticleTypes.END_ROD:ParticleTypes.ENCHANTED_HIT;
                 };
@@ -72,7 +81,7 @@ public final class TrailsEffects {
                 ring(out,center.add(0,.08,0),.6+t*.7,.04,f.rgb,(float)fade);
                 if(f.burst)ring(out,center.add(0,.09,0),1+t*.8,.06,0xffda89,(float)fade);
             }else switch(f.style()){
-                case "sword","axe","melee","charge","iron_golem","ravager"->{
+                case "sword","axe","melee","charge","iron_golem","ravager","warden","giant","goat"->{
                     Vec3 c=center.add(f.forward.scale(.85)).add(0,1.05,0);
                     double r=f.burst?2+t*5:1.2+t*1.6;
                     Vec3 vertical=f.style().equals("axe")?up:up.scale(.5).add(f.forward.scale(.45));
@@ -80,18 +89,22 @@ public final class TrailsEffects {
                     arc(out,c,side,vertical,r*.98,-Math.PI*.85,Math.PI*.55,.045,0xf4ffff,(float)fade);
                     if(f.burst)arc(out,c,side,vertical.scale(-1),r*.8,-Math.PI*.8,Math.PI*.7,.12,0xffeab4,(float)fade);
                 }
-                case "mace","breeze","creeper","support","slime","magma_cube"->{
+                case "mace","breeze","creeper","support","slime","magma_cube","allay","chicken","sheep","villager","armadillo","frog","turtle","parrot","pufferfish"->{
                     Vec3 c=f.style().equals("mace")?f.packet.aim().add(0,-.95,0).subtract(camera):center.add(0,.08,0);
                     double r=(f.burst?7:f.style().equals("mace")?5:3)*t+.2;
                     ring(out,c,r,.12,f.rgb,(float)fade);ring(out,c.add(0,.04,0),r*.8,.045,0xf6f0ff,(float)fade);
                     if(f.burst)ring(out,c.add(0,.08,0),r*.55,.17,0xffdc96,(float)fade);
                 }
-                case "bow","crossbow","trident"->{
+                case "bow","crossbow","trident","sonic","guardian","wither","dragon","blaze","ghast","shulker","fire","spit","snow"->{
                     Vec3 from=center.add(0,1.25,0),to=f.packet.aim().subtract(camera);
                     beam(out,from,to,.10*(1-t),f.rgb,(float)fade);
                     beam(out,from,to,.025,0xf6ffff,(float)fade);
+                    if(f.style().equals("dragon"))for(int lane:new int[]{-2,-1,1,2})beam(out,from,to.add(side.scale(lane*(f.burst?3:1))),.17,f.rgb,(float)fade);
+                    if(f.style().equals("sonic"))for(int i=1;i<=6;i++)arc(out,from.lerp(to,i/6.),side,up,.4+t*.8,0,Math.PI*2,.06,f.rgb,(float)fade);
                     if(f.burst || f.style().equals("crossbow"))for(int lane:new int[]{-1,1})beam(out,from.add(side.scale(lane*.35)),to.add(side.scale(lane*(f.burst?1.4:.7))),.045,f.rgb,(float)fade);
                 }
+                case "fangs"->{for(int i=1;i<=8;i++){Vec3 base=center.add(f.forward.scale(i*.8));beam(out,base,base.add(0,Math.sin(Math.PI*t)*1.8,0),.12,f.rgb,(float)fade);}}
+                case "vex","phantom","tongue"->arc(out,center.add(0,1,0),side,up,1+t*2,-Math.PI*.8,Math.PI*.5,.15,f.rgb,(float)fade);
                 default->ring(out,center.add(0,.15,0),.4+t*2,.05,f.rgb,(float)fade);
             }
             renderedEffects++;

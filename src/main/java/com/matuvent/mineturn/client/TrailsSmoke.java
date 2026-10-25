@@ -167,7 +167,7 @@ final class TrailsSmoke {
             MineTurn.LOGGER.info("TRAILS_ENCOUNTER_SMOKE_PASSED: avatar VS, sector/rectangle confirmation previews, saved config GUI, smooth camera, WASD, weapon/inventory, items, S-Break and restored camera");
             stage = 6;
         } else if (stage == 6 && elapsed > 35) {
-            if (System.getProperty("mineturn.qaTag", "").startsWith("weapons")) TrailsWeaponSmoke.tick(); else mc.stop();
+            if (System.getProperty("mineturn.qaTag", "").startsWith("weapons")) TrailsWeaponSmoke.tick(); else if(System.getProperty("mineturn.qaTag", "").startsWith("bestiary"))TrailsBestiarySmoke.tick();else mc.stop();
         }
         if (elapsed > 400 && stage != 6) throw new IllegalStateException("Encounter smoke timed out at stage " + stage);
     }

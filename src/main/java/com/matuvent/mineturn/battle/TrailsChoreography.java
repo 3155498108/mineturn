@@ -31,7 +31,8 @@ public final class TrailsChoreography {
     public static int flight(double distance) { return (int)Math.clamp(Math.ceil(distance * 1.2), 6, 16); }
     public static Pose pose(String style, String phase, double progress) {
         double t = Math.clamp(progress, 0, 1), e = t * t * (3 - 2 * t), wave = Math.sin(Math.PI * t);
-        boolean burst = style.startsWith("burst_"); if (burst) style = style.substring(6);
+        boolean burst = style.startsWith("burst_") || style.startsWith("boss_");
+        style=style.replaceFirst("^(burst_|boss_|gold_|warn_)", "");
         if (phase.equals("recover")) {
             var tail=pose((burst?"burst_":"")+style,"strike",1);float fade=(float)(1-e);
             return new Pose(tail.arm()*fade,tail.armSide()*fade,tail.twist()*fade,tail.lean()*fade,tail.lift()*fade,tail.advance()*fade,tail.arms());
@@ -46,6 +47,8 @@ public final class TrailsChoreography {
             case "trident" -> new Pose((float)(draw ? -2.7*e : -2.7+3*e), (float)(-.2*wave),
                     -.35f*reach, (float)(draw ? -.1*e : .14*wave), 0, (float)(draw ? 0 : .2*wave), true);
             case "bow", "crossbow" -> new Pose(0, 0, -.08f*reach, 0, 0, (float)(draw ? 0 : -.12*wave), false);
+            case "sonic", "guardian", "wither", "dragon", "spell", "fangs" -> new Pose((float)(-1.5*wave), (float)(-.7*wave), 0, (float)(-.08*wave), (float)(.12*wave), 0, true);
+            case "vex", "phantom", "swim", "tongue" -> new Pose(-1.3f*reach, 0, (float)(.15*wave), (float)(.25*wave), (float)(.25*wave), (float)(.55*wave), true);
             case "support" -> new Pose((float)(-1.8*wave), (float)(-.5*wave), 0, 0, (float)(.08*wave), 0, true);
             default -> new Pose((float)(draw ? -1.0*e : -1.5+2*e), 0, (float)(.1*wave),
                     (float)(.12*wave), 0, (float)(draw ? -.1*e : .4*wave), true);

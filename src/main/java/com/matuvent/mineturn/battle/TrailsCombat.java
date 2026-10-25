@@ -33,6 +33,7 @@ public final class TrailsCombat {
     final Map<UUID, Integer> regrowth = new HashMap<>();
     final Map<UUID, Integer> turns = new HashMap<>();
     final Set<UUID> charging = new HashSet<>();
+    final Map<UUID,TrailsBestiaryActions.Plan> plans=new HashMap<>();
     final Set<UUID> guarding = new HashSet<>();
     boolean resolving;
     boolean pendingBurst;
@@ -45,7 +46,7 @@ public final class TrailsCombat {
     final Map<UUID, String[]> performances = new HashMap<>();
     final Map<UUID, TrailsNetwork.Performance> lastPerformances = new HashMap<>();
     boolean knockback;
-    private record Pending(LivingEntity source, long turn, int ticks, Runnable release, boolean red) {}
+    record Pending(LivingEntity source, long turn, int ticks, Runnable release, boolean red) {}
     boolean busy() { return pending != null || burstAction != null || b.motion != null || knockback; }
     void perform(LivingEntity source, String animation, int ticks, boolean red, Vec3 aim) {
         var entry = performances.get(source.getUUID());
@@ -84,7 +85,7 @@ public final class TrailsCombat {
         finally { resolving = previous; }
         if (!b.closed) { b.revision++; b.syncAll(); }
     }
-    void clear() { burstAction = null; performances.clear(); lastPerformances.clear(); pending = null; knockback = false; pendingBurst = false; direction = Vec3.ZERO; inputTicks = 0; }
+    void clear() { burstAction = null; plans.clear(); charging.clear(); performances.clear(); lastPerformances.clear(); pending = null; knockback = false; pendingBurst = false; direction = Vec3.ZERO; inputTicks = 0; }
     long turn, inputSequence = -1;
     Vec3 movementOrigin = Vec3.ZERO, direction = Vec3.ZERO;
     double movementRadius;
@@ -102,8 +103,7 @@ public final class TrailsCombat {
         return e instanceof Enemy || e instanceof Mob m && m.getTarget() == p;
     }
     static boolean friendly(LivingEntity e, ServerPlayer p) {
-        return e != p && !hostile(e, p) && (e instanceof Animal || e instanceof IronGolem
-                || e instanceof SnowGolem || e instanceof AbstractVillager);
+        return e != p && !hostile(e,p) && e instanceof Mob;
     }
     boolean allied(LivingEntity e) {
         if (e == player) return true;
@@ -224,7 +224,7 @@ public final class TrailsCombat {
         if (!BattleManager.eligible(p) || p.isPassenger() || p.isVehicle() || BattleManager.reloading()) throw new IllegalArgumentException("请在生存或冒险模式、非骑乘状态下进入战斗。");
         var candidates = p.serverLevel().getEntitiesOfClass(LivingEntity.class,
                 p.getBoundingBox().inflate(cfg().encounterRadius, cfg().verticalRange, cfg().encounterRadius),
-                e -> e != p && BattleManager.eligible(e) && !BattleManager.locked(e)
+                e -> e != p && !(e instanceof net.minecraft.world.entity.boss.wither.WitherBoss wither && wither.getInvulnerableTicks()>0) && BattleManager.eligible(e) && !BattleManager.locked(e)
                         && !(e instanceof ServerPlayer) && (hostile(e, p) || friendly(e, p))
                         && Math.abs(e.getY() - p.getY()) <= cfg().verticalRange
                         && e.position().subtract(p.position()).horizontalDistance() <= cfg().encounterRadius);
@@ -295,19 +295,22 @@ public final class TrailsCombat {
                 .map(t -> new BattleNetwork.QueueEntry(t.actor().getId(), b.displayName(t.actor()), t.inAv())).toList();
         BattleNetwork.send(recipient, new TrailsNetwork.View(b.id, b.revision, b.actor.getId(), allied(b.actor), cp(), cfg().burstCost,
                 primary(), burstName(primaryStack()), movementRadius, turn, movementOrigin, busy(), charging.isEmpty() ? b.lastMessage
-                        : "危险蓄力：" + b.members.values().stream().filter(m -> charging.contains(m.entity.getUUID()))
-                                .map(m -> m.entity.getName().getString()).reduce((a, c) -> a + "、" + c).orElse("") + " · 防御或抢 S！", queue));
+                        : "蓄力预告：" + b.members.values().stream().filter(m -> plans.containsKey(m.entity.getUUID()))
+                                .map(m -> (plans.get(m.entity.getUUID()).warning().golden()?"[金光 S] ":"[红光] ")+m.entity.getName().getString()+" · "+plans.get(m.entity.getUUID()).move().name()).reduce((a, c) -> a + "、" + c).orElse("") + " · 下次自身回合发动，可移动、防御或抢 S！", queue));
         var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity),
                 !allied(m.entity), m.entity.getHealth(), m.entity.getMaxHealth(), speed(m.entity),
                 b.clock.until(m.entity, this::speed), m.entity == player ? TrailsWeaponSkills.name(player.getMainHandItem()) : skillName(m.entity), m.entity.getActiveEffects().stream().limit(64)
-                        .map(e -> new TrailsNetwork.Status(BuiltInRegistries.MOB_EFFECT.getKey(e.getEffect().value()).toString(), e.getAmplifier() + 1, e.getDuration())).toList())).toList();
+                        .map(e -> new TrailsNetwork.Status(BuiltInRegistries.MOB_EFFECT.getKey(e.getEffect().value()).toString(), e.getAmplifier() + 1, e.getDuration())).toList(), plans.containsKey(m.entity.getUUID())?plans.get(m.entity.getUUID()).warning():null)).toList();
         for (int from = 0, page = 0; from < roster.size(); from += 48, page++)
             BattleNetwork.send(recipient, new TrailsNetwork.Roster(b.id, b.revision, page, from + 48 >= roster.size(),
                     roster.subList(from, Math.min(from + 48, roster.size()))));
     }
 
     void tick() {
+        for(var member:List.copyOf(b.members.values()))if(member.entity instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon
+                && dragon.getPhaseManager().getCurrentPhase().getPhase()==net.minecraft.world.entity.boss.enderdragon.phases.EnderDragonPhase.DYING)b.remove(dragon,"末影龙已被击败，恢复原版死亡飞行。");
         b.prune(); if (b.closed) return;
+        plans.keySet().retainAll(b.members.keySet());charging.retainAll(b.members.keySet());
         b.ticks++; b.turnTicks++;
         boolean wasKnockback = knockback;
         if (burstAction == null) b.tickMotion(); if (b.closed) return;
@@ -402,11 +405,14 @@ public final class TrailsCombat {
     }
     void hit(LivingEntity source, LivingEntity target, double damage) {
         if (b.closed || !source.isAlive() || !target.isAlive() || !b.members.containsKey(target.getUUID()) || !enemy(source, target)) return;
-        float before = target.getHealth() + target.getAbsorptionAmount();
+        damage(source,target,damage,source instanceof ServerPlayer p ? source.damageSources().playerAttack(p) : source.damageSources().mobAttack(source));
+    }
+    void damage(LivingEntity source,LivingEntity target,double damage,net.minecraft.world.damagesource.DamageSource damageSource) {
+        if(b.closed || !source.isAlive() || !target.isAlive() || !b.members.containsKey(target.getUUID()) || !enemy(source,target))return;
+        float before=target.getHealth()+target.getAbsorptionAmount();
         BattleManager.authorized(() -> {
             target.invulnerableTime = 0;
-            var damageSource = source instanceof ServerPlayer p ? source.damageSources().playerAttack(p) : source.damageSources().mobAttack(source);
-            if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, damageSource, (float) damage);
+            if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, allied(source)?source.damageSources().playerAttack(player):damageSource, (float) damage);
             else target.hurt(damageSource, (float) damage);
         });
         float lost = Math.max(0, before - target.getHealth() - target.getAbsorptionAmount());
@@ -455,23 +461,14 @@ public final class TrailsCombat {
                 };
                 b.revision++; b.syncAll(); return;
             }
-            boolean snowball = source instanceof SnowGolem;
-            requireRange(source, victim, snowball ? 20 : 2.2);
-            friendAttack(source, victim, snowball); return;
+            friendAttack(source,victim,source instanceof SnowGolem);return;
         }
         playerAction(targetId, slot, wind, aim, false);
     }
-    void friendAttack(LivingEntity source, LivingEntity victim, boolean snowball) {
-        performances.put(source.getUUID(), new String[]{TrailsChoreography.style(source, source.getMainHandItem()), snowball ? "雪球投掷" : id(source).equals("minecraft:pig") ? "冲撞" : "普通攻击"});
-        windup(source, victim, 10, false, () -> {
-            perform(source, "strike", snowball ? TrailsChoreography.flight(source.distanceTo(victim)) : 4, false, victim.position()); source.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-            if (snowball) projectile(source, victim.getEyePosition(), Items.SNOWBALL);
-            pending = new Pending(source, turn, snowball ? TrailsChoreography.flight(source.distanceTo(victim)) : 4, () -> {
-                if (victim.isAlive() && b.members.containsKey(victim.getUUID()) && gap(source, victim) <= (snowball ? 20 : 2.2) && source.hasLineOfSight(victim))
-                    hit(source, victim, source instanceof IronGolem ? 10 : snowball ? 2 : baseDamage(source));
-                addCp(cfg().cpPerAction); recover(source, 1);
-            }, false);
-        });
+    void friendAttack(LivingEntity source,LivingEntity target,boolean snowball) {
+        var profile=TrailsBestiary.get(source);
+        if(profile==null)throw new IllegalArgumentException("此生物没有 AT 配置。");
+        TrailsBestiaryActions.cast(this,source,target,profile.basic(),profile.basic().aim(source,target),false,source.position());
     }
     void projectile(LivingEntity source, Vec3 end, Item item) {
         var from = source.getEyePosition();
@@ -624,72 +621,21 @@ public final class TrailsCombat {
         b.sendMotion(entity, false);
     }
 
-    static String skillName(LivingEntity e) {
-        return switch (id(e)) {
-            case "minecraft:breeze" -> "强风弹 · 击飞";
-            case "minecraft:skeleton", "minecraft:pillager" -> "连发齐射";
-            case "minecraft:stray" -> "迟缓箭雨";
-            case "minecraft:bogged" -> "剧毒箭雨";
-            case "minecraft:witch" -> "剧毒药剂 · 自愈";
-            case "minecraft:blaze", "minecraft:ghast" -> "火焰轰击";
-            case "minecraft:wither_skeleton" -> "凋零斩击";
-            case "minecraft:cave_spider" -> "毒牙";
-            case "minecraft:pig" -> "自愈 · 三回合恢复";
-            case "minecraft:sheep" -> "羊毛祝福 · 范围治疗";
-            case "minecraft:wolf" -> "战吼 · 群体强化";
-            case "minecraft:cow", "minecraft:mooshroom" -> "坚韧守护";
-            case "minecraft:chicken" -> "振翅号令 · 范围友军 AT 归零";
-            case "minecraft:parrot" -> "轻羽 · 群体加速";
-            case "minecraft:cat", "minecraft:ocelot" -> "灵巧守势";
-            case "minecraft:iron_golem" -> "震地重拳";
-            case "minecraft:villager", "minecraft:wandering_trader" -> "急救术";
-            default -> "生命鼓舞";
-        };
+    static String skillName(LivingEntity entity) {
+        var profile=TrailsBestiary.get(entity);return profile==null?"生命鼓舞":profile.skill().name();
     }
     void companionSkill(int targetId) {
-        var victim = b.level.getEntity(targetId);
-        var aim = victim == null ? Vec3.ZERO : victim.position().subtract(b.actor.position()).multiply(1, 0, 1);
-        if (aim.length() > 3) aim = aim.normalize().scale(3);
-        companionSkill(targetId, aim);
+        var target=b.level.getEntity(targetId);
+        var move=TrailsBestiary.get(b.actor).skill();
+        companionSkill(targetId,target instanceof LivingEntity living?move.aim(b.actor,living):Vec3.ZERO);
     }
-    void companionSkill(int targetId, Vec3 aim) {
-        var actor = b.actor;
-        if (actor == player) throw new IllegalArgumentException("玩家使用装备、道具或主武器 S 技。");
-        String kind = id(actor);
-        var shape = TrailsArea.skill(kind);
-        if (!shape.validAim(aim)) throw new IllegalArgumentException("战技落点超出施放范围。");
-        if (busy()) throw new IllegalArgumentException("请等待当前动作完成。");
-        perform(actor, "support", 26, false, actor.position());
-        inputTicks=0; direction=Vec3.ZERO;
-        pending=new Pending(actor,turn,12,()->{
-            companionEffect(actor,kind,shape,aim);
-        },false);
-        b.revision++;b.syncAll();
-    }
-    void companionEffect(LivingEntity actor,String kind,TrailsArea shape,Vec3 aim) {
-        if (kind.equals("minecraft:chicken")) {
-            var ready = b.members.values().stream().map(m -> m.entity).filter(e -> allied(e) && e.isAlive() && shape.contains(actor.position(), Vec3.ZERO, e.position())).toList();
-            b.clock.readyFirst(ready); addCp(10); b.message("振翅号令：范围内友军 AT 归零，优先行动！");
-            pending=new Pending(actor,turn,8,()->b.next(),false); return;
-        }
-        if (kind.equals("minecraft:pig")) { actor.heal(2); regrowth.put(actor.getUUID(), 3); }
-        else if (kind.equals("minecraft:iron_golem")) {
-            shaped(actor, shape, aim, 12);
-        } else {
-            for (var m : b.members.values()) if (allied(m.entity) && shape.contains(actor.position(), Vec3.ZERO, m.entity.position())) {
-                switch (kind) {
-                    case "minecraft:sheep" -> m.entity.heal(4);
-                    case "minecraft:wolf" -> effect(m.entity, MobEffects.DAMAGE_BOOST, 240, 0);
-                    case "minecraft:parrot" -> effect(m.entity, MobEffects.MOVEMENT_SPEED, 240, 0);
-                    case "minecraft:cow", "minecraft:mooshroom" -> effect(m.entity, MobEffects.DAMAGE_RESISTANCE, 240, 0);
-                    case "minecraft:cat", "minecraft:ocelot" -> { if (m.entity == actor) effect(actor, MobEffects.DAMAGE_RESISTANCE, 300, 1); }
-                    default -> m.entity.heal(3);
-                }
-                b.level.sendParticles(ParticleTypes.HEART, m.entity.getX(), m.entity.getY() + 1, m.entity.getZ(), 3, .3, .3, .3, 0);
-            }
-        }
-        b.message(actor.getName().getString() + " 使用 " + skillName(actor));
-        addCp(10); recover(actor,1.3);
+    void companionSkill(int targetId,Vec3 aim) {
+        var source=b.actor;if(source==player)throw new IllegalArgumentException("玩家请使用武器战技。");
+        var profile=TrailsBestiary.get(source);if(profile==null)throw new IllegalArgumentException("此生物没有 AT 配置。");
+        var move=profile.skill();LivingEntity victim=null;
+        if(move.area().kind()==TrailsArea.Kind.SINGLE)victim=target(targetId,source);
+        else if(b.level.getEntity(targetId) instanceof LivingEntity living && enemy(source,living))victim=living;
+        TrailsBestiaryActions.cast(this,source,victim,move,aim,false,source.position());
     }
     static void effect(LivingEntity entity, net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> type, int ticks, int amplifier) {
         var previous = entity.getEffect(type);
@@ -784,96 +730,7 @@ public final class TrailsCombat {
                 || actor.getMainHandItem().getItem() instanceof TridentItem || Set.of("minecraft:skeleton", "minecraft:stray", "minecraft:bogged",
                 "minecraft:pillager", "minecraft:witch", "minecraft:breeze", "minecraft:blaze", "minecraft:ghast", "minecraft:guardian", "minecraft:elder_guardian").contains(kind);
     }
-    void enemyAction() {
-        if (busy()) return;
-        var actor = b.actor;
-        if (actor == null || !actor.isAlive()) { b.prune(); return; }
-        var victim = b.enemies(actor).stream().min(Comparator.comparingDouble(actor::distanceToSqr)).orElse(null);
-        if (victim == null) { b.close("战斗结束。"); return; }
-        String kind = id(actor);
-        boolean boss = actor.getMaxHealth() >= 100 || kind.equals("minecraft:elder_guardian");
-        int count = turns.getOrDefault(actor.getUUID(), 1);
-        if (charging.remove(actor.getUUID())) {
-            windup(actor, victim, 24, true, () -> {
-                if (victim.isAlive()) area(actor, kind.equals("minecraft:creeper") ? actor.position() : victim.position(), boss ? 6 : 4, boss ? 12 : 9);
-                perform(actor, "strike", 16, true, victim.position());
-                b.level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, actor.getX(), actor.getY() + 1, actor.getZ(), 1, 0, 0, 0, 0);
-                b.message(actor.getName().getString() + (boss ? " 发动大招：毁灭震荡！" : " 引爆蓄力攻击！"));
-                if (kind.equals("minecraft:creeper")) BattleManager.authorized(() -> actor.hurt(actor.damageSources().generic(), Float.MAX_VALUE));
-                finish(1.8);
-            }); return;
-        }
-        if (kind.equals("minecraft:creeper") && gap(actor, victim) > 4) {
-            if (actor instanceof Mob mob) {
-                var route = b.pursuitRoute(mob, victim);
-                if (route.cost() > .01) {
-                    b.budget.move(route.cost()); b.motion = new BattleSession.Movement(actor, route, b.animationMode(actor, route));
-                    b.motion.onLanding = () -> finish(1); b.revision++; b.syncAll(); return;
-                }
-            }
-            finish(1); return;
-        }
-        if (kind.equals("minecraft:creeper") || boss && count % 3 == 0) {
-            charging.add(actor.getUUID()); perform(actor, "draw", 32, true, victim.position());
-            b.message("⚠ " + actor.getName().getString() + " 正在蓄力，下次行动发动范围大招！可防御或抢 S。");
-            finish(1.6); return;
-        }
-        boolean shooting = ranged(actor) || boss;
-        if (gap(actor, victim) > (shooting ? 24 : 2.4) || !actor.hasLineOfSight(victim)) {
-            if (actor instanceof Mob mob) {
-                var route = b.pursuitRoute(mob, victim);
-                if (route.cost() > .01) {
-                    b.budget.move(route.cost()); b.motion = new BattleSession.Movement(actor, route, b.animationMode(actor, route));
-                    b.motion.onLanding = () -> finish(1);
-                    b.revision++; b.syncAll(); return;
-                }
-            }
-            finish(.8); return;
-        }
-        boolean skill = count % 3 == 0;
-        b.message(actor.getName().getString() + (skill ? " 发动战技 · " + skillName(actor) : shooting ? " 瞄准远程攻击" : " 准备攻击"));
-        windup(actor, victim, shooting ? 20 : 10, skill, () -> {
-            if (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || !actor.hasLineOfSight(victim)
-                    || gap(actor, victim) > (shooting ? 24 : 2.4)) { finish(1); return; }
-            Item projectile = switch (kind) {
-                case "minecraft:breeze" -> Items.WIND_CHARGE;
-                case "minecraft:skeleton", "minecraft:stray", "minecraft:bogged", "minecraft:pillager" -> Items.ARROW;
-                case "minecraft:witch" -> Items.SPLASH_POTION;
-                case "minecraft:blaze", "minecraft:ghast" -> Items.FIRE_CHARGE;
-                case "minecraft:drowned" -> actor.getMainHandItem().is(Items.TRIDENT) ? Items.TRIDENT : null;
-                default -> actor.getMainHandItem().getItem() instanceof BowItem || actor.getMainHandItem().getItem() instanceof CrossbowItem ? Items.ARROW : null;
-            };
-            if (projectile != null) {
-                projectile(actor, victim.getEyePosition(), projectile);
-                actor.playSound(projectile == Items.WIND_CHARGE ? SoundEvents.BREEZE_SHOOT : projectile == Items.ARROW ? SoundEvents.SKELETON_SHOOT : SoundEvents.GENERIC_SPLASH, .9f, 1);
-                if (skill && projectile == Items.ARROW) {
-                    projectile(actor, victim.getEyePosition().add(.3, 0, 0), Items.ARROW);
-                    projectile(actor, victim.getEyePosition().add(-.3, 0, 0), Items.ARROW);
-                }
-            }
-            int flight = projectile == null ? 4 : TrailsChoreography.flight(actor.getEyePosition().distanceTo(victim.getEyePosition()));
-            perform(actor,"strike",flight,skill,victim.position()); actor.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-            pending = new Pending(actor, turn, flight, () -> {
-                if (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || !actor.hasLineOfSight(victim)) { finish(1); return; }
-                double damage = Math.min(12, Math.max(3, baseDamage(actor)));
-                if (kind.equals("minecraft:breeze")) {
-                    hit(actor, victim, skill ? 3 : 1);
-                    b.level.sendParticles(ParticleTypes.GUST_EMITTER_SMALL, victim.getX(), victim.getY() + .5, victim.getZ(), 1, 0, 0, 0, 0);
-                    if (victim.isAlive() && knockUp(actor, victim, skill ? 1.04 : .92)) return;
-                } else if (kind.equals("minecraft:witch")) {
-                    effect(victim, MobEffects.POISON, 100, 0); if (skill) { actor.heal(6); effect(victim, MobEffects.MOVEMENT_SLOWDOWN, 160, 0); }
-                } else {
-                    hit(actor, victim, damage * (skill ? 1.6 : 1));
-                    if (kind.equals("minecraft:stray")) effect(victim, MobEffects.MOVEMENT_SLOWDOWN, 120, 0);
-                    if (kind.equals("minecraft:bogged") || kind.equals("minecraft:cave_spider") && skill) effect(victim, MobEffects.POISON, 100, 0);
-                    if (kind.equals("minecraft:wither_skeleton")) effect(victim, MobEffects.WITHER, 100, 0);
-                    if (skill && kind.contains("zombie")) actor.heal(2);
-                    if (kind.equals("minecraft:blaze") || kind.equals("minecraft:ghast")) BattleManager.authorized(() -> victim.igniteForSeconds(skill ? 5 : 3));
-                }
-                recover(actor, skill ? 1.4 : 1);
-            }, skill);
-        });
-    }
+    void enemyAction() { TrailsBestiaryActions.enemy(this); }
     /** Collision-checked leap samples reuse native landing damage and the existing motion interpolator. */
     boolean knockUp(LivingEntity source, LivingEntity victim, double vertical) {
         if (b.closed || !victim.isAlive() || !b.members.containsKey(victim.getUUID()) || AquaticPath.immersed(victim, victim.position())) return false;

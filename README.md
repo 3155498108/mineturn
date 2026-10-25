@@ -2,7 +2,8 @@
 
 > This is a customized single-player AT prototype based on Matuvent/mineturn, not an official upstream release.
 > Manual encounters, controlled animal allies, backstab advantage and S-Break rules supersede the upstream gameplay below.
-> See [branch rules and validation](docs/TRAILS_PROTOTYPE.md). Runtime protocol: `27-trails` plus `trails-5`.
+> See [branch rules and validation](docs/TRAILS_PROTOTYPE.md). Runtime protocol: `28-trails` plus `trails-6`.
+> [82-species AT catalog](docs/TRAILS_BESTIARY.md): native model animations, distinct boss S skills and persistent golden next-turn warnings.
 
 **English** | [中文](README.zh_cn.md)
 
