@@ -24,7 +24,7 @@ public final class TrailsClient {
     public static final KeyMapping BURST = new KeyMapping("key.mineturn.trails_burst", GLFW.GLFW_KEY_V, "key.categories.mineturn");
     public static final KeyMapping PRIMARY = new KeyMapping("key.mineturn.trails_primary", GLFW.GLFW_KEY_B, "key.categories.mineturn");
     public static final KeyMapping CONFIG = new KeyMapping("key.mineturn.trails_config", GLFW.GLFW_KEY_O, "key.categories.mineturn");
-    public static TrailsNetwork.Settings settings = new TrailsNetwork.Settings(20, 6, 4, false, "");
+    public static TrailsNetwork.Settings settings = new TrailsNetwork.Settings(20, 6, 4,.1,1.5, false, "");
     private static net.minecraft.world.phys.Vec3 previousFocus = net.minecraft.world.phys.Vec3.ZERO;
     private static List<TrailsNetwork.Fighter> introAllies = List.of(), introEnemies = List.of();
     public static TrailsNetwork.View view;
@@ -59,6 +59,7 @@ public final class TrailsClient {
         };
         TrailsNetwork.receiveView = p -> {
             if (!BattleClient.active() || !BattleClient.state.battle().equals(p.battle())) return;
+            if(view==null || !view.battle().equals(p.battle()))TrailsImpacts.reset();
             if (view == null) previousFocus = BattleClient.focus;
             view = p;
             var mc = Minecraft.getInstance();
@@ -127,6 +128,7 @@ public final class TrailsClient {
     }
     private static void hud(RenderGuiEvent.Post e) {
         if (active()) return;
+        TrailsImpacts.hud(e.getGuiGraphics());
         var mc = Minecraft.getInstance();
         if (mc.player == null) return;
         var g = e.getGuiGraphics();

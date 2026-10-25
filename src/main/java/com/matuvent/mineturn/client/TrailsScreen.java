@@ -127,7 +127,8 @@ public final class TrailsScreen extends Screen {
                 () -> { inventoryPage = (inventoryPage + 1) % pages; rebuild(); }, pages > 1);
         button("返回战斗 [Esc]", width / 2 - 70, height - 66, 140, () -> { items = false; rebuild(); }, true);
     }
-    private int rows() { return Math.max(1, Math.min(6, (height - 194) / 36)); }
+    public static long renderedHealthNumbers;
+    private int rows() { return Math.max(1, Math.min(6, (height - 194) / 44)); }
     private void roster(boolean enemy, int x, int y, int column) {
         var fighters = side(enemy);
         int count = rows(), pages = Math.max(1, (fighters.size() + count - 1) / count);
@@ -135,14 +136,14 @@ public final class TrailsScreen extends Screen {
         if (enemy) enemyPage = page; else allyPage = page;
         for (int i = page * count; i < Math.min(fighters.size(), (page + 1) * count); i++) {
             var f = fighters.get(i); int row = i - page * count;
-            var rowButton = button("", x, y + row * 36, column,
+            var rowButton = button("", x, y + row * 44, column,
                     () -> { if (enemy) target = f.id(); }, true);
-            rowButton.setHeight(34);
+            rowButton.setHeight(42);
         }
         if (pages > 1) {
-            button("‹", x, y + count * 36, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true);
-            button((page + 1) + "/" + pages + " ›", x + 26, y + count * 36, column - 26,
-                    () -> { if (enemy) enemyPage = (page + 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true);
+            button("‹", x, y + count * 44, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true).setHeight(16);
+            button((page + 1) + "/" + pages + " ›", x + 26, y + count * 44, column - 26,
+                    () -> { if (enemy) enemyPage = (page + 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true).setHeight(16);
         }
     }
     private boolean playerTurn() {
@@ -206,7 +207,7 @@ public final class TrailsScreen extends Screen {
         if (performance) {
             TrailsCinematics.hud(g,width,height);
             g.drawCenteredString(font, view.alliedTurn()?"行动演出中":"敌方演出中 · V 抢 S",width/2,height-12,0xffc2cad8);
-            TrailsClient.cutIn(g,width,height); return;
+            TrailsClient.cutIn(g,width,height);TrailsImpacts.hud(g); return;
         }
         g.drawString(font, "友军 " + side(false).size(), 10, 58, 0xff72f4ca);
         g.drawString(font, "敌军 " + side(true).size(), width - Math.min(154, width / 3 - 8), 58, 0xffff7794);
@@ -245,24 +246,28 @@ public final class TrailsScreen extends Screen {
             }
         }
         TrailsCinematics.hud(g, width, height);
-        TrailsClient.cutIn(g, width, height);
+        TrailsClient.cutIn(g, width, height);TrailsImpacts.hud(g);
     }
     private void stats(GuiGraphics g, boolean enemy, int x, int column, int mouseX, int mouseY) {
         var list = side(enemy); int page = enemy ? enemyPage : allyPage;
         for (int i = page * rows(); i < Math.min(list.size(), (page + 1) * rows()); i++) {
-            var f = list.get(i); int y = 69 + (i - page * rows()) * 36;
+            var f = list.get(i); int y = 69 + (i - page * rows()) * 44;
             TrailsPortraits.draw(g, f.id(), x + 3, y + 3, 21, enemy);
             if(f.threat()!=null){
                 int color=f.threat().golden()?0xffffd23c:0xffff3458;
-                g.renderOutline(x,y,column,34,color);
+                g.renderOutline(x,y,column,42,color);
                 g.drawString(font,"!",x+column-10,y+3,color);
-                if(mouseX>=x && mouseX<x+column && mouseY>=y && mouseY<y+34)g.renderTooltip(font,Component.literal((f.threat().golden()?"S 技金色蓄力：":"危险蓄力：")+f.threat().name()+" · 下次自身回合发动，危险范围已锁定"),mouseX,mouseY);
+                if(mouseX>=x && mouseX<x+column && mouseY>=y && mouseY<y+42)g.renderTooltip(font,Component.literal((f.threat().golden()?"S 技金色蓄力：":"危险蓄力：")+f.threat().name()+" · 下次自身回合发动，危险范围已锁定"),mouseX,mouseY);
             }
             g.drawString(font, font.plainSubstrByWidth((f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name(), column - 30), x + 28, y + 3, -1);
             TrailsPortraits.effects(g, f, x + 28, y + 15, Math.max(1, (column - 45) / 15), mouseX, mouseY);
-            g.fill(x + 2, y + 30, x + column - 2, y + 33, 0xff282536);
-            g.fill(x + 2, y + 30, x + 2 + (int) ((column - 4) * Math.clamp(f.hp() / Math.max(1, f.maxHp()), 0, 1)), y + 33,
-                    f.id() == target ? 0xffffc766 : enemy ? 0xffec3e65 : 0xff48d6a8);
+            g.fill(x + 3, y + 29, x + column - 3, y + 41, 0xff211f2c);
+            g.fill(x + 3, y + 29, x + 3 + (int)((column - 6)*Math.clamp(f.hp()/Math.max(1,f.maxHp()),0,1)),y+41,
+                    f.id()==target?0xffb57d28:enemy?0xffa72545:0xff157a61);
+            String hp=TrailsImpacts.format(f.hp())+" / "+TrailsImpacts.format(f.maxHp());
+            float scale=Math.min(1,(column-10f)/Math.max(1,font.width(hp)));
+            g.pose().pushPose();g.pose().translate(x+column/2f,y+31,0);g.pose().scale(scale,scale,1);
+            g.drawCenteredString(font,hp,0,0,0xffffffff);g.pose().popPose();renderedHealthNumbers++;
         }
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {

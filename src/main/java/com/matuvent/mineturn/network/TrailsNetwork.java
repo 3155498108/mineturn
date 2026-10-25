@@ -22,7 +22,7 @@ public final class TrailsNetwork {
     public static Consumer<Performance> receivePerformance = ignored -> {};
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        var r = event.registrar("trails-6");
+        var r = event.registrar("trails-7");
         r.playToClient(Impact.TYPE, Impact.CODEC, (p, ctx) -> receiveImpact.accept(p));
         r.playToClient(Performance.TYPE, Performance.CODEC, (p, ctx) -> receivePerformance.accept(p));
         r.playBidirectional(Settings.TYPE, Settings.CODEC, (p, ctx) -> {
@@ -80,11 +80,11 @@ public final class TrailsNetwork {
         static Threat read(FriendlyByteBuf b){return new Threat(b.readUtf(96),b.readBoolean(),b.readVec3(),b.readVec3(),new com.matuvent.mineturn.battle.TrailsArea(com.matuvent.mineturn.battle.TrailsArea.Kind.values()[b.readVarInt()],b.readDouble(),b.readDouble(),b.readDouble()));}
     }
 
-    public record Settings(double encounter, double vertical, double movement, boolean save, String message) implements CustomPacketPayload {
+    public record Settings(double encounter, double vertical, double movement, double criticalChance,double criticalMultiplier,boolean save, String message) implements CustomPacketPayload {
         public static final Type<Settings> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_settings"));
         public static final StreamCodec<FriendlyByteBuf, Settings> CODEC = StreamCodec.of((b, p) -> {
-            b.writeDouble(p.encounter); b.writeDouble(p.vertical); b.writeDouble(p.movement); b.writeBoolean(p.save); b.writeUtf(p.message, 256);
-        }, b -> new Settings(b.readDouble(), b.readDouble(), b.readDouble(), b.readBoolean(), b.readUtf(256)));
+            b.writeDouble(p.encounter); b.writeDouble(p.vertical); b.writeDouble(p.movement);b.writeDouble(p.criticalChance);b.writeDouble(p.criticalMultiplier); b.writeBoolean(p.save); b.writeUtf(p.message, 256);
+        }, b -> new Settings(b.readDouble(), b.readDouble(), b.readDouble(),b.readDouble(),b.readDouble(), b.readBoolean(), b.readUtf(256)));
         @Override public Type<Settings> type() { return TYPE; }
     }
 
@@ -116,11 +116,11 @@ public final class TrailsNetwork {
     }
 
     /** Actual post-mitigation health/absorption loss; presentation cannot cause damage. */
-    public record Impact(UUID battle, long sequence, int target, float amount, net.minecraft.world.phys.Vec3 position) implements CustomPacketPayload {
+    public record Impact(UUID battle, long sequence, int target, float amount, net.minecraft.world.phys.Vec3 position,boolean critical) implements CustomPacketPayload {
         public static final Type<Impact> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_impact"));
         public static final StreamCodec<FriendlyByteBuf, Impact> CODEC = StreamCodec.of((b, p) -> {
-            b.writeUUID(p.battle); b.writeVarLong(p.sequence); b.writeVarInt(p.target); b.writeFloat(p.amount); b.writeVec3(p.position);
-        }, b -> new Impact(b.readUUID(), b.readVarLong(), b.readVarInt(), b.readFloat(), b.readVec3()));
+            b.writeUUID(p.battle); b.writeVarLong(p.sequence); b.writeVarInt(p.target); b.writeFloat(p.amount); b.writeVec3(p.position);b.writeBoolean(p.critical);
+        }, b -> new Impact(b.readUUID(), b.readVarLong(), b.readVarInt(), b.readFloat(), b.readVec3(),b.readBoolean()));
         @Override public Type<Impact> type() { return TYPE; }
     }
 

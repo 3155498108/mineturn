@@ -49,7 +49,7 @@ public final class TrailsGameTests {
             if (m instanceof net.minecraft.world.entity.monster.Zombie) m.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
             entities.add(m); return m;
         }
-        void start(boolean advantage) { b = new BattleSession(p, List.copyOf(entities), advantage); }
+        void start(boolean advantage) { b = new BattleSession(p, List.copyOf(entities), advantage); b.trails.criticalRoll=()->1; }
         TrailsNetwork.Command cmd(String op, int target, int slot) { return new TrailsNetwork.Command(b.id, b.revision, op, target, slot, 0, 0); }
         @Override public void close() {
             if (b != null) b.close("test cleanup");

@@ -1,6 +1,6 @@
 # 发布验收与安装说明
 
-> 本地 AT 原型分支使用 `1.0.0-trails.6`、协议 `28-trails` 和 `trails-6`，产物 `mineturn-1.0.0-trails.6.jar`。本页其余数字为导入的上游基线，当前运行证据见 [TASKS.md](TASKS.md) 顶部与 [分支规则](TRAILS_PROTOTYPE.md)。
+> 本地 AT 原型分支使用 `1.0.0-trails.7`、协议 `29-trails` 和 `trails-7`，产物 `mineturn-1.0.0-trails.7.jar`。本页其余数字为导入的上游基线，当前运行证据见 [TASKS.md](TASKS.md) 顶部与 [分支规则](TRAILS_PROTOTYPE.md)。
 
 > **本清单不自动发布任何东西。** 它不调用 `publish`、不上传、不改许可证、不动版本号。
 > 每一步都由人执行并留痕。

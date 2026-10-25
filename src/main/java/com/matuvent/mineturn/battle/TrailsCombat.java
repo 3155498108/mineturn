@@ -33,6 +33,8 @@ public final class TrailsCombat {
     final Map<UUID, Integer> regrowth = new HashMap<>();
     final Map<UUID, Integer> turns = new HashMap<>();
     final Set<UUID> charging = new HashSet<>();
+    java.util.function.DoubleSupplier criticalRoll;
+    TrailsNetwork.Impact lastImpact;
     final Map<UUID,TrailsBestiaryActions.Plan> plans=new HashMap<>();
     final Set<UUID> guarding = new HashSet<>();
     boolean resolving;
@@ -85,7 +87,7 @@ public final class TrailsCombat {
         finally { resolving = previous; }
         if (!b.closed) { b.revision++; b.syncAll(); }
     }
-    void clear() { burstAction = null; plans.clear(); charging.clear(); performances.clear(); lastPerformances.clear(); pending = null; knockback = false; pendingBurst = false; direction = Vec3.ZERO; inputTicks = 0; }
+    void clear() { lastImpact=null;burstAction = null; plans.clear(); charging.clear(); performances.clear(); lastPerformances.clear(); pending = null; knockback = false; pendingBurst = false; direction = Vec3.ZERO; inputTicks = 0; }
     long turn, inputSequence = -1;
     Vec3 movementOrigin = Vec3.ZERO, direction = Vec3.ZERO;
     double movementRadius;
@@ -95,7 +97,7 @@ public final class TrailsCombat {
     private static final String AMBUSH = "mineturn.trails.ambushUntil";
     private static final String OWNER = "mineturn.trails.ambushOwner";
 
-    TrailsCombat(BattleSession battle, ServerPlayer player) { this.b = battle; this.player = player; }
+    TrailsCombat(BattleSession battle, ServerPlayer player) { this.b = battle; this.player = player;criticalRoll=()->b.level.random.nextDouble(); }
     static TrailsConfig cfg() { return TrailsConfig.current; }
     static String id(Entity e) { return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString(); }
     static String itemId(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }
@@ -206,10 +208,10 @@ public final class TrailsCombat {
         String message = "范围设置；移动半径在下一回合生效。";
         if (packet.save()) {
             if (!p.server.isSingleplayerOwner(p.getGameProfile()) && !p.hasPermissions(2)) message = "只有单人存档主人或管理员可修改。";
-            else try { TrailsConfig.saveRanges(packet.encounter(), packet.vertical(), packet.movement()); message = "已保存，入战范围立即生效，移动半径下回合生效。"; }
+            else try { TrailsConfig.saveCombat(packet.encounter(), packet.vertical(), packet.movement(),packet.criticalChance(),packet.criticalMultiplier()); message = "已保存；暴击设置立即生效，移动半径下回合生效。"; }
             catch (IllegalArgumentException | IllegalStateException | java.io.IOException | com.google.gson.JsonParseException error) { message = "保存失败：" + error.getMessage(); }
         }
-        BattleNetwork.send(p, new TrailsNetwork.Settings(cfg().encounterRadius, cfg().verticalRange, cfg().movementRadius, false, message));
+        BattleNetwork.send(p, new TrailsNetwork.Settings(cfg().encounterRadius, cfg().verticalRange, cfg().movementRadius,cfg().criticalChance,cfg().criticalMultiplier, false, message));
     }
 
     public static void equipmentChanged(ServerPlayer p) {
@@ -409,15 +411,21 @@ public final class TrailsCombat {
     }
     void damage(LivingEntity source,LivingEntity target,double damage,net.minecraft.world.damagesource.DamageSource damageSource) {
         if(b.closed || !source.isAlive() || !target.isAlive() || !b.members.containsKey(target.getUUID()) || !enemy(source,target))return;
+        if(!Double.isFinite(damage) || damage<0)return;
+        boolean critical=damage>0 && criticalRoll.getAsDouble()<cfg().criticalChance;
+        float applied=(float)Math.min(Float.MAX_VALUE,damage*(critical?cfg().criticalMultiplier:1));
         float before=target.getHealth()+target.getAbsorptionAmount();
         BattleManager.authorized(() -> {
             target.invulnerableTime = 0;
-            if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, allied(source)?source.damageSources().playerAttack(player):damageSource, (float) damage);
-            else target.hurt(damageSource, (float) damage);
+            if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, allied(source)?source.damageSources().playerAttack(player):damageSource, applied);
+            else target.hurt(damageSource, applied);
         });
         float lost = Math.max(0, before - target.getHealth() - target.getAbsorptionAmount());
-        BattleNetwork.send(player, new TrailsNetwork.Impact(b.id, ++b.actionSequence, target.getId(), lost, target.getEyePosition().add(0, .35, 0)));
-        b.level.sendParticles(ParticleTypes.CRIT, target.getX(), target.getY() + .7, target.getZ(), 8, .25, .3, .25, .1);
+        boolean confirmed=critical && lost>.001;
+        lastImpact=new TrailsNetwork.Impact(b.id, ++b.actionSequence, target.getId(), lost, target.position().add(0,Math.min(4,target.getBbHeight())+.3,0),confirmed);
+        BattleNetwork.send(player,lastImpact);
+        b.level.sendParticles(confirmed?ParticleTypes.CRIT:ParticleTypes.DAMAGE_INDICATOR, target.getX(), target.getY() + .7, target.getZ(),confirmed?10:3, .25, .3, .25, .1);
+        if(confirmed)source.playSound(SoundEvents.PLAYER_ATTACK_CRIT,.8f,1.1f);
     }
     void area(LivingEntity source, Vec3 center, double radius, double damage) {
         for (var m : List.copyOf(b.members.values()))

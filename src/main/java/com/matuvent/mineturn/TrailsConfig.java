@@ -20,6 +20,8 @@ public final class TrailsConfig {
     public int cpOnDamage = 8;
     public int burstCost = 100;
     public int maxBuffStacks = 10;
+    public double criticalChance = .10;
+    public double criticalMultiplier = 1.5;
     public double foodHealingPerNutrition = .5;
     public Map<String, Double> bootsSpeed = new LinkedHashMap<>(Map.of(
             "minecraft:leather_boots", 12., "minecraft:chainmail_boots", 10.,
@@ -31,12 +33,18 @@ public final class TrailsConfig {
     public Map<String, Double> foodSaturation = new LinkedHashMap<>();
 
     public static void saveRanges(double encounter, double vertical, double movement) throws java.io.IOException {
+        saveCombat(encounter,vertical,movement,current.criticalChance,current.criticalMultiplier);
+    }
+    public static void saveCombat(double encounter,double vertical,double movement,double chance,double multiplier) throws java.io.IOException {
         if (!Double.isFinite(encounter) || encounter < 2 || encounter > 64 || !Double.isFinite(vertical) || vertical < 1 || vertical > 64
                 || !Double.isFinite(movement) || movement < 0 || movement > 32) throw new IllegalArgumentException("入战半径 2–64，高度 1–64，移动半径 0–32。");
+        if(!Double.isFinite(chance) || chance<0 || chance>1 || !Double.isFinite(multiplier) || multiplier<1 || multiplier>10)
+            throw new IllegalArgumentException("暴击率 0–100%，暴击倍率 1–10。");
         var path = FMLPaths.CONFIGDIR.get().resolve("mineturn-trails.json");
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var json = Files.exists(path) ? com.google.gson.JsonParser.parseString(Files.readString(path)).getAsJsonObject() : gson.toJsonTree(current).getAsJsonObject();
         json.addProperty("encounterRadius", encounter); json.addProperty("verticalRange", vertical); json.addProperty("movementRadius", movement);
+        json.addProperty("criticalChance",chance);json.addProperty("criticalMultiplier",multiplier);
         Files.createDirectories(path.getParent());
         var temporary = Files.createTempFile(path.getParent(), "mineturn-trails-", ".json.tmp");
         try {
@@ -45,6 +53,7 @@ public final class TrailsConfig {
             catch (java.nio.file.AtomicMoveNotSupportedException unsupported) { Files.move(temporary, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING); }
         } finally { Files.deleteIfExists(temporary); }
         current.encounterRadius = encounter; current.verticalRange = vertical; current.movementRadius = movement;
+        current.criticalChance=chance;current.criticalMultiplier=multiplier;
     }
 
     public static void load() {
@@ -59,6 +68,8 @@ public final class TrailsConfig {
                         || loaded.bootsSpeed == null || loaded.foodHealing == null || loaded.foodHunger == null
                         || loaded.foodSaturation == null || loaded.burstCost < 1
                         || loaded.burstCost > 200 || !Double.isFinite(loaded.ambushHealthFraction)
+                        || !Double.isFinite(loaded.criticalChance) || loaded.criticalChance<0 || loaded.criticalChance>1
+                        || !Double.isFinite(loaded.criticalMultiplier) || loaded.criticalMultiplier<1 || loaded.criticalMultiplier>10
                         || loaded.ambushHealthFraction < 0 || loaded.ambushHealthFraction >= 1)
                     throw new IllegalArgumentException("Invalid encounter/balance configuration");
                 current = loaded;

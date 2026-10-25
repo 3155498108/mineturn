@@ -106,7 +106,7 @@ public final class BattleClient {
         Minecraft mc = Minecraft.getInstance();
         if (!packet.active()) {
             if (state != null && state.battle().equals(packet.battle())) {
-                reset();
+                var tail=TrailsImpacts.afterClose(packet.message());reset();tail.run();
                 if (mc.player != null) mc.player.displayClientMessage(net.minecraft.network.chat.Component.literal(packet.message()), true);
             }
             return;

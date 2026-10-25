@@ -79,5 +79,13 @@ public final class TrailsSmokeScenario {
         if(b.trails.allied(actor))b.trails.companionSkill(b.enemies(actor).getFirst().getId());else b.trails.enemyAction();
         b.revision++;b.syncAll();
     }
+    public static void damageNumbers(ServerPlayer p,int mode){
+        prepare(p,0);p.removeAllEffects();
+        if(mode==2)p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST,1200,4));
+        var b=BattleManager.ACTIVE.get(p.getUUID());b.trails.criticalRoll=()->mode==1 || mode==3 || mode==4?0:1;
+        if(mode==4)b.enemies(p).forEach(e->e.setHealth(6));
+        if(mode==3)b.enemies(p).forEach(e->e.setInvulnerable(true));
+        b.revision++;b.syncAll();
+    }
     private TrailsSmokeScenario() {}
 }
