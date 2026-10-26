@@ -11,7 +11,7 @@
 - 两个加载器均正常停服并重启同一 QA 世界后通过再次放出、跟随和收回：`build-companion-neoforge-restart-v2.log`、`build-companion-fabric-restart-v2.log`；日志的实体与主人 UUID 前后相同。Fabric QA 固定离线测试账号，避免 Loom 每次随机创建不同玩家而被归属校验正确拒绝。测试仅使用 `AT-QA-Companions-20261026` 的独立副本。
 - 开工前已搜索 GitHub 的 [capture-net](https://github.com/kestalkayden/capture-net) 等收放方案；其目标为 26.1，未直接引入依赖。当前 1.21.1 实现复用原版实体 NBT、SavedData、物品组件及寻路，并保留本模组个人归属边界。
 - 两个正式 JAR 构建与结构核验通过：Fabric 68 个 Mixin / 124 个 JSON，NeoForge 55 个 Mixin / 123 个 JSON；Fabric 没有 NeoForge 引用或 GameTest 入口。正式 Fabric JAR 在生产专服环境启动、重载并正常保存关闭通过（`build-companion-fabric-production-server.log`）。入口/空白和 14 个示例包静态检查通过。
-- NeoForge 协议提升为 `31-trails` / `trails-10`；新增物品注册，服务器与所有客户端须一起更新。下载与发行回执在完成上传后补充。
+- NeoForge 协议提升为 `31-trails` / `trails-10`；新增物品注册，服务器与所有客户端须一起更新。[GitHub trails.10](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.10) 已发布，指向 `514eadf9866fc3eb93f52a1089c7200808009823`，包含两个 JAR、源码 ZIP、安装说明与 SHA256；远端资产摘要与本地一致。产物目录 `dist/MineTurn-AT-Prototype-1.0.0-trails.10`。本轮 Modrinth 未同步：原 Kimi 浏览器扩展连接已断开，当前可用浏览器中没有原上传标签；不冒充已更新。
 
 ## Fabric 移植与投稿（2026-10-26）
 

@@ -10,7 +10,7 @@
 
 当前分支版本 `1.0.0-trails.10`，提供 **Fabric 与 NeoForge 两个独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。NeoForge 协议为 `31-trails` / `trails-10`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
 
-下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases) · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
+当前 trails.10 下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.10)（Modrinth 新版尚待同步） · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
 
 [English](README.md) | **中文**
 
