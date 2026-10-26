@@ -121,11 +121,12 @@ final class BattleSession {
             state = brain == null ? "" : brain.initial();
         }
     }
-    BattleSession(ServerPlayer player, List<LivingEntity> participants, boolean advantage) {
+    BattleSession(ServerPlayer player,List<LivingEntity> participants,boolean advantage){this(player,participants,advantage,TrailsParties.multiplayer(player.server));}
+    BattleSession(ServerPlayer player, List<LivingEntity> participants, boolean advantage,boolean multiplayer) {
         this.definitions = CombatData.current;
         this.level = player.serverLevel();
         this.center = player.position();
-        this.trails = new TrailsCombat(this, player);
+        this.trails = new TrailsCombat(this, player,multiplayer);
         add(player);
         for (var entity : participants) add(entity);
         actor = player;
@@ -188,7 +189,7 @@ final class BattleSession {
     }
     UUID side(LivingEntity entity){return entity instanceof ServerPlayer?entity.getUUID():members.containsKey(entity.getUUID())?member(entity).allyOwner:null;}
     UUID assistanceOwner(LivingEntity entity){
-        if (trails != null) return trails.allied(entity) ? trails.player.getUUID() : null;
+        if (trails != null) return trails.ownerId(entity);
         if(entity instanceof net.minecraft.world.entity.animal.axolotl.Axolotl a && AquaticPath.inWater(level,a.position()) && !(a.getLastHurtByMob() instanceof ServerPlayer) && !(a.getTarget() instanceof ServerPlayer))
             return players().stream().filter(p->AquaticPath.inWater(level,p.position())).min(Comparator.comparingDouble(entity::distanceToSqr)).map(Entity::getUUID).orElse(null);
         if(entity instanceof net.minecraft.world.entity.animal.Wolf wolf && wolf.isTame() && !wolf.isOrderedToSit()) {
@@ -241,6 +242,7 @@ final class BattleSession {
         CombatData.Brain brain = entity instanceof ServerPlayer ? null : definitions.mobs().get(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
         members.put(entity.getUUID(), new Member(entity, brain));
         member(entity).allyOwner=assistanceOwner(entity);
+        if(trails!=null)trails.joined(entity);
         if(entity instanceof Mob mob && mob.getTarget()!=null)member(entity).nativeTarget=mob.getTarget().getUUID();
         if(entity instanceof net.minecraft.world.entity.monster.piglin.AbstractPiglin piglin && BattlePiglins.target(piglin)!=null)
             member(entity).nativeTarget=BattlePiglins.target(piglin).getUUID();

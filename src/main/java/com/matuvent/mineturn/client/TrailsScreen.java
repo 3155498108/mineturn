@@ -52,7 +52,7 @@ public final class TrailsScreen extends Screen {
     }
     private void prepare(String op) {
         if (preparing.equals(op)) { confirm(); return; }
-        if (TrailsClient.view.busy() && !op.equals("burst")) return;
+        if(!op.equals("burst") && (!TrailsClient.view.controllable() || TrailsClient.view.busy()))return;
         preparing = op; prepareTurn = TrailsClient.view.turn();
         var shape = previewShape(); var actor = minecraft.level.getEntity(op.equals("burst") ? minecraft.player.getId() : TrailsClient.view.actor());
         var victim = minecraft.level.getEntity(target);
@@ -82,7 +82,7 @@ public final class TrailsScreen extends Screen {
         clearWidgets();
         if (!TrailsClient.active() || minecraft == null || minecraft.player == null) return;
         var view = TrailsClient.view;
-        boolean own = view.alliedTurn() && !view.busy();
+        boolean own = view.controllable() && !view.busy();
         boolean playerTurn = view.actor() == minecraft.player.getId();
         if (!own || !playerTurn) items = false;
         if (items) { inventory(); return; }
@@ -147,7 +147,7 @@ public final class TrailsScreen extends Screen {
         }
     }
     private boolean playerTurn() {
-        return TrailsClient.active() && TrailsClient.view.alliedTurn() && !TrailsClient.view.busy() && minecraft.player != null && TrailsClient.view.actor() == minecraft.player.getId();
+        return TrailsClient.active() && TrailsClient.view.controllable() && !TrailsClient.view.busy() && minecraft.player != null && TrailsClient.view.actor() == minecraft.player.getId();
     }
     private void selectSlot(int slot) {
         if (!playerTurn()) return;
@@ -161,7 +161,7 @@ public final class TrailsScreen extends Screen {
             movementTurn = view.turn(); movementKeys.clear(); sentMovement = false;
         }
         double x = 0, z = 0;
-        if (!forceStop && !items && view.alliedTurn() && !view.busy() && minecraft.isWindowActive()) {
+        if (!forceStop && !items && view.controllable() && !view.busy() && minecraft.isWindowActive()) {
             x = (movementKeys.contains(GLFW.GLFW_KEY_D) ? 1 : 0) - (movementKeys.contains(GLFW.GLFW_KEY_A) ? 1 : 0);
             z = (movementKeys.contains(GLFW.GLFW_KEY_W) ? 1 : 0) - (movementKeys.contains(GLFW.GLFW_KEY_S) ? 1 : 0);
         }
@@ -191,7 +191,7 @@ public final class TrailsScreen extends Screen {
         if (!TrailsClient.active()) return;
         var view = TrailsClient.view;
         g.fill(0, 0, width, 55, 0xd20d101b);
-        g.drawString(font, "AT / " + (view.alliedTurn() ? "我方指令" : "敌方行动 · 可抢 S"), 10, 7, 0xffffffff);
+        g.drawString(font, "AT / " + (view.controllable()?"你的指令":view.alliedTurn()?"队友回合 · "+view.controller():"对手行动 · 可抢 S"), 10, 7, 0xffffffff);
         var queue = new java.util.ArrayList<com.matuvent.mineturn.network.BattleNetwork.QueueEntry>();
         queue.add(new com.matuvent.mineturn.network.BattleNetwork.QueueEntry(view.actor(), "", 0)); queue.addAll(view.queue());
         for (int i = 0; i < Math.min(queue.size(), (width - 12) / 29); i++) {

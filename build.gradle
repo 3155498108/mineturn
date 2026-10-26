@@ -59,6 +59,20 @@ neoForge {
     // Default run configurations.
     // These can be tweaked, removed, or duplicated as needed.
     runs {
+        if (providers.gradleProperty('multiplayerSmoke').isPresent()) {
+            multiHost {
+                client()
+                gameDirectory = project.file('build/qa-multi-host')
+                systemProperty 'mineturn.multiplayerSmoke', 'host'
+                programArguments.addAll '--username', 'AT_A', '--uuid', java.util.UUID.nameUUIDFromBytes('OfflinePlayer:AT_A'.getBytes('UTF-8')).toString(), '--quickPlaySingleplayer', 'AT-QA-Multiplayer-20261026'
+            }
+            multiGuest {
+                client()
+                gameDirectory = project.file('build/qa-multi-guest')
+                systemProperty 'mineturn.multiplayerSmoke', 'guest'
+                programArguments.addAll '--username', 'AT_B', '--uuid', java.util.UUID.nameUUIDFromBytes('OfflinePlayer:AT_B'.getBytes('UTF-8')).toString(), '--quickPlayMultiplayer', '127.0.0.1:25578'
+            }
+        }
         client {
             client()
             if (providers.gradleProperty('clientSmoke').isPresent()) {

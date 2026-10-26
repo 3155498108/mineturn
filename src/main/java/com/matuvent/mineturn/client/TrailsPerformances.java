@@ -24,7 +24,10 @@ public final class TrailsPerformances {
     }
     public static net.minecraft.world.item.ItemStack visualItem(LivingEntity e,net.minecraft.world.item.ItemStack original,HumanoidArm arm) {
         var frame=frame(e);var mc=Minecraft.getInstance();
-        if(frame==null || !frame.style().startsWith("burst_") || e!=mc.player || arm!=e.getMainArm())return original;
+        if(frame==null || !frame.style().startsWith("burst_") || arm!=e.getMainArm())return original;
+        if(e!=mc.player){var state=ACTIVE.get(e.getId());if(state==null || state.packet.weapon().isBlank())return original;
+            var id=net.minecraft.resources.ResourceLocation.tryParse(state.packet.weapon());if(id==null)return original;
+            var item=net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);visualWeaponFrames++;return new net.minecraft.world.item.ItemStack(item);}
         for(int i=0;i<36;i++) {
             var candidate=mc.player.getInventory().getItem(i);
             if(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(candidate.getItem()).toString().equals(TrailsClient.view.primary())) {
@@ -51,9 +54,7 @@ public final class TrailsPerformances {
         }
     }
     static boolean bursting() {
-        var player=Minecraft.getInstance().player;if(player==null)return false;
-        var state=ACTIVE.get(player.getId());
-        return state!=null && state.packet.style().startsWith("burst_") && System.nanoTime()<state.expires;
+        long now=System.nanoTime();return ACTIVE.values().stream().anyMatch(state->state.packet.style().startsWith("burst_") && now<state.expires);
     }
     public static void reset() { ACTIVE.values().forEach(PoseState::restore); ACTIVE.clear(); sequence = -1; }
     public static boolean red(LivingEntity e) { var s = ACTIVE.get(e.getId()); var threat=TrailsWarnings.threat(e); return !TrailsWarnings.gold(e) && (threat!=null && !threat.golden() || s != null && s.entity == e && s.packet.red() && System.nanoTime() < s.expires); }

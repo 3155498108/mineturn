@@ -25,10 +25,14 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 
-/** Single-player manual AT rules, built on MineTurn's isolated membership/status clock. */
+/** Manual AT rules, built on MineTurn's isolated membership/status clock. */
 public final class TrailsCombat {
     final BattleSession b;
-    final ServerPlayer player;
+    final ServerPlayer host;
+    ServerPlayer player;
+    final boolean multiplayer;
+    final Map<UUID,UUID> controllers=new HashMap<>();
+    final Map<UUID,String> factions=new HashMap<>();
     final Set<UUID> allies = new HashSet<>();
     final Map<UUID, Integer> regrowth = new HashMap<>();
     final Map<UUID, Integer> turns = new HashMap<>();
@@ -58,8 +62,8 @@ public final class TrailsCombat {
     }
     void perform(LivingEntity source, String animation, int ticks, boolean red, Vec3 aim, String style, String title) {
         if(b.closed)return;
-        var packet=new TrailsNetwork.Performance(b.id, ++b.actionSequence, source.getId(), animation, ticks, red, aim, style, title);
-        lastPerformances.put(source.getUUID(),packet);BattleNetwork.send(player,packet);
+        var packet=new TrailsNetwork.Performance(b.id, ++b.actionSequence, source.getId(), animation, ticks, red, aim, style, title,style.startsWith("burst_") && source instanceof ServerPlayer p?p.getPersistentData().getString(PRIMARY):"");
+        lastPerformances.put(source.getUUID(),packet);broadcast(packet);
     }
     void windup(LivingEntity source, LivingEntity victim, int ticks, boolean red, Runnable release) {
         windupAt(source, victim == null ? source.position().add(source.getLookAngle()) : victim.getEyePosition(), ticks, red, release);
@@ -83,7 +87,7 @@ public final class TrailsCombat {
         pending = null;
         boolean previous = resolving;
         resolving = true;
-        try { action.release.run(); }
+        try { runAs(controller(action.source)!=null?controller(action.source):turnPlayer(),action.release); }
         finally { resolving = previous; }
         if (!b.closed) { b.revision++; b.syncAll(); }
     }
@@ -97,7 +101,17 @@ public final class TrailsCombat {
     private static final String AMBUSH = "mineturn.trails.ambushUntil";
     private static final String OWNER = "mineturn.trails.ambushOwner";
 
-    TrailsCombat(BattleSession battle, ServerPlayer player) { this.b = battle; this.player = player;criticalRoll=()->b.level.random.nextDouble(); }
+    TrailsCombat(BattleSession battle,ServerPlayer player,boolean multiplayer){this.b=battle;this.host=player;this.player=player;this.multiplayer=multiplayer;criticalRoll=()->b.level.random.nextDouble();}
+    UUID ownerId(LivingEntity e){if(e==null)return null;if(e instanceof ServerPlayer)return e.getUUID();return controllers.containsKey(e.getUUID())?controllers.get(e.getUUID()):multiplayer?TrailsParties.owner(e):friendly(e,host)?host.getUUID():null;}
+    ServerPlayer controller(LivingEntity e){var member=b.members.get(ownerId(e));return member!=null && member.entity instanceof ServerPlayer p && p.isAlive()?p:null;}
+    boolean controls(ServerPlayer p,LivingEntity e){return p!=null && controller(e)==p;}
+    ServerPlayer turnPlayer(){var p=controller(b.actor);return p!=null?p:b.players().stream().filter(LivingEntity::isAlive).findFirst().orElse(host);}
+    void runAs(ServerPlayer p,Runnable work){player=p;try{work.run();}finally{player=turnPlayer();}}
+    void broadcast(net.minecraft.network.protocol.common.custom.CustomPacketPayload packet){for(var p:b.players())BattleNetwork.send(p,packet);}
+    void withdraw(ServerPlayer p){
+        for(var m:List.copyOf(b.members.values()))if(m.entity!=p && controls(p,m.entity))b.remove(m.entity,"友军随主人退出。");
+        b.leave(p,"已退出 AT 战斗，恢复即时战斗。");
+    }
     static TrailsConfig cfg() { return TrailsConfig.current; }
     static String id(Entity e) { return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString(); }
     static String itemId(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }
@@ -108,20 +122,36 @@ public final class TrailsCombat {
         return e != p && !hostile(e,p) && e instanceof Mob;
     }
     boolean allied(LivingEntity e) {
-        if (e == player) return true;
-        return allies.contains(e.getUUID()) || !b.members.containsKey(e.getUUID()) && friendly(e, player);
+        if(multiplayer)return Objects.equals(factions.get(player.getUUID()),factions.get(e.getUUID()));
+        return e==host || allies.contains(e.getUUID()) || !b.members.containsKey(e.getUUID()) && friendly(e,host);
     }
-    boolean enemy(LivingEntity a, LivingEntity c) { return a != c && allied(a) != allied(c); }
+    boolean sameSide(LivingEntity a,LivingEntity c){return a!=null && c!=null && (multiplayer?Objects.equals(factions.get(a.getUUID()),factions.get(c.getUUID())):allied(a)==allied(c));}
+    boolean enemy(LivingEntity a,LivingEntity c){return a!=c && !sameSide(a,c);}
+
+    void joined(LivingEntity entity){
+        if(factions.isEmpty())return; // Constructor membership is assigned together in initialize().
+        UUID owner=entity instanceof ServerPlayer?entity.getUUID():multiplayer?TrailsParties.owner(entity):friendly(entity,host)?host.getUUID():null;
+        if(owner!=null && b.members.containsKey(owner)){
+            controllers.put(entity.getUUID(),owner);
+            factions.put(entity.getUUID(),!multiplayer?"party":entity instanceof ServerPlayer p?TrailsParties.faction(p):factions.get(owner));
+        }else factions.put(entity.getUUID(),"hostiles");
+        if(sameSide(host,entity))allies.add(entity.getUUID());
+    }
 
     void initialize(boolean advantage) {
-        for (var m : b.members.values()) if (m.entity == player || friendly(m.entity, player)) allies.add(m.entity.getUUID());
-        // Once admitted, faction does not flip when native AI target memories expire.
-        for (var m : b.members.values()) m.allyOwner = allied(m.entity) ? player.getUUID() : null;
+        for(var p:b.players()){controllers.put(p.getUUID(),p.getUUID());factions.put(p.getUUID(),multiplayer?TrailsParties.faction(p):"party");}
+        for(var m:b.members.values())if(!(m.entity instanceof ServerPlayer)){
+            UUID id=multiplayer?TrailsParties.owner(m.entity):friendly(m.entity,host)?host.getUUID():null;
+            if(id!=null && b.members.get(id)!=null && b.members.get(id).entity instanceof ServerPlayer){controllers.put(m.entity.getUUID(),id);factions.put(m.entity.getUUID(),factions.get(id));}
+            else factions.put(m.entity.getUUID(),"hostiles");
+        }
+        for(var m:b.members.values()){if(Objects.equals(factions.get(host.getUUID()),factions.get(m.entity.getUUID())))allies.add(m.entity.getUUID());m.allyOwner=m.entity instanceof ServerPlayer?null:controllers.get(m.entity.getUUID());}
+        for(var p:b.players())if(p.getPersistentData().getString(PRIMARY).isEmpty() && weapon(p.getMainHandItem()))setPrimary(p);
         if (primary().isEmpty() && weapon(player.getMainHandItem())) setPrimary(player);
         if (advantage) {
             for (var m : List.copyOf(b.members.values())) {
-                if (allied(m.entity) && m.entity != player) b.clock.recovery(m.entity, 0);
-                else if (!allied(m.entity)) m.entity.setHealth(Math.max(.1f,
+                if (sameSide(host,m.entity) && m.entity != host) b.clock.recovery(m.entity, 0);
+                else if (enemy(host,m.entity) && (!multiplayer || controller(m.entity)==null)) m.entity.setHealth(Math.max(.1f,
                         m.entity.getHealth() - m.entity.getMaxHealth() * (float) cfg().ambushHealthFraction));
             }
         }
@@ -141,7 +171,7 @@ public final class TrailsCombat {
         var victim = event.getEntity();
         if (victim.level().isClientSide || event.getNewDamage() <= 0) return;
         var active = BattleManager.ACTIVE.get(victim.getUUID());
-        if (active != null && active.trails != null && active.trails.allied(victim)) active.trails.addCp(cfg().cpOnDamage);
+        if(active!=null && active.trails!=null)active.trails.addCp(victim,cfg().cpOnDamage);
         if (BattleManager.authorized() || BattleManager.locked(victim) || !victim.isAlive()
                 || !(event.getSource().getEntity() instanceof ServerPlayer p)
                 || !(event.getSource().getDirectEntity() == p || event.getSource().getDirectEntity() instanceof net.minecraft.world.entity.projectile.Projectile)
@@ -173,10 +203,10 @@ public final class TrailsCombat {
                 return;
             }
             var rules = session.trails;
-            if (rules == null || rules.player != p || !session.id.equals(packet.battle()) || rules.resolving) return;
+            if (rules == null || !session.members.containsKey(p.getUUID()) || !session.id.equals(packet.battle()) || rules.resolving) return;
             if (packet.revision() != session.revision) { session.sync(p); return; }
             rules.resolving = true;
-            try { rules.command(packet); }
+            try { rules.runAs(p,()->rules.command(packet)); }
             finally { rules.resolving = false; }
         } catch (IllegalArgumentException | IllegalStateException error) {
             if (session != null && !session.closed) { session.message(error.getMessage()); session.sync(p); }
@@ -188,7 +218,7 @@ public final class TrailsCombat {
         var session = BattleManager.ACTIVE.get(p.getUUID());
         if (session == null || session.closed || session.trails == null || !session.id.equals(packet.battle())) return;
         var rules = session.trails;
-        if (rules.player != p || !p.isAlive() || session.actor == null || !rules.allied(session.actor) || rules.busy() || rules.resolving
+        if (!rules.controls(p,session.actor) || !p.isAlive() || session.actor == null || rules.busy() || rules.resolving
                 || packet.turn() != rules.turn || packet.sequence() <= rules.inputSequence
                 || !Double.isFinite(packet.x()) || !Double.isFinite(packet.z()) || Math.abs(packet.x()) > 1 || Math.abs(packet.z()) > 1) return;
         rules.inputSequence = packet.sequence();
@@ -199,7 +229,7 @@ public final class TrailsCombat {
 
     public static boolean inventoryAllowed(ServerPlayer p) {
         var session = BattleManager.ACTIVE.get(p.getUUID());
-        return session != null && !session.closed && session.trails != null && session.trails.player == p
+        return session != null && !session.closed && session.trails != null && session.trails.controls(p,p)
                 && session.actor == p && !session.trails.busy() && !session.trails.resolving && p.isAlive()
                 && p.containerMenu == p.inventoryMenu;
     }
@@ -224,27 +254,38 @@ public final class TrailsCombat {
 
     static BattleSession start(ServerPlayer p) {
         if (!BattleManager.eligible(p) || p.isPassenger() || p.isVehicle() || BattleManager.reloading()) throw new IllegalArgumentException("请在生存或冒险模式、非骑乘状态下进入战斗。");
-        var candidates = p.serverLevel().getEntitiesOfClass(LivingEntity.class,
-                p.getBoundingBox().inflate(cfg().encounterRadius, cfg().verticalRange, cfg().encounterRadius),
-                e -> e != p && !(e instanceof net.minecraft.world.entity.boss.wither.WitherBoss wither && wither.getInvulnerableTicks()>0) && BattleManager.eligible(e) && !BattleManager.locked(e)
-                        && !(e instanceof ServerPlayer) && (hostile(e, p) || friendly(e, p))
-                        && Math.abs(e.getY() - p.getY()) <= cfg().verticalRange
-                        && e.position().subtract(p.position()).horizontalDistance() <= cfg().encounterRadius);
-        if (candidates.stream().noneMatch(e -> hostile(e, p))) throw new IllegalArgumentException("圈内没有敌人。");
+        boolean multi=TrailsParties.multiplayer(p.server);
+        var region=p.getBoundingBox().inflate(cfg().encounterRadius,cfg().verticalRange,cfg().encounterRadius);
+        var nearby=p.serverLevel().getEntitiesOfClass(LivingEntity.class,region,e->e!=p && BattleManager.eligible(e) && !BattleManager.locked(e)
+                && !e.isPassenger() && !e.isVehicle() && !(e instanceof net.minecraft.world.entity.boss.wither.WitherBoss w && w.getInvulnerableTicks()>0)
+                && Math.abs(e.getY()-p.getY())<=cfg().verticalRange && e.position().subtract(p.position()).horizontalDistance()<=cfg().encounterRadius);
+        var players=new ArrayList<ServerPlayer>();players.add(p);
+        if(multi)for(var e:nearby)if(e instanceof ServerPlayer other && (p.server.isPvpAllowed() || TrailsParties.teammates(p,other)))players.add(other);
+        var candidates=new ArrayList<LivingEntity>();
+        for(var e:nearby){
+            if(e instanceof ServerPlayer other){if(multi && players.contains(other))candidates.add(e);continue;}
+            if(!(e instanceof Mob))continue;
+            UUID owner=TrailsParties.owner(e);
+            if(multi){if(owner!=null?players.stream().anyMatch(q->q.getUUID().equals(owner)):players.stream().anyMatch(q->hostile(e,q)))candidates.add(e);}
+            else if(hostile(e,p) || friendly(e,p))candidates.add(e);
+        }
+        if(candidates.stream().noneMatch(e->{if(e instanceof ServerPlayer other)return !TrailsParties.teammates(p,other);UUID owner=TrailsParties.owner(e);return multi && owner!=null?players.stream().anyMatch(q->q.getUUID().equals(owner) && !TrailsParties.teammates(p,q)):hostile(e,p);}))
+            throw new IllegalArgumentException("圈内没有可参战对手；多人友军需先由主人使用命名牌登记。");
         long now = p.level().getGameTime();
         boolean advantage = candidates.stream().anyMatch(e -> hostile(e, p) && e.getPersistentData().getLong(AMBUSH) > now
                 && e.getPersistentData().hasUUID(OWNER) && p.getUUID().equals(e.getPersistentData().getUUID(OWNER)));
         for (var e : candidates) if (e.getPersistentData().hasUUID(OWNER) && p.getUUID().equals(e.getPersistentData().getUUID(OWNER))) {
             e.getPersistentData().remove(AMBUSH); e.getPersistentData().remove(OWNER);
         }
-        var battle = new BattleSession(p, candidates, advantage);
+        var battle = new BattleSession(p, candidates, advantage,multi);
         battle.syncAll();
-        BattleNetwork.send(p, new TrailsNetwork.Cue("enter", advantage ? "AMBUSH / 先制攻击" : "TACTICAL SHIFT / 战术切换", 28, cfg().encounterRadius));
+        battle.trails.broadcast(new TrailsNetwork.Cue("enter",advantage?"AMBUSH / 先制攻击":"TACTICAL SHIFT / 战术切换",28,cfg().encounterRadius));
         return battle;
     }
 
     int cp() { return Math.clamp(player.getPersistentData().getInt(CP), 0, 200); }
-    void addCp(int amount) { player.getPersistentData().putInt(CP, Math.clamp(cp() + amount, 0, 200)); }
+    void addCp(int amount){addCp(player,amount);}
+    void addCp(LivingEntity source,int amount){var owner=controller(source);if(owner!=null)owner.getPersistentData().putInt(CP,Math.clamp(owner.getPersistentData().getInt(CP)+amount,0,200));}
     String primary() { return player.getPersistentData().getString(PRIMARY); }
     static void setPrimary(ServerPlayer p) {
         var stack = p.getMainHandItem();
@@ -287,7 +328,8 @@ public final class TrailsCombat {
         return Double.isFinite(base) ? Math.clamp(base, 10, 1000) : 100;
     }
 
-    void sync(ServerPlayer recipient) {
+    void sync(ServerPlayer recipient){var previous=player;player=recipient;try{syncView(recipient);}finally{player=previous;}}
+    void syncView(ServerPlayer recipient) {
         if (b.actor == null) return;
         // Existing camera and status locks remain authoritative; the new UI receives its own chunked roster.
         BattleNetwork.send(recipient, new BattleNetwork.State(b.id, b.revision, true, -1, b.actor.getId(), b.clock.time(),
@@ -296,12 +338,12 @@ public final class TrailsCombat {
         var queue = b.clock.forecast(16, this::speed).stream()
                 .map(t -> new BattleNetwork.QueueEntry(t.actor().getId(), b.displayName(t.actor()), t.inAv())).toList();
         BattleNetwork.send(recipient, new TrailsNetwork.View(b.id, b.revision, b.actor.getId(), allied(b.actor), cp(), cfg().burstCost,
-                primary(), burstName(primaryStack()), movementRadius, turn, movementOrigin, busy(), charging.isEmpty() ? b.lastMessage
+                primary(), burstName(primaryStack()), movementRadius, turn, movementOrigin, busy(),controls(recipient,b.actor),controller(b.actor)!=null?controller(b.actor).getScoreboardName():"生物", charging.isEmpty() ? b.lastMessage
                         : "蓄力预告：" + b.members.values().stream().filter(m -> plans.containsKey(m.entity.getUUID()))
                                 .map(m -> (plans.get(m.entity.getUUID()).warning().golden()?"[金光 S] ":"[红光] ")+m.entity.getName().getString()+" · "+plans.get(m.entity.getUUID()).move().name()).reduce((a, c) -> a + "、" + c).orElse("") + " · 下次自身回合发动，可移动、防御或抢 S！", queue));
-        var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity),
+        var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity)+(multiplayer && !(m.entity instanceof ServerPlayer) && controller(m.entity)!=null?" ["+controller(m.entity).getScoreboardName()+"]":""),
                 !allied(m.entity), m.entity.getHealth(), m.entity.getMaxHealth(), speed(m.entity),
-                b.clock.until(m.entity, this::speed), m.entity == player ? TrailsWeaponSkills.name(player.getMainHandItem()) : skillName(m.entity), m.entity.getActiveEffects().stream().limit(64)
+                b.clock.until(m.entity, this::speed), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.name(p.getMainHandItem()) : skillName(m.entity), m.entity.getActiveEffects().stream().limit(64)
                         .map(e -> new TrailsNetwork.Status(BuiltInRegistries.MOB_EFFECT.getKey(e.getEffect().value()).toString(), e.getAmplifier() + 1, e.getDuration())).toList(), plans.containsKey(m.entity.getUUID())?plans.get(m.entity.getUUID()).warning():null)).toList();
         for (int from = 0, page = 0; from < roster.size(); from += 48, page++)
             BattleNetwork.send(recipient, new TrailsNetwork.Roster(b.id, b.revision, page, from + 48 >= roster.size(),
@@ -309,6 +351,7 @@ public final class TrailsCombat {
     }
 
     void tick() {
+        player=turnPlayer();
         for(var member:List.copyOf(b.members.values()))if(member.entity instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon
                 && dragon.getPhaseManager().getCurrentPhase().getPhase()==net.minecraft.world.entity.boss.enderdragon.phases.EnderDragonPhase.DYING)b.remove(dragon,"末影龙已被击败，恢复原版死亡飞行。");
         b.prune(); if (b.closed) return;
@@ -318,7 +361,7 @@ public final class TrailsCombat {
         if (burstAction == null) b.tickMotion(); if (b.closed) return;
         if (wasKnockback && b.motion == null && knockback) { knockback = false; recover(b.actor, 1.4); if (b.closed) return; }
         if (burstAction != null) tickBurst(); else tickPending(); if (b.closed) return;
-        if (inputTicks > 0 && --inputTicks >= 0 && allied(b.actor) && !busy() && direction.lengthSqr() > 1e-8) {
+        if (inputTicks > 0 && --inputTicks >= 0 && controller(b.actor)!=null && !busy() && direction.lengthSqr() > 1e-8) {
             move(direction.x * .215, direction.z * .215);
             if (b.closed) return;
         }
@@ -335,7 +378,7 @@ public final class TrailsCombat {
             try { burst(pendingTarget, pendingAim); } catch (IllegalArgumentException error) { b.message(error.getMessage()); }
             if (b.closed) return;
         }
-        if (!allied(b.actor) && !busy() && ++enemyWait >= 28) {
+        if (controller(b.actor)==null && !busy() && ++enemyWait >= 28) {
             enemyWait = 0;
             enemyAction();
         }
@@ -343,6 +386,7 @@ public final class TrailsCombat {
     }
 
     void onTurn() {
+        player=turnPlayer();
         turn++; inputSequence = -1; inputTicks = 0; direction = Vec3.ZERO;
         enemyWait = 0;
         recovery = 1;
@@ -362,9 +406,9 @@ public final class TrailsCombat {
             if (pending != null && b.actor == player) throw new IllegalArgumentException("请等待自己的战技完成后再抢 S。");
             burst(p.target(), new Vec3(p.x(), 0, p.z())); return;
         }
-        if (b.actor == null || !allied(b.actor)) throw new IllegalArgumentException("敌方回合：可以抢 S，不能退出或下达普通指令。");
+        if (b.actor == null || !controls(player,b.actor)) throw new IllegalArgumentException("只能操控自己及自己的命名牌友军；其他玩家行动时可使用自己的抢 S。");
         if (busy()) throw new IllegalArgumentException("请等待当前动作完成。");
-        if (p.operation().equals("toggle")) { b.close("已退出 AT 战斗，恢复即时战斗。"); return; }
+        if (p.operation().equals("toggle")) { if(multiplayer)withdraw(player);else b.close("已退出 AT 战斗，恢复即时战斗。"); return; }
         if (p.operation().equals("select") || p.operation().equals("primary")) {
             if (b.actor != player) throw new IllegalArgumentException("只能在玩家回合切换武器。");
             if (p.slot() < 0 || p.slot() > 8) throw new IllegalArgumentException("无效武器槽。");
@@ -417,13 +461,13 @@ public final class TrailsCombat {
         float before=target.getHealth()+target.getAbsorptionAmount();
         BattleManager.authorized(() -> {
             target.invulnerableTime = 0;
-            if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, allied(source)?source.damageSources().playerAttack(player):damageSource, applied);
+            if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, controller(source)!=null?source.damageSources().playerAttack(controller(source)):damageSource, applied);
             else target.hurt(damageSource, applied);
         });
         float lost = Math.max(0, before - target.getHealth() - target.getAbsorptionAmount());
         boolean confirmed=critical && lost>.001;
         lastImpact=new TrailsNetwork.Impact(b.id, ++b.actionSequence, target.getId(), lost, target.position().add(0,Math.min(4,target.getBbHeight())+.3,0),confirmed);
-        BattleNetwork.send(player,lastImpact);
+        broadcast(lastImpact);
         b.level.sendParticles(confirmed?ParticleTypes.CRIT:ParticleTypes.DAMAGE_INDICATOR, target.getX(), target.getY() + .7, target.getZ(),confirmed?10:3, .25, .3, .25, .1);
         if(confirmed)source.playSound(SoundEvents.PLAYER_ATTACK_CRIT,.8f,1.1f);
     }
@@ -442,7 +486,7 @@ public final class TrailsCombat {
         var animation = new BattleNetwork.ActionAnimation(b.id, ++b.actionSequence,
                 net.minecraft.resources.ResourceLocation.parse(ranged ? "mineturn:ranged" : "mineturn:melee"), 10,
                 source.getId(), victim.getId(), victim.position(), true);
-        BattleNetwork.send(player, animation);
+        broadcast(animation);
     }
 
     void attack(int targetId, int slot, boolean wind) {
@@ -492,6 +536,7 @@ public final class TrailsCombat {
         pending = new Pending(source, turn, 8, () -> finish(delay), false);
     }
     void playerAction(int targetId, int slot, boolean wind, Vec3 aim, boolean skill) {
+        var player=this.player;
         if (b.actor != player) throw new IllegalArgumentException("只有玩家能使用武器战技。");
         if (busy()) throw new IllegalArgumentException("请等待当前动作完成。");
         if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
@@ -549,7 +594,7 @@ public final class TrailsCombat {
                     player.playSound(SoundEvents.MACE_SMASH_GROUND_HEAVY, .9f, charged ? .8f : 1.1f);
                 }
                 if (stack.isDamageableItem()) stack.hurtAndBreak(skill ? 2 : 1, player, EquipmentSlot.MAINHAND);
-                b.message(title); addCp(cfg().cpPerAction); recover(player, delay);
+                b.message(title); addCp(player,cfg().cpPerAction); recover(player, delay);
             }, false);
         });
     }
@@ -603,7 +648,7 @@ public final class TrailsCombat {
     }
 
     void move(double dx, double dz) {
-        if (b.actor == null || !allied(b.actor) || busy() || !Double.isFinite(dx) || !Double.isFinite(dz)) return;
+        if (b.actor == null || controller(b.actor)==null || busy() || !Double.isFinite(dx) || !Double.isFinite(dz)) return;
         var entity = b.actor;
         Vec3 offset = new Vec3(dx, 0, dz);
         if (offset.length() > .215) offset = offset.normalize().scale(.215);
@@ -663,6 +708,7 @@ public final class TrailsCombat {
         burst(targetId, aim);
     }
     void burst(int targetId, Vec3 aim) {
+        var player=this.player;
         if (cp() < cfg().burstCost) throw new IllegalArgumentException("CP 不足。");
         if (burstAction != null || b.actor == player && pending != null) throw new IllegalArgumentException("请等待当前演出完成。");
         var stack = primaryStack();
@@ -690,7 +736,7 @@ public final class TrailsCombat {
         String style = "burst_" + TrailsChoreography.style(player, stack), title = burstName(stack);
         Vec3 end = victim != null ? victim.getEyePosition() : shape.kind() == TrailsArea.Kind.DISK ? shape.center(player.position(), aim).add(0, 1, 0)
                 : player.getEyePosition().add(shape.direction(aim).scale(Math.max(3, shape.radius())));
-        BattleNetwork.send(player, new TrailsNetwork.Cue("burst", title, 22, cfg().encounterRadius));
+        broadcast(new TrailsNetwork.Cue("burst",player.getScoreboardName()+" · "+title,22,cfg().encounterRadius));
         perform(player, "draw", 26, false, end, style, title);
         burstAction = new Pending(player, turn, 26, () -> {
             boolean projectile = stack.getItem() instanceof BowItem || stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof TridentItem;
@@ -724,11 +770,11 @@ public final class TrailsCombat {
     }
     void tickBurst() {
         var action = burstAction; if (action == null) return;
-        if (!player.isAlive() || !b.members.containsKey(player.getUUID())) { burstAction = null; return; }
-        if (action.ticks > 1) { burstAction = new Pending(player, action.turn, action.ticks - 1, action.release, false); return; }
+        if (!action.source.isAlive() || !b.members.containsKey(action.source.getUUID())) { burstAction = null; return; }
+        if (action.ticks > 1) { burstAction = new Pending(action.source, action.turn, action.ticks - 1, action.release, false); return; }
         burstAction = null;
         boolean previous = resolving; resolving = true;
-        try { action.release.run(); } finally { resolving = previous; }
+        try { runAs(controller(action.source)!=null?controller(action.source):turnPlayer(),action.release); } finally { resolving = previous; }
         if (!b.closed) { b.revision++; b.syncAll(); }
     }
 

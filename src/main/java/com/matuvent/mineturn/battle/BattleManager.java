@@ -370,11 +370,11 @@ public final class BattleManager {
     }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent event) {
         var battle = ACTIVE.get(event.getEntity().getUUID());
-        if (battle != null) battle.leave(event.getEntity(), "玩家离线，已退出当前战斗。");
+        if (battle != null) {if(battle.trails!=null && battle.trails.multiplayer && event.getEntity() instanceof ServerPlayer p)battle.trails.withdraw(p);else battle.leave(event.getEntity(), "玩家离线，已退出当前战斗。");}
     }
     @SubscribeEvent public static void changedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
         var battle = ACTIVE.get(event.getEntity().getUUID());
-        if (battle != null) battle.leave(event.getEntity(), "跨维度传送，已退出当前战斗。");
+        if (battle != null) {if(battle.trails!=null && battle.trails.multiplayer && event.getEntity() instanceof ServerPlayer p)battle.trails.withdraw(p);else battle.leave(event.getEntity(), "跨维度传送，已退出当前战斗。");}
     }
     @SubscribeEvent public static void stopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
         STOPPING.add(event.getServer());

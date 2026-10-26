@@ -20,9 +20,12 @@ public final class TrailsNetwork {
     public static Consumer<Settings> receiveSettings = ignored -> {};
     public static Consumer<Impact> receiveImpact = ignored -> {};
     public static Consumer<Performance> receivePerformance = ignored -> {};
+    public static Consumer<PartyState> receiveParty=ignored->{};
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        var r = event.registrar("trails-7");
+        var r = event.registrar("trails-8");
+        r.playToServer(PartyRequest.TYPE,PartyRequest.CODEC,(p,ctx)->{if(ctx.player() instanceof ServerPlayer player)com.matuvent.mineturn.battle.TrailsTeams.handle(player,p);});
+        r.playToClient(PartyState.TYPE,PartyState.CODEC,(p,ctx)->receiveParty.accept(p));
         r.playToClient(Impact.TYPE, Impact.CODEC, (p, ctx) -> receiveImpact.accept(p));
         r.playToClient(Performance.TYPE, Performance.CODEC, (p, ctx) -> receivePerformance.accept(p));
         r.playBidirectional(Settings.TYPE, Settings.CODEC, (p, ctx) -> {
@@ -90,28 +93,28 @@ public final class TrailsNetwork {
 
     public record View(UUID battle, long revision, int actor, boolean alliedTurn, int cp, int burstCost,
                        String primary, String burstName, double movement, long turn, net.minecraft.world.phys.Vec3 origin,
-                       boolean busy, String message, List<BattleNetwork.QueueEntry> queue)
+                       boolean busy, boolean controllable,String controller,String message, List<BattleNetwork.QueueEntry> queue)
             implements CustomPacketPayload {
         public static final Type<View> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_view"));
         public static final StreamCodec<FriendlyByteBuf, View> CODEC = StreamCodec.of((b, p) -> {
             b.writeUUID(p.battle); b.writeVarLong(p.revision); b.writeVarInt(p.actor); b.writeBoolean(p.alliedTurn);
             b.writeVarInt(p.cp); b.writeVarInt(p.burstCost); b.writeUtf(p.primary, 256); b.writeUtf(p.burstName, 64);
-            b.writeDouble(p.movement); b.writeVarLong(p.turn); b.writeVec3(p.origin); b.writeBoolean(p.busy); b.writeUtf(p.message, 1024);
+            b.writeDouble(p.movement); b.writeVarLong(p.turn); b.writeVec3(p.origin); b.writeBoolean(p.busy);b.writeBoolean(p.controllable);b.writeUtf(p.controller,64); b.writeUtf(p.message, 1024);
             b.writeCollection(p.queue, (out, q) -> q.write(out));
         }, b -> new View(b.readUUID(), b.readVarLong(), b.readVarInt(), b.readBoolean(), b.readVarInt(), b.readVarInt(),
-                b.readUtf(256), b.readUtf(64), b.readDouble(), b.readVarLong(), b.readVec3(), b.readBoolean(), b.readUtf(1024),
+                b.readUtf(256), b.readUtf(64), b.readDouble(), b.readVarLong(), b.readVec3(), b.readBoolean(),b.readBoolean(),b.readUtf(64), b.readUtf(1024),
                 b.readCollection(FriendlyByteBuf.limitValue(java.util.ArrayList::new, 32), BattleNetwork.QueueEntry::read)));
         @Override public Type<View> type() { return TYPE; }
     }
 
     /** Visual-only native poses. No client entity/projectile may apply combat effects. */
     public record Performance(UUID battle, long sequence, int actor, String animation, int ticks, boolean red,
-                              net.minecraft.world.phys.Vec3 aim, String style, String title) implements CustomPacketPayload {
+                              net.minecraft.world.phys.Vec3 aim, String style, String title,String weapon) implements CustomPacketPayload {
         public static final Type<Performance> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_performance"));
         public static final StreamCodec<FriendlyByteBuf, Performance> CODEC = StreamCodec.of((b, p) -> {
             b.writeUUID(p.battle); b.writeVarLong(p.sequence); b.writeVarInt(p.actor); b.writeUtf(p.animation, 24);
-            b.writeVarInt(p.ticks); b.writeBoolean(p.red); b.writeVec3(p.aim); b.writeUtf(p.style, 32); b.writeUtf(p.title, 96);
-        }, b -> new Performance(b.readUUID(), b.readVarLong(), b.readVarInt(), b.readUtf(24), b.readVarInt(), b.readBoolean(), b.readVec3(), b.readUtf(32), b.readUtf(96)));
+            b.writeVarInt(p.ticks); b.writeBoolean(p.red); b.writeVec3(p.aim); b.writeUtf(p.style, 32); b.writeUtf(p.title, 96);b.writeUtf(p.weapon,128);
+        }, b -> new Performance(b.readUUID(), b.readVarLong(), b.readVarInt(), b.readUtf(24), b.readVarInt(), b.readBoolean(), b.readVec3(), b.readUtf(32), b.readUtf(96),b.readUtf(128)));
         @Override public Type<Performance> type() { return TYPE; }
     }
 
@@ -142,4 +145,15 @@ public final class TrailsNetwork {
         }, b -> new Cue(b.readUtf(24), b.readUtf(128), b.readVarInt(), b.readDouble()));
         @Override public Type<Cue> type() { return TYPE; }
     }
+    public record PartyRequest(String operation,String value) implements CustomPacketPayload {
+        public static final Type<PartyRequest> TYPE=new Type<>(ResourceLocation.parse("mineturn:party_request"));
+        public static final StreamCodec<FriendlyByteBuf,PartyRequest> CODEC=StreamCodec.of((b,p)->{b.writeUtf(p.operation,16);b.writeUtf(p.value,80);},b->new PartyRequest(b.readUtf(16),b.readUtf(80)));
+        @Override public Type<PartyRequest> type(){return TYPE;}
+    }
+    public record PartyState(String team,String inviter,String inviteTeam,String message) implements CustomPacketPayload {
+        public static final Type<PartyState> TYPE=new Type<>(ResourceLocation.parse("mineturn:party_state"));
+        public static final StreamCodec<FriendlyByteBuf,PartyState> CODEC=StreamCodec.of((b,p)->{b.writeUtf(p.team,128);b.writeUtf(p.inviter,32);b.writeUtf(p.inviteTeam,128);b.writeUtf(p.message,256);},b->new PartyState(b.readUtf(128),b.readUtf(32),b.readUtf(128),b.readUtf(256)));
+        @Override public Type<PartyState> type(){return TYPE;}
+    }
+
 }

@@ -18,6 +18,7 @@
     "ServerReloadMixin",
     "FunctionLibraryMixin",
     "StatusAccess",
+    "TrailsNameTagMixin",
     "ArrowEffectsAccess",
     "SkeletonArrowAccess",
     "SlimeAttackAccess",

@@ -17,6 +17,7 @@ public final class TrailsConfigScreen extends Screen {
     @Override public boolean isPauseScreen() { return false; }
     @Override public void renderBackground(GuiGraphics g, int x, int y, float partial) {}
     @Override protected void init() {
+        addRenderableWidget(Button.builder(Component.literal("队伍"),b->minecraft.setScreen(new TrailsPartyScreen(this))).bounds(width-48,3,44,20).build());
         var settings = values != null ? values : TrailsClient.settings;
         encounter = field(42, settings.encounter()); vertical = field(68, settings.vertical()); movement = field(94, settings.movement());
         criticalChance=field(120,settings.criticalChance()*100);criticalMultiplier=field(146,settings.criticalMultiplier());
@@ -28,7 +29,7 @@ public final class TrailsConfigScreen extends Screen {
         toggle("shake", "命中微震", left+cell*2+8, cell, TrailsPresentationOptions.shake);
         toggle("effects", "武器特效", left+cell*3+12, cell, TrailsPresentationOptions.effects);
         if (minecraft.player != null) PacketDistributor.sendToServer(new TrailsNetwork.Settings(0, 0, 0,0,1, false, ""));
-        else message = "请先进入单人存档，再修改该存档的战斗范围。";
+        else message = "请先进入游戏；房主或管理员可修改战斗范围。";
     }
     private void toggle(String key,String name,int x,int width,boolean value) {
         addRenderableWidget(Button.builder(Component.literal(name+"："+(value?"开":"关")), b -> {

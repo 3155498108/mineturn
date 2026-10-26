@@ -91,7 +91,7 @@ final class TrailsBestiaryActions {
                         && TrailsCombat.gap(source,target)<=move.range() && source.hasLineOfSight(target);
                 if(move.kind().equals("WIND") && canLaunch && c.knockUp(source,target,move.power()>1?1.04:.92))return;
                 if(move.kind().equals("LEVITATE") && canLaunch && c.knockUp(source,target,.65))return;
-                if(c.allied(source))c.addCp(move.friendly()?10:com.matuvent.mineturn.TrailsConfig.current.cpPerAction);
+                if(c.controller(source)!=null)c.addCp(source,move.friendly()?10:com.matuvent.mineturn.TrailsConfig.current.cpPerAction);
                 if(move.kind().equals("READY")){c.pending=new TrailsCombat.Pending(source,c.turn,8,()->c.b.next(),false);return;}
                 c.recover(source,ultimate?2.2:move.friendly()?1.3:1.25);
             },red);

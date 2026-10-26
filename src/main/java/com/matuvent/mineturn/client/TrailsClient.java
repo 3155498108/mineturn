@@ -41,10 +41,14 @@ public final class TrailsClient {
     private static int smokeReadyTicks;
 
     public static void initialize(IEventBus bus) {
+        if (!System.getProperty("mineturn.multiplayerSmoke", "").isEmpty()) {
+            NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.tick.ServerTickEvent.Post e) -> com.matuvent.mineturn.battle.TrailsMultiplayerScenario.tick(e.getServer()));
+        }
         bus.addListener((RegisterKeyMappingsEvent e) -> { e.register(SWITCH); e.register(BURST); e.register(PRIMARY); e.register(CONFIG); });
         net.neoforged.fml.ModList.get().getModContainerById("mineturn").orElseThrow().registerExtensionPoint(
                 net.neoforged.neoforge.client.gui.IConfigScreenFactory.class, (container, parent) -> new TrailsConfigScreen(parent));
         TrailsPresentationOptions.load();
+        TrailsNetwork.receiveParty=TrailsPartyScreen::received;
         bus.addListener(TrailsWarnings::layers);
         NeoForge.EVENT_BUS.addListener(TrailsWarnings::render);
         TrailsNetwork.receiveImpact = TrailsImpacts::receive;
@@ -72,6 +76,7 @@ public final class TrailsClient {
             if (p.last()) fighters = List.copyOf(assembling);
         };
         TrailsNetwork.receiveCue = p -> {
+            if (p.kind().equals("multi_qa")) { TrailsMultiplayerSmoke.phase(p.text()); return; }
             radius = p.radius();
             if (p.kind().equals("ready")) readyTicks = p.ticks();
             if (p.kind().equals("enter") || p.kind().equals("burst")) {
@@ -98,6 +103,7 @@ public final class TrailsClient {
                 active() ? view.revision() : -1, op, target, slot, x, z));
     }
     private static void tick(ClientTickEvent.Post e) {
+        if (!System.getProperty("mineturn.multiplayerSmoke", "").isEmpty()) TrailsMultiplayerSmoke.tick();
         if (Boolean.getBoolean("mineturn.encounterSmoke")) TrailsSmoke.tick();
         ticks++;
         if (readyTicks > 0) readyTicks--;
@@ -157,7 +163,7 @@ public final class TrailsClient {
             LevelRenderer.renderLineBox(pose, lines, new AABB(x - .045, center.y + .08, z - .045, x + .045, center.y + .15, z + .045), 1, .12f, .26f, 1);
         }
         if (active() && mc.screen instanceof TrailsScreen screen) {
-            if (view.alliedTurn()) for (int i = 0; i < 128; i++) {
+            if (view.controllable()) for (int i = 0; i < 128; i++) {
                 var origin = view.origin(); double a = i * Math.PI / 64;
                 double x = origin.x + view.movement() * Math.cos(a), z = origin.z + view.movement() * Math.sin(a);
                 LevelRenderer.renderLineBox(pose, lines, new AABB(x - .025, origin.y + .06, z - .025, x + .025, origin.y + .10, z + .025), .2f, 1, .65f, .85f);
