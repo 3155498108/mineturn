@@ -30,7 +30,7 @@ public final class TrailsMultiplayerScenario {
     private static void phase(String name){age=0;for(var p:List.of(a,b))if(!p.hasDisconnected())BattleNetwork.send(p,new TrailsNetwork.Cue("multi_qa",name,0,20));MineTurn.LOGGER.info("MULTI_QA_PHASE {}",name);}
     private static void next(int value,String name){stage=value;phase(name);}
     private static void turn(LivingEntity actor){battle.actor=actor;battle.trails.onTurn();battle.revision++;battle.syncAll();}
-    private static void name(ServerPlayer p,Mob mob,String name){var tag=new ItemStack(Items.NAME_TAG);tag.set(DataComponents.CUSTOM_NAME,Component.literal(name));Items.NAME_TAG.interactLivingEntity(tag,p,mob,InteractionHand.MAIN_HAND);}
+    private static void name(ServerPlayer p,Mob mob,String name){mob.setCustomName(Component.literal(name));TrailsParties.named(p,mob);}
     private static Mob mob(EntityType<? extends Mob> type,double x,double z){var m=type.create(a.serverLevel());m.moveTo(x,-59,z,180,0);m.setNoAi(true);a.serverLevel().addFreshEntity(m);return m;}
     private static void fixture(){
         var level=a.serverLevel();level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(false,a.server);

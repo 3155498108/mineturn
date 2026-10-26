@@ -2,14 +2,16 @@
 
 > This is a customized AT prototype with single-player and multiplayer rules based on Matuvent/mineturn, not an official upstream release.
 > Manual encounters, controlled animal allies, backstab advantage and S-Break rules supersede the upstream gameplay below.
-> See [branch rules and validation](docs/TRAILS_PROTOTYPE.md). Runtime protocol: `30-trails` plus `trails-8`.
+> See [branch rules and validation](docs/TRAILS_PROTOTYPE.md). Runtime protocol: `31-trails` plus `trails-10`.
 > [82-species AT catalog](docs/TRAILS_BESTIARY.md): native model animations, distinct boss S skills and persistent golden next-turn warnings.
 
 [Multiplayer rules](docs/TRAILS_MULTIPLAYER.md): separate player factions, name-tag pet ownership, invite/accept teams and private control/CP/S-Break.
 
+Name tags now store friendly mobs as portable companion tokens. Use a token on a block to release an owner-following companion; sneak and empty-hand interact to recall. A battle-exit R press/release cannot re-enter combat.
+
 White normal damage, larger red critical numbers, numeric HP bars and configurable critical chance (10%) / multiplier (1.5) in the AT settings.
 
-Version `1.0.0-trails.9` provides separate **Fabric and NeoForge** artifacts. Fabric requires Fabric API; install one loader's artifact on both the client and server. See [installation, architecture and validation](docs/FABRIC.md). Downloads: [GitHub Releases](https://github.com/3155498108/mineturn/releases), [Modrinth](https://modrinth.com/mod/mineturn-at-prototype).
+Version `1.0.0-trails.10` provides separate **Fabric and NeoForge** artifacts. Fabric requires Fabric API; install one loader's artifact on both the client and server. See [installation, architecture and validation](docs/FABRIC.md). Downloads: [GitHub Releases](https://github.com/3155498108/mineturn/releases), [Modrinth](https://modrinth.com/mod/mineturn-at-prototype).
 
 **English** | [中文](README.zh_cn.md)
 

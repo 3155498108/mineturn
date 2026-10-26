@@ -272,7 +272,7 @@ public final class TrailsScreen extends Screen {
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
         if (movementKey(key)) { movementKeys.add(key); return true; }
-        if (TrailsClient.SWITCH.matches(key, scan)) { command("toggle"); return true; }
+        if (TrailsClient.SWITCH.matches(key, scan)) { TrailsClient.exitSwitchPressed(); return true; }
         if (TrailsClient.CONFIG.matches(key, scan)) { minecraft.setScreen(new TrailsConfigScreen(this)); return true; }
         if (TrailsClient.BURST.matches(key, scan)) { prepare("burst"); return true; }
         if (TrailsClient.PRIMARY.matches(key, scan)) { if (playerTurn()) command("primary"); return true; }

@@ -4,9 +4,11 @@
 
 新增[多人 AT 与个人友军](docs/TRAILS_MULTIPLAYER.md)：玩家默认互为对手，命名牌登记个人生物，O → 队伍邀请/接受；同队各自操作自己与自己的生物，CP 和抢 S 独立。未命名的敌对怪物照常参战。
 
+命名牌现在会直接把友军收成背包里的“友军收纳牌”；右键方块放出后自动跟随，蹲下空手右键自己的友军可再次收回。R 在战中按下并松开只退出一次，不会重新入战。
+
 新增白色伤害跳字、红色大字暴击和数字血条；默认暴击率 10%、倍率 1.5，O 页可调整。
 
-当前分支版本 `1.0.0-trails.9`，提供 **Fabric 与 NeoForge 两个独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。协议仍为 `30-trails` / `trails-8`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
+当前分支版本 `1.0.0-trails.10`，提供 **Fabric 与 NeoForge 两个独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。NeoForge 协议为 `31-trails` / `trails-10`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
 
 下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases) · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
 

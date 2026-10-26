@@ -26,7 +26,11 @@ public final class MineTurn implements ModInitializer {
     public static final java.util.function.Supplier<EntityType<BattleBullet>> BATTLE_BULLET=registered("shulker_bullet_unit",EntityType.Builder.of(BattleBullet::new,MobCategory.MISC).sized(.3f,.3f).noSave().noSummon().clientTrackingRange(8).updateInterval(1).build("mineturn:shulker_bullet_unit"));
     public static final java.util.function.Supplier<EntityType<BattleDevice>> BATTLE_DEVICE=registered("field_core",EntityType.Builder.of(BattleDevice::new,MobCategory.MISC).sized(.75f,.75f).noSave().noSummon().clientTrackingRange(8).build("mineturn:field_core"));
     public static final java.util.function.Supplier<DataComponentType<CombatItem>> COMBAT=()->Components.COMBAT;
-    private static final class Components {static final DataComponentType<CombatItem> COMBAT=Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE,id("combat"),DataComponentType.<CombatItem>builder().persistent(CombatItem.CODEC).build());}
+    public static final java.util.function.Supplier<net.minecraft.world.item.Item> COMPANION_TOKEN=()->Components.COMPANION_TOKEN;
+    private static final class Components {
+        static final DataComponentType<CombatItem> COMBAT=Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE,id("combat"),DataComponentType.<CombatItem>builder().persistent(CombatItem.CODEC).build());
+        static final net.minecraft.world.item.Item COMPANION_TOKEN=Registry.register(BuiltInRegistries.ITEM,id("companion_token"),new CompanionTokenItem());
+    }
     private static ResourceLocation id(String path){return ResourceLocation.fromNamespaceAndPath(MODID,path);}
     private static Holder.Reference<Attribute> attribute(String path,double value,double min,double max){return Registry.registerForHolder(BuiltInRegistries.ATTRIBUTE,id(path),new RangedAttribute("attribute.mineturn."+path,value,min,max).setSyncable(true));}
     private static <T extends Entity> java.util.function.Supplier<EntityType<T>> registered(String path,EntityType<T> type){Registry.register(BuiltInRegistries.ENTITY_TYPE,id(path),type);return ()->type;}

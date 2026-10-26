@@ -1,5 +1,18 @@
 # MineTurn 开发任务表
 
+## 友军收纳、跟随与 R 退场（2026-10-26）
+
+- 版本 `1.0.0-trails.10`，Fabric / NeoForge 同步实现。命名牌对友好 Mob 完成原版命名和 UUID 登记后，直接收为不堆叠的“友军收纳牌”；右键方块放出，蹲下空手右键自己的队员再次收纳。保留实体 UUID、名字、生命、装备、年龄、状态及原版驯服数据；多人同队不能接管他人的生物。操作见[友军规则](TRAILS_MULTIPLAYER.md)。
+- `CompanionStorage` 将完整快照保存于服务器世界，物品只携带单次编号；复制、伪造或重复使用物品不能重复生成生物。满背包、骑乘/载客/拴绳、战中收放、阻挡位置及已存在的同 UUID 会拒绝，保留原实体或有效收纳牌。正常保存退出和重启通过；不承诺断电时跨文件原子保存。
+- `CompanionFollowGoal` 使用原版寻路与 Brain 行走目标，远距离只选择已加载、无碰撞的安全落点，水生物不瞬移到陆地。战斗、拴绳、骑乘、坐下、关闭 AI、主人离线或异维度时暂停；不跨维度追赶。旧版已登记友军收回再放出即可开启。真实移动检查使用猪；没有冒充逐种友军地形验收。
+- R 错误原因是退场清理丢失了当前按键周期的用途，仍按住的 R 被当成新的入战预览。`EncounterSwitchGesture` 跨退场包保留“此周期用于退出”，原版键盘释放回调消费本次松键；重复键只发送一次退出。已验证长按到退场后再松、先快速松键再收到退场包、下一次完整 R 正常入战、菜单中按键及镜头恢复。
+- 最新服务器验证：NeoForge **80 项 AT**（`build-companion-neoforge-tests-final.log`）、Fabric **86 项**（`build-companion-fabric-tests-final.log`，含 6 项加载器边界）、NeoForge **389 项上游回归**（`build-companion-upstream-final.log`）全通过。新增 10 项涵盖原生命名牌/放出、满背包、队友/陌生人权限、阻挡重试、复制/伪造、存档、蹲下回收、战斗锁、附件保护、真实寻路和 R 时序。
+- 真实客户端通过：NeoForge `build-companion-neoforge-client-v2.log`，Fabric `build-companion-fabric-client-final.log`。原生 C2S 交互验证收纳、物品模型、放出、名字/5 HP、实际寻路、蹲下回收；原版 `KeyboardHandler.keyPress` 回调验证两种退出/松键顺序及重新入战。核对小预览 `build/previews/companion-fabric-final.jpg` 的真实背包、近距离友军和退场画面。
+- 两个加载器均正常停服并重启同一 QA 世界后通过再次放出、跟随和收回：`build-companion-neoforge-restart-v2.log`、`build-companion-fabric-restart-v2.log`；日志的实体与主人 UUID 前后相同。Fabric QA 固定离线测试账号，避免 Loom 每次随机创建不同玩家而被归属校验正确拒绝。测试仅使用 `AT-QA-Companions-20261026` 的独立副本。
+- 开工前已搜索 GitHub 的 [capture-net](https://github.com/kestalkayden/capture-net) 等收放方案；其目标为 26.1，未直接引入依赖。当前 1.21.1 实现复用原版实体 NBT、SavedData、物品组件及寻路，并保留本模组个人归属边界。
+- 两个正式 JAR 构建与结构核验通过：Fabric 68 个 Mixin / 124 个 JSON，NeoForge 55 个 Mixin / 123 个 JSON；Fabric 没有 NeoForge 引用或 GameTest 入口。正式 Fabric JAR 在生产专服环境启动、重载并正常保存关闭通过（`build-companion-fabric-production-server.log`）。入口/空白和 14 个示例包静态检查通过。
+- NeoForge 协议提升为 `31-trails` / `trails-10`；新增物品注册，服务器与所有客户端须一起更新。下载与发行回执在完成上传后补充。
+
 ## Fabric 移植与投稿（2026-10-26）
 
 - 版本 `1.0.0-trails.9`：Minecraft 1.21.1 / Java 21；NeoForge 21.1.251 与 Fabric Loader 0.16.14 / Fabric API 0.116.6+1.21.1 分别构建。共同玩法和资源不重写；原生加载器事件、网络、渲染与 Mixin 边界见 [FABRIC.md](FABRIC.md)。不保证跨加载器联机或旧 NeoForge 实体附加数据迁移。

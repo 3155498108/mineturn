@@ -6,5 +6,10 @@
   "key.mineturn.trails_burst": "S-BREAK 抢 S",
   "key.mineturn.trails_primary": "设定手持装备为主武器",
   "key.categories.mineturn": "MineTurn AT 战术战斗",
-  "key.mineturn.trails_config": "AT 战斗设置"
+  "key.mineturn.trails_config": "AT 战斗设置",
+  "item.mineturn.companion_token": "友军收纳牌",
+  "item.mineturn.companion_token.named": "友军 · %s",
+  "item.mineturn.companion_token.release": "右键方块放出，放出后自动跟随",
+  "item.mineturn.companion_token.recall": "蹲下、空手右键自己的友军可再次收纳",
+  "item.mineturn.companion_token.owner": "仅原主人可放出；保留生命、装备和状态"
 }

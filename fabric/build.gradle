@@ -31,6 +31,8 @@ loom {
                 vmArg '-Dmineturn.encounterSmoke=true'
                 vmArg "-Dmineturn.qaWorld=${providers.gradleProperty('qaWorld').getOrElse('AT-QA-Fabric-20261026')}"
                 vmArg "-Dmineturn.qaTag=${providers.gradleProperty('qaTag').getOrElse('fabric')}"
+                def qaUser = providers.gradleProperty('qaUsername').getOrElse('AT_QA')
+                programArgs '--username', qaUser, '--uuid', java.util.UUID.nameUUIDFromBytes("OfflinePlayer:${qaUser}".getBytes('UTF-8')).toString()
                 programArgs '--quickPlaySingleplayer',providers.gradleProperty('qaWorld').getOrElse('AT-QA-Fabric-20261026')
             }
         }
@@ -94,7 +96,7 @@ if (providers.gradleProperty('fabricQa').isPresent()) {
         doLast {
             def metadata = destinationDir.toPath().resolve('fabric.mod.json').toFile()
             def json = new groovy.json.JsonSlurper().parse(metadata)
-            json.entrypoints['fabric-gametest'] = ['TrailsGameTests','TrailsCriticalGameTests','TrailsBestiaryGameTests','TrailsMultiplayerGameTests'].collect { "com.matuvent.mineturn.battle.${it}" }
+            json.entrypoints['fabric-gametest'] = ['TrailsGameTests','TrailsCriticalGameTests','TrailsBestiaryGameTests','TrailsMultiplayerGameTests','TrailsCompanionGameTests'].collect { "com.matuvent.mineturn.battle.${it}" }
             json.entrypoints['fabric-gametest'].add('com.matuvent.mineturn.battle.FabricBoundaryGameTests')
             metadata.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)),'UTF-8')
         }

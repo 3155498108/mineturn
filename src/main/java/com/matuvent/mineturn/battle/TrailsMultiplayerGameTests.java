@@ -14,7 +14,7 @@ import net.neoforged.neoforge.gametest.*;
 @GameTestHolder("trails") @PrefixGameTestTemplate(false)
 public final class TrailsMultiplayerGameTests {
     private static ItemStack tag(String name){var s=new ItemStack(Items.NAME_TAG);s.set(DataComponents.CUSTOM_NAME,Component.literal(name));return s;}
-    private static void name(TrailsGameTests.Fixture f,LivingEntity mob){Items.NAME_TAG.interactLivingEntity(tag("队员"),f.p,mob,InteractionHand.MAIN_HAND);}
+    private static void name(TrailsGameTests.Fixture f,LivingEntity mob){mob.setCustomName(Component.literal("队员"));TrailsParties.named(f.p,mob);}
     private static BattleSession battle(TrailsGameTests.Fixture a,TrailsGameTests.Fixture b){
         var entities=new ArrayList<LivingEntity>(a.entities);entities.addAll(b.entities);entities.add(b.p);a.b=new BattleSession(a.p,entities,false,true);a.b.trails.criticalRoll=()->1;return a.b;
     }
@@ -22,7 +22,13 @@ public final class TrailsMultiplayerGameTests {
     public static void nameTagRecordsUUIDAndPreventsRenameTheftAndSurvivesSave(GameTestHelper h){
         try(var a=new TrailsGameTests.Fixture(h);var b=new TrailsGameTests.Fixture(h)){
             var pig=a.mob(EntityType.PIG,6,5);var first=tag("小猪");Items.NAME_TAG.interactLivingEntity(first,a.p,pig,InteractionHand.MAIN_HAND);
-            h.assertTrue(first.isEmpty() && a.p.getUUID().equals(TrailsParties.owner(pig)),"Real name tag did not register owner");
+            h.assertTrue(first.isEmpty() && pig.isRemoved() && a.p.getUUID().equals(TrailsParties.owner(pig)),"Real name tag did not register and store owner");
+            var saved = pig;
+            int previousSlot = a.p.getInventory().selected;
+            for(int i=0;i<36;i++)if(TrailsCompanions.ticket(a.p.getInventory().getItem(i))!=null){a.p.getInventory().selected=i;break;}
+            pig = (net.minecraft.world.entity.animal.Pig)TrailsCompanions.release(a.p,InteractionHand.MAIN_HAND,saved.position());
+            a.p.getInventory().selected=previousSlot;a.entities.add(pig);
+            h.assertTrue(pig!=null && pig.getUUID().equals(saved.getUUID()),"Stored pet failed to release");
             var stolen=tag("接管");Items.NAME_TAG.interactLivingEntity(stolen,b.p,pig,InteractionHand.MAIN_HAND);
             h.assertTrue(stolen.getCount()==1 && pig.getName().getString().equals("小猪") && a.p.getUUID().equals(TrailsParties.owner(pig)),"Other player stole or renamed pet");
             var copy=EntityType.PIG.create(h.getLevel());copy.load(pig.saveWithoutId(new net.minecraft.nbt.CompoundTag()));

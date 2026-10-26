@@ -55,7 +55,8 @@
     "FabricSlimeMixin",
     "FabricExplosionMixin",
     "FabricStatusClockMixin",
-    "ConduitAuraBoundaryMixin"
+    "ConduitAuraBoundaryMixin",
+    "TrailsCompanionMixin"
   ],
   "client": [
     "LivingRendererAccess",
@@ -70,7 +71,8 @@
     "TrailsHeldItemMixin",
     "FabricHudMixin",
     "FabricInputMixin",
-    "FabricRendererLayersMixin"
+    "FabricRendererLayersMixin",
+    "TrailsSwitchInputMixin"
   ],
   "injectors": {
     "defaultRequire": 1

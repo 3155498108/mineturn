@@ -45,7 +45,8 @@
     "InfiniteEffectClockMixin",
     "BeeLifeAccess",
     "SnowballHitAccess",
-    "AxolotlAirAccess"
+    "AxolotlAirAccess",
+    "TrailsCompanionMixin"
   ],
   "client": [
     "LivingRendererAccess",
@@ -57,7 +58,8 @@
     "TrailsSpellAccess",
     "TrailsHumanoidAnimationMixin",
     "TrailsRootAnimationMixin",
-    "TrailsHeldItemMixin"
+    "TrailsHeldItemMixin",
+    "TrailsSwitchInputMixin"
   ],
   "injectors": {
     "defaultRequire": 1

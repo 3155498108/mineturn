@@ -36,15 +36,18 @@ public final class MineTurn {
     private static final DeferredRegister.DataComponents COMPONENTS = DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, MODID);
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<CombatItem>> COMBAT =
             COMPONENTS.registerComponentType("combat", builder -> builder.persistent(CombatItem.CODEC));
+    private static final DeferredRegister<net.minecraft.world.item.Item> ITEMS = DeferredRegister.create(Registries.ITEM, MODID);
+    public static final java.util.function.Supplier<net.minecraft.world.item.Item> COMPANION_TOKEN = ITEMS.register("companion_token", com.matuvent.mineturn.battle.CompanionTokenItem::new);
 
     public MineTurn(IEventBus bus) {
         ENTITIES.register(bus);
+        ITEMS.register(bus);
         bus.addListener((net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent event)->event.put(BATTLE_BULLET.get(),com.matuvent.mineturn.battle.BattleBullet.attributes().build()));
         bus.addListener((net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent event)->event.put(BATTLE_DEVICE.get(),com.matuvent.mineturn.battle.BattleDevice.attributes().build()));
         ATTRIBUTES.register(bus);
         COMPONENTS.register(bus);
-        bus.addListener((net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event)->com.matuvent.mineturn.network.BattleNetwork.register(new com.matuvent.mineturn.platform.NeoForgePayloads(event,"30-trails")));
-        bus.addListener((net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event)->com.matuvent.mineturn.network.TrailsNetwork.register(new com.matuvent.mineturn.platform.NeoForgePayloads(event,"trails-8")));
+        bus.addListener((net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event)->com.matuvent.mineturn.network.BattleNetwork.register(new com.matuvent.mineturn.platform.NeoForgePayloads(event,"31-trails")));
+        bus.addListener((net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event)->com.matuvent.mineturn.network.TrailsNetwork.register(new com.matuvent.mineturn.platform.NeoForgePayloads(event,"trails-10")));
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.server.ServerStartingEvent event) -> TrailsConfig.load());
         bus.addListener((EntityAttributeModificationEvent event) -> event.getTypes().forEach(type -> {event.add(type, AGILITY);event.add(type,MAIN_ACTIONS);event.add(type,BONUS_ACTIONS);}));
         NeoForge.EVENT_BUS.addListener((AddReloadListenerEvent event) -> event.addListener(new CombatData(event.getServerResources())));

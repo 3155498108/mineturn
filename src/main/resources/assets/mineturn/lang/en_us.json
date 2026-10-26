@@ -4,5 +4,10 @@
   "key.mineturn.trails_burst": "S-Break",
   "key.mineturn.trails_primary": "Set held weapon as primary",
   "key.categories.mineturn": "MineTurn AT combat",
-  "key.mineturn.trails_config": "AT Battle Settings"
+  "key.mineturn.trails_config": "AT Battle Settings",
+  "item.mineturn.companion_token": "Companion Token",
+  "item.mineturn.companion_token.named": "Companion · %s",
+  "item.mineturn.companion_token.release": "Use on a block to release; follows its owner",
+  "item.mineturn.companion_token.recall": "Sneak + empty-hand interact to recall your companion",
+  "item.mineturn.companion_token.owner": "Owner only; health, equipment and effects are retained"
 }

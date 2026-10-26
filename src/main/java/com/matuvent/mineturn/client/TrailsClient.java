@@ -29,7 +29,8 @@ public final class TrailsClient {
     private static int readyTicks, cutTicks, cutTotal;
     private static String cutText = "";
     private static boolean burstCut;
-    private static boolean held;
+    private static final EncounterSwitchGesture switchGesture = new EncounterSwitchGesture();
+    private static boolean windowWasActive;
     private static int ticks;
     private static int smokeReadyTicks;
 
@@ -72,7 +73,8 @@ public final class TrailsClient {
     public static void reset() {
         TrailsCinematics.reset(); TrailsImpacts.reset(); TrailsEffects.reset(); ProjectileAnimations.clear();
         TrailsPerformances.reset();
-        view = null; fighters = List.of(); assembling.clear(); preview = false; held = false; readyTicks = 0;
+        view = null; fighters = List.of(); assembling.clear(); preview = false; switchGesture.leftBattle(); readyTicks = 0;
+        if (Minecraft.getInstance().level == null) switchGesture.reset();
         movementSequence = 0;
         if (!burstCut || Minecraft.getInstance().level == null) cutTicks = 0;
     }
@@ -80,6 +82,11 @@ public final class TrailsClient {
         com.matuvent.mineturn.network.BattleNetwork.sendToServer(new TrailsNetwork.Command(active() ? view.battle() : TrailsNetwork.NONE,
                 active() ? view.revision() : -1, op, target, slot, x, z));
     }
+    public static void exitSwitchPressed() {
+        preview = false;
+        if (switchGesture.exitPressed()) send("toggle", -1, 0, 0, 0);
+    }
+    public static void switchReleased() { switchGesture.released(); }
     public static void tick() {
         if (!System.getProperty("mineturn.multiplayerSmoke", "").isEmpty()) TrailsMultiplayerSmoke.tick();
         if (Boolean.getBoolean("mineturn.encounterSmoke")) TrailsSmoke.tick();
@@ -92,10 +99,12 @@ public final class TrailsClient {
             com.matuvent.mineturn.MineTurn.LOGGER.info("TRAILS_CLIENT_SMOKE_READY: real title screen rendered; battle visuals are not covered");
             mc.stop(); return;
         }
-        if (mc.player == null || mc.level == null) { reset(); return; }
+        if (mc.player == null || mc.level == null) { switchGesture.reset(); reset(); return; }
+        if (windowWasActive && !mc.isWindowActive()) { switchGesture.reset(); preview = false; }
+        windowWasActive = mc.isWindowActive();
         while (CONFIG.consumeClick()) mc.setScreen(new TrailsConfigScreen(mc.screen));
         if (active()) {
-            held = false; preview = false;
+            switchGesture.leftBattle(); preview = false;
             if (mc.screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen
                     && (!view.alliedTurn() || view.actor() != mc.player.getId())) mc.setScreen(new TrailsScreen());
             var actor = mc.level.getEntity(view.actor());
@@ -103,11 +112,10 @@ public final class TrailsClient {
             if (actor != null && view.alliedTurn()) BattleClient.focus = BattleClient.focus.lerp(actor.position().add(0, 1, 0), .4);
             return;
         }
-        if (mc.screen != null) { held = false; preview = false; return; }
-        boolean down = SWITCH.isDown();
-        if (down && !held) { preview = true; send("preview", -1, 0, 0, 0); }
-        if (!down && held) { preview = false; send("toggle", -1, 0, 0, 0); }
-        held = down;
+        var action = switchGesture.outside(SWITCH.isDown(), mc.screen != null);
+        if (mc.screen != null) { preview = false; return; }
+        if (action == EncounterSwitchGesture.Action.PREVIEW) { preview = true; send("preview", -1, 0, 0, 0); }
+        if (action == EncounterSwitchGesture.Action.ENTER) { preview = false; send("toggle", -1, 0, 0, 0); }
         while (PRIMARY.consumeClick()) send("primary", -1, 0, 0, 0);
     }
     public static void hud(GuiGraphics g) {

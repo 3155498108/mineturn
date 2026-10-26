@@ -1,14 +1,14 @@
 # Fabric 与 NeoForge
 
-`trails.9` 使用共同的 AT 规则、数据包、网络消息和客户端界面，加载器分别提供注册、事件和原版注入。Fabric 不是通过兼容层运行 NeoForge JAR。
+`trails.10` 使用共同的 AT 规则、数据包、网络消息和客户端界面，加载器分别提供注册、事件和原版注入。Fabric 不是通过兼容层运行 NeoForge JAR。
 
 ## 安装
 
 | 环境 | 版本 | 安装文件 |
 | --- | --- | --- |
 | Minecraft Java | 1.21.1 | Java 21 |
-| Fabric | Loader 0.16.14，Fabric API 0.116.6+1.21.1 为验证组合 | `mineturn-fabric-1.0.0-trails.9.jar`，另装 Fabric API |
-| NeoForge | 21.1.251 | `mineturn-1.0.0-trails.9.jar` |
+| Fabric | Loader 0.16.14，Fabric API 0.116.6+1.21.1 为验证组合 | `mineturn-fabric-1.0.0-trails.10.jar`，另装 Fabric API |
+| NeoForge | 21.1.251 | `mineturn-1.0.0-trails.10.jar` |
 
 从 [GitHub Releases](https://github.com/3155498108/mineturn/releases) 选择对应加载器的 JAR，放入实例的 `mods` 文件夹。Fabric API 的官方下载在 [Modrinth](https://modrinth.com/mod/fabric-api)。同一实例只安装一个 MineTurn JAR；多人服务器与客户端使用同一加载器、相同版本及依赖。
 
