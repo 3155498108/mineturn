@@ -8,8 +8,6 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 /** Vanilla scoreboard teams persist membership; invitations require the receiver to accept. */
 public final class TrailsTeams {
@@ -62,8 +60,8 @@ public final class TrailsTeams {
         }}catch(IllegalArgumentException error){message=error.getMessage();}
         state(p,message);return message;
     }
-    @SubscribeEvent public static void commands(RegisterCommandsEvent event){
-        event.getDispatcher().register(Commands.literal("mtparty")
+    public static void commands(com.mojang.brigadier.CommandDispatcher<net.minecraft.commands.CommandSourceStack> dispatcher){
+        dispatcher.register(Commands.literal("mtparty")
                 .executes(c->{state(c.getSource().getPlayerOrException(),"O → 队伍；/mtparty create 名称 | invite 玩家 | accept | leave");return 1;})
                 .then(Commands.literal("create").then(Commands.argument("name",StringArgumentType.greedyString()).executes(c->command(c.getSource().getPlayerOrException(),"create",StringArgumentType.getString(c,"name")))))
                 .then(Commands.literal("invite").then(Commands.argument("player",EntityArgument.player()).executes(c->command(c.getSource().getPlayerOrException(),"invite",EntityArgument.getPlayer(c,"player").getUUID().toString()))))
@@ -71,6 +69,6 @@ public final class TrailsTeams {
                 .then(Commands.literal("leave").executes(c->command(c.getSource().getPlayerOrException(),"leave",""))));
     }
     private static int command(ServerPlayer p,String op,String value){var message=handle(p,new TrailsNetwork.PartyRequest(op,value));p.sendSystemMessage(Component.literal(message+" 队伍："+(p.getTeam()==null?"未组队":p.getTeam().getDisplayName().getString())+"；详见 O → 队伍。"));return 1;}
-    @SubscribeEvent public static void stop(net.neoforged.neoforge.event.server.ServerStoppedEvent event){INVITES.remove(event.getServer());}
+    public static void stop(MinecraftServer server){INVITES.remove(server);}
     private TrailsTeams(){}
 }

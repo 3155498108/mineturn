@@ -5,7 +5,6 @@ import com.matuvent.mineturn.mixin.StatusAccess;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.common.CommonHooks;
 
 /** Native status ticks on the AV clock. Does not run entity AI, movement, or the full base tick. */
 public final class BattleStatus {
@@ -56,7 +55,7 @@ public final class BattleStatus {
                     .anyMatch(state->state.is(net.minecraft.world.level.block.Blocks.POWDER_SNOW));
             if(entity.getRemainingFireTicks()>0)entity.setTicksFrozen(0);
             boolean extinguished=entity.isInWaterRainOrBubble() || entity.isInPowderSnow
-                    || entity.isInFluidType((type,height)->entity.canFluidExtinguish(type));
+                    || com.matuvent.mineturn.platform.RuntimePlatform.extinguishingFluid(entity);
             if(extinguished || entity.fireImmune())entity.clearFire();
             else {
                 boolean fire=entity.level().getBlockStatesIfLoaded(entity.getBoundingBox().deflate(1e-6)).anyMatch(state->state.is(BlockTags.FIRE));
@@ -81,7 +80,7 @@ public final class BattleStatus {
             if(!entity.isAlive())return;
             int air=entity.getAirSupply();
             if(entity instanceof net.minecraft.world.entity.animal.axolotl.Axolotl)((com.matuvent.mineturn.mixin.AxolotlAirAccess)entity).mineturn$air(air);
-            else CommonHooks.onLivingBreathe(entity,air-access.mineturn$decreaseAir(air),access.mineturn$increaseAir(air)-air);
+            else com.matuvent.mineturn.platform.RuntimePlatform.breathe(entity,air-access.mineturn$decreaseAir(air),access.mineturn$increaseAir(air)-air);
             if(entity.isAlive())access.mineturn$tickEffects();
             if(entity instanceof net.minecraft.server.level.ServerPlayer player){
                 ((com.matuvent.mineturn.mixin.PlayerEquipmentAccess)player).mineturn$turtleHelmet();

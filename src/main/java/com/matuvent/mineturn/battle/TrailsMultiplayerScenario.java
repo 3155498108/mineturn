@@ -41,7 +41,7 @@ public final class TrailsMultiplayerScenario {
             p.setGameMode(GameType.SURVIVAL);p.teleportTo(.5,-59,p==a?.5:3);p.setYRot(p==a?0:180);
             p.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100);p.setHealth(100);p.removeAllEffects();
             p.getInventory().clearContent();p.getInventory().setItem(0,new ItemStack(p==a?Items.IRON_SWORD:Items.IRON_AXE));p.getInventory().selected=0;
-            p.getPersistentData().putInt("mineturn.trails.cp",p==a?200:100);p.getPersistentData().putString("mineturn.trails.primary",p==a?"minecraft:iron_sword":"minecraft:iron_axe");
+            com.matuvent.mineturn.platform.RuntimePlatform.data(p).putInt("mineturn.trails.cp",p==a?200:100);com.matuvent.mineturn.platform.RuntimePlatform.data(p).putString("mineturn.trails.primary",p==a?"minecraft:iron_sword":"minecraft:iron_axe");
             p.inventoryMenu.broadcastChanges();
         }
         wolf=mob(EntityType.WOLF,-2.5,1.5);name(a,wolf,"A的狼");pig=mob(EntityType.PIG,2.5,4.5);name(b,pig,"B的猪");
@@ -49,7 +49,7 @@ public final class TrailsMultiplayerScenario {
         zombie.setItemSlot(EquipmentSlot.HEAD,new ItemStack(Items.IRON_HELMET));zombie.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200);zombie.setHealth(200);
     }
     public static void tick(MinecraftServer server){
-        if(net.neoforged.fml.loading.FMLLoader.isProduction() || !System.getProperty("mineturn.multiplayerSmoke","").equals("host"))return;
+        if(com.matuvent.mineturn.platform.RuntimePlatform.production() || !System.getProperty("mineturn.multiplayerSmoke","").equals("host"))return;
         check(server.getWorldPath(LevelResource.ROOT).normalize().getFileName().toString().equals("AT-QA-Multiplayer-20261026"),"wrong save");
         a=server.getPlayerList().getPlayerByName("AT_A");if(a==null)return;
         if(!listening){
@@ -65,7 +65,7 @@ public final class TrailsMultiplayerScenario {
                 battle.trails.criticalRoll=()->1;turn(a);next(3,"pvp_view");}}
             case 3->{if(age==65){check(battle.actor==a && battle.trails.inputTicks==0,"rival forged turn/input accepted");hpA=a.getHealth();hpB=b.getHealth();next(4,"pvp_attack");}}
             case 4->{if(battle.trails.pending!=null)next(5,"pvp_burst");}
-            case 5->{if(battle.trails.burstAction!=null){check(b.getPersistentData().getInt("mineturn.trails.cp")==0 && a.getPersistentData().getInt("mineturn.trails.cp")==200,"S CP mixed");check(battle.trails.lastPerformances.get(b.getUUID()).weapon().equals("minecraft:iron_axe"),"S weapon mixed");next(6,"pvp_cinematic");}}
+            case 5->{if(battle.trails.burstAction!=null){check(com.matuvent.mineturn.platform.RuntimePlatform.data(b).getInt("mineturn.trails.cp")==0 && com.matuvent.mineturn.platform.RuntimePlatform.data(a).getInt("mineturn.trails.cp")==200,"S CP mixed: host="+com.matuvent.mineturn.platform.RuntimePlatform.data(a).getInt("mineturn.trails.cp")+", guest="+com.matuvent.mineturn.platform.RuntimePlatform.data(b).getInt("mineturn.trails.cp")+", actor="+battle.actor.getScoreboardName());check(battle.trails.lastPerformances.get(b.getUUID()).weapon().equals("minecraft:iron_axe"),"S weapon mixed");next(6,"pvp_cinematic");}}
             case 6->{if(age>100 && !battle.trails.busy()){
                 check(a.getHealth()<hpA && b.getHealth()<hpB,"S or suspended attack failed");battle.close("QA phase transition");next(7,"team_open");}}
             case 7->{if(age==70)next(8,"team_invite");}

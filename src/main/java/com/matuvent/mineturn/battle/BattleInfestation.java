@@ -8,7 +8,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Silverfish;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.InfestedBlock;
-import net.neoforged.neoforge.event.EventHooks;
 import java.util.*;
 
 final class BattleInfestation {
@@ -29,14 +28,14 @@ final class BattleInfestation {
         result.sort(Comparator.comparingDouble(pos->pos.distSqr(origin)));return result;
     }
     static void summon(BattleSession battle,LivingEntity source,CombatData.Action action) {
-        if(!EventHooks.canEntityGrief(battle.level,source))return;
+        if(!com.matuvent.mineturn.platform.RuntimePlatform.grief(battle.level,source))return;
         int limit=parameter(action,"max_summons",3),created=0;
         UUID side=battle.member(source).allyOwner;
         for(var pos:candidates(battle,source,action)) {
             if(battle.closed || !source.isAlive() || created>=limit || battle.members.size()>=BattleSession.MAX_MEMBERS)break;
             var state=battle.level.getBlockState(pos);
-            if(!(state.getBlock() instanceof InfestedBlock) || !state.canEntityDestroy(battle.level,pos,source)
-                    || !EventHooks.onEntityDestroyBlock(source,pos,state) || !battle.level.getBlockState(pos).equals(state))continue;
+            if(!(state.getBlock() instanceof InfestedBlock) || !com.matuvent.mineturn.platform.RuntimePlatform.canDestroy(state,battle.level,pos,source)
+                    || !com.matuvent.mineturn.platform.RuntimePlatform.destroy(source,pos,state) || !battle.level.getBlockState(pos).equals(state))continue;
             var child=EntityType.SILVERFISH.create(battle.level);if(child==null)continue;
             child.moveTo(pos.getX()+0.5,pos.getY(),pos.getZ()+0.5,source.getYRot(),0);
             if(!battle.level.setBlock(pos,Blocks.AIR.defaultBlockState(),3)){child.discard();continue;}

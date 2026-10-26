@@ -11,17 +11,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
-import net.neoforged.neoforge.client.event.RenderGuiEvent;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.network.PacketDistributor;
 
-@Mod(value = MineTurn.MODID, dist = Dist.CLIENT)
 public final class BattleClient {
     public static BattleNetwork.State state;
     public static BattleNetwork.Preview preview;
@@ -46,13 +36,11 @@ public final class BattleClient {
     public static void judgeAim() {
         if(aim==null || aimSubmitted)return;
         aimSubmitted=true;
-        PacketDistributor.sendToServer(new BattleNetwork.AimSubmit(aim.battle(),aim.token()));
+        com.matuvent.mineturn.network.BattleNetwork.sendToServer(new BattleNetwork.AimSubmit(aim.battle(),aim.token()));
     }
 
-    public BattleClient(IEventBus bus) {
-        TrailsClient.initialize(bus);
-        bus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event)->event.registerEntityRenderer(MineTurn.BATTLE_BULLET.get(),BattleBulletRenderer::new));
-        bus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event)->event.registerEntityRenderer(MineTurn.BATTLE_DEVICE.get(),BattleDeviceRenderer::new));
+    public BattleClient() {
+        TrailsClient.initialize();
 
         com.matuvent.mineturn.battle.BattleManager.clientStatusLocked=entity->entity.level().isClientSide && statusLocks.locked(entity.getUUID(),System.nanoTime());
         BattleNetwork.receiveStatusClock=packet->{
@@ -68,10 +56,6 @@ public final class BattleClient {
         BattleNetwork.receiveActionAnimation=ActionAnimations::receive;
         // RegisterClientReloadListenersEvent is a mod-bus event, like the renderer registrations above;
         // putting it on the game bus aborts mod construction on the client.
-        bus.addListener((net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent event)->
-                event.registerReloadListener(new ActionAnimationData()));
-        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event)->ProjectileAnimations.tick());
-        NeoForge.EVENT_BUS.addListener(ProjectileAnimations::render);
         BattleNetwork.receiveOffers=packet->{
             if(active() && state.battle().equals(packet.battle()) && state.revision()==packet.revision())offers=packet.actions();
         };
@@ -88,10 +72,6 @@ public final class BattleClient {
         BattleNetwork.receivePreview = packet -> {
             if (state != null && state.battle().equals(packet.battle()) && state.revision() == packet.revision()) preview = packet;
         };
-        NeoForge.EVENT_BUS.addListener(BattleClient::tick);
-        NeoForge.EVENT_BUS.addListener(BattleClient::input);
-        NeoForge.EVENT_BUS.addListener(BattleClient::hud);
-        NeoForge.EVENT_BUS.addListener(BattleClient::world);
     }
     public static boolean active() { return state != null && state.active(); }
     public static boolean local(Entity entity) { return active() && entity == Minecraft.getInstance().player; }
@@ -159,17 +139,17 @@ public final class BattleClient {
     }
     public static void send(String operation, int slot, String action, int target, Vec3 destination, int previewId) {
         if (!active() || pending && !operation.endsWith("preview")) return;
-        PacketDistributor.sendToServer(new BattleNetwork.Request(state.battle(), state.revision(), operation, slot, action, target, destination, previewId));
+        com.matuvent.mineturn.network.BattleNetwork.sendToServer(new BattleNetwork.Request(state.battle(), state.revision(), operation, slot, action, target, destination, previewId));
         if (!operation.endsWith("preview")) { pending = true; pendingTicks = 0; }
     }
     public static void simple(String operation) { send(operation, 0, "", -1, Vec3.ZERO, 0); }
     public static void useAmmo(int slot,String action,int target,int ammoSlot,net.minecraft.world.item.ItemStack expected) {
         if(!active() || pending || expected.isEmpty())return;
         var request=new BattleNetwork.Request(state.battle(),state.revision(),"use",slot,action,target,Vec3.ZERO,0);
-        PacketDistributor.sendToServer(new BattleNetwork.AmmoUse(request,ammoSlot,expected.copyWithCount(1)));
+        com.matuvent.mineturn.network.BattleNetwork.sendToServer(new BattleNetwork.AmmoUse(request,ammoSlot,expected.copyWithCount(1)));
         pending=true;pendingTicks=0;
     }
-    private static void tick(ClientTickEvent.Post event) {
+    public static void tick() {
         if (!active()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.level!=battleWorld || mc.player == null || mc.getConnection() == null || !mc.player.isAlive()) { reset(); return; }
@@ -188,19 +168,15 @@ public final class BattleClient {
         if (mc.screen == null) mc.setScreen(TrailsClient.active() ? new TrailsScreen() : new BattleScreen());
         if (pending && ++pendingTicks > 100) pending = false;
     }
-    private static void input(MovementInputUpdateEvent event) {
-        if (!local(event.getEntity())) return;
-        var input = event.getInput();
-        input.forwardImpulse = 0; input.leftImpulse = 0;
-        input.up = false; input.down = false; input.left = false; input.right = false;
-        input.jumping = false; input.shiftKeyDown = false;
+    public static void input(net.minecraft.world.entity.player.Player player,net.minecraft.client.player.Input input) {
+        if (!local(player)) return;
+        input.forwardImpulse=0;input.leftImpulse=0;
+        input.up=false;input.down=false;input.left=false;input.right=false;input.jumping=false;input.shiftKeyDown=false;
     }
-    private static void hud(RenderGuiEvent.Pre event) {
-        if (active() && (Minecraft.getInstance().screen instanceof BattleScreen || Minecraft.getInstance().screen instanceof TrailsScreen)) event.setCanceled(true);
-    }
-    private static void world(RenderLevelStageEvent event) {
+    public static boolean suppressHud(){return active() && (Minecraft.getInstance().screen instanceof BattleScreen || Minecraft.getInstance().screen instanceof TrailsScreen);}
+    public static void world(WorldRenderFrame event) {
         Minecraft mc = Minecraft.getInstance();
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS || !(mc.screen instanceof BattleScreen screen)
+        if (event.getStage() != WorldRenderFrame.Stage.AFTER_TRANSLUCENT_BLOCKS || !(mc.screen instanceof BattleScreen screen)
                 || !active() || screen.destination() == null) return;
         Vec3 point = screen.destination();
         boolean valid = screen.validDestination();

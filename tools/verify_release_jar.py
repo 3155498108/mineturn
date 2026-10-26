@@ -30,6 +30,7 @@ from pathlib import Path
 # license, mixin config names), so nothing below hardcodes a version or a test count.
 EXPECTED_MOD_ID = "mineturn"
 METADATA_PATH = "META-INF/neoforge.mods.toml"
+FABRIC_METADATA_PATH = "fabric.mod.json"
 
 # Resources this mod is expected to ship. Paths, not contents, so a rename shows up as a failure.
 REQUIRED_RESOURCES = (
@@ -149,6 +150,30 @@ def class_entry_name(package: str, simple_name: str) -> str:
     return f"{package.replace('.', '/')}/{dotted}.class"
 
 
+def parse_fabric_metadata(archive: zipfile.ZipFile, report: Report) -> dict:
+    metadata = json.loads(archive.read(FABRIC_METADATA_PATH).decode("utf-8"))
+    names = set(archive.namelist())
+    dependencies = metadata.get("depends", {})
+    for dependency in ("fabricloader", "fabric-api", "minecraft", "java"):
+        report.check(bool(dependencies.get(dependency)), f"Fabric dependency missing: {dependency}")
+    entrypoints = metadata.get("entrypoints", {})
+    for side in ("main", "client"):
+        entries = entrypoints.get(side, [])
+        report.check(bool(entries), f"Fabric entrypoint missing: {side}")
+        for entry in entries:
+            value = entry.get("value", "") if isinstance(entry, dict) else entry
+            report.check(value.replace(".", "/") + ".class" in names,
+                         f"Fabric entrypoint class missing: {value}")
+    report.check("fabric-gametest" not in entrypoints, "Fabric QA entrypoint leaked into release")
+    for name in names:
+        if name.endswith(".class"):
+            report.check(b"net/neoforged/" not in archive.read(name), f"NeoForge reference in Fabric class: {name}")
+    configs = [entry if isinstance(entry, str) else entry.get("config", "")
+               for entry in metadata.get("mixins", [])]
+    return {"modId": metadata.get("id"), "version": metadata.get("version"),
+            "license": metadata.get("license"), "mixinConfigs": configs}
+
+
 def check_archive_integrity(archive: zipfile.ZipFile, report: Report) -> None:
     bad = archive.testzip()
     report.check(bad is None, f"archive is corrupt at entry: {bad}")
@@ -258,10 +283,22 @@ def verify_jar(path: Path) -> Report:
         check_archive_integrity(archive, report)
 
         names = set(archive.namelist())
-        if METADATA_PATH not in names:
+        metadata = None
+        if FABRIC_METADATA_PATH in names:
+            report.check(METADATA_PATH not in names, "both loader metadata files present")
+            try:
+                metadata = parse_fabric_metadata(archive, report)
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                report.fail(f"{FABRIC_METADATA_PATH}: invalid metadata ({error})")
+            report.note("loader: Fabric")
+        elif METADATA_PATH not in names:
             report.fail(f"missing mod metadata: {METADATA_PATH}")
         else:
             metadata = parse_mods_toml(archive.read(METADATA_PATH).decode("utf-8", errors="replace"), report)
+            report.note("loader: NeoForge")
+        report.check(not any("GameTests" in name and name.endswith(".class") for name in names),
+                     "QA GameTests class leaked into release")
+        if metadata is not None:
             report.check(metadata["modId"] == EXPECTED_MOD_ID,
                          f"metadata declares mod id {metadata['modId']!r}, expected {EXPECTED_MOD_ID!r}")
             report.check(bool(metadata["version"]), "metadata declares no version")

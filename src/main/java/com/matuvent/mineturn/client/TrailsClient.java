@@ -10,13 +10,6 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.AABB;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
-import net.neoforged.neoforge.client.event.RenderGuiEvent;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 public final class TrailsClient {
@@ -40,23 +33,11 @@ public final class TrailsClient {
     private static int ticks;
     private static int smokeReadyTicks;
 
-    public static void initialize(IEventBus bus) {
-        if (!System.getProperty("mineturn.multiplayerSmoke", "").isEmpty()) {
-            NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.tick.ServerTickEvent.Post e) -> com.matuvent.mineturn.battle.TrailsMultiplayerScenario.tick(e.getServer()));
-        }
-        bus.addListener((RegisterKeyMappingsEvent e) -> { e.register(SWITCH); e.register(BURST); e.register(PRIMARY); e.register(CONFIG); });
-        net.neoforged.fml.ModList.get().getModContainerById("mineturn").orElseThrow().registerExtensionPoint(
-                net.neoforged.neoforge.client.gui.IConfigScreenFactory.class, (container, parent) -> new TrailsConfigScreen(parent));
+    public static void initialize() {
         TrailsPresentationOptions.load();
         TrailsNetwork.receiveParty=TrailsPartyScreen::received;
-        bus.addListener(TrailsWarnings::layers);
-        NeoForge.EVENT_BUS.addListener(TrailsWarnings::render);
         TrailsNetwork.receiveImpact = TrailsImpacts::receive;
-        NeoForge.EVENT_BUS.addListener(TrailsImpacts::render);
-        NeoForge.EVENT_BUS.addListener(TrailsEffects::render);
-        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event)->TrailsEffects.tick());
         TrailsNetwork.receivePerformance = TrailsPerformances::receive;
-        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> TrailsPerformances.tick());
         TrailsNetwork.receiveSettings = p -> {
             settings = p; radius = p.encounter();
             if (Minecraft.getInstance().screen instanceof TrailsConfigScreen screen) screen.received(p);
@@ -85,9 +66,6 @@ public final class TrailsClient {
                 if (!burstCut) { introAllies = fighters.stream().filter(f -> !f.enemy()).toList(); introEnemies = fighters.stream().filter(TrailsNetwork.Fighter::enemy).toList(); }
             }
         };
-        NeoForge.EVENT_BUS.addListener(TrailsClient::tick);
-        NeoForge.EVENT_BUS.addListener(TrailsClient::hud);
-        NeoForge.EVENT_BUS.addListener(TrailsClient::world);
     }
     public static boolean active() { return view != null && BattleClient.active() && view.battle().equals(BattleClient.state.battle()); }
     public static net.minecraft.world.phys.Vec3 cameraFocus(float partial) { return previousFocus.lerp(BattleClient.focus, Math.clamp(partial, 0, 1)); }
@@ -99,10 +77,10 @@ public final class TrailsClient {
         if (!burstCut || Minecraft.getInstance().level == null) cutTicks = 0;
     }
     public static void send(String op, int target, int slot, double x, double z) {
-        PacketDistributor.sendToServer(new TrailsNetwork.Command(active() ? view.battle() : TrailsNetwork.NONE,
+        com.matuvent.mineturn.network.BattleNetwork.sendToServer(new TrailsNetwork.Command(active() ? view.battle() : TrailsNetwork.NONE,
                 active() ? view.revision() : -1, op, target, slot, x, z));
     }
-    private static void tick(ClientTickEvent.Post e) {
+    public static void tick() {
         if (!System.getProperty("mineturn.multiplayerSmoke", "").isEmpty()) TrailsMultiplayerSmoke.tick();
         if (Boolean.getBoolean("mineturn.encounterSmoke")) TrailsSmoke.tick();
         ticks++;
@@ -132,12 +110,11 @@ public final class TrailsClient {
         held = down;
         while (PRIMARY.consumeClick()) send("primary", -1, 0, 0, 0);
     }
-    private static void hud(RenderGuiEvent.Post e) {
+    public static void hud(GuiGraphics g) {
         if (active()) return;
-        TrailsImpacts.hud(e.getGuiGraphics());
+        TrailsImpacts.hud(g);
         var mc = Minecraft.getInstance();
         if (mc.player == null) return;
-        var g = e.getGuiGraphics();
         int w = mc.getWindow().getGuiScaledWidth(), h = mc.getWindow().getGuiScaledHeight();
         if (preview || readyTicks > 0) {
             int alpha = readyTicks > 0 ? (int) (150 + 100 * (.5 + .5 * Math.sin(ticks * .15))) : 255;
@@ -149,9 +126,9 @@ public final class TrailsClient {
         }
         cutIn(g, w, h);
     }
-    private static void world(RenderLevelStageEvent e) {
+    public static void world(WorldRenderFrame e) {
         var mc = Minecraft.getInstance();
-        if (mc.player == null || e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
+        if (mc.player == null || e.getStage() != WorldRenderFrame.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         if (Boolean.getBoolean("mineturn.encounterSmoke")) TrailsSmoke.frame(e.getCamera().getPosition());
         if (!preview && !(active() && mc.screen instanceof TrailsScreen)) return;
         if(active() && view.busy() && TrailsCinematics.active())return;

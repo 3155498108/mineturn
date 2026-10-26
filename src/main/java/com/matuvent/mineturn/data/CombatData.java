@@ -51,7 +51,7 @@ public final class CombatData extends SimpleJsonResourceReloadListener {
     @Override protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager resources, ProfilerFiller profiler) {
         try {
             Map<ResourceLocation, Set<String>> tags = new HashMap<>();
-            reloadables.getConditionContext().getAllTags(net.minecraft.core.registries.Registries.ENTITY_TYPE).forEach((id, holders) ->
+            com.matuvent.mineturn.platform.RuntimePlatform.entityTags(reloadables).forEach((id, holders) ->
                     tags.put(id, holders.stream().map(holder -> BuiltInRegistries.ENTITY_TYPE.getKey(holder.value()).toString()).collect(java.util.stream.Collectors.toUnmodifiableSet())));
             Snapshot candidate = parse(files, tags);
             validateFunctions(candidate, id -> reloadables.getFunctionLibrary().getFunction(id).orElse(null), reloadables.getCommands().getDispatcher());

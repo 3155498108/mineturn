@@ -4,7 +4,6 @@ import com.google.gson.GsonBuilder;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import net.neoforged.fml.loading.FMLPaths;
 
 /** Editable prototype balance; no entity-count limit is imposed. */
 public final class TrailsConfig {
@@ -40,7 +39,7 @@ public final class TrailsConfig {
                 || !Double.isFinite(movement) || movement < 0 || movement > 32) throw new IllegalArgumentException("入战半径 2–64，高度 1–64，移动半径 0–32。");
         if(!Double.isFinite(chance) || chance<0 || chance>1 || !Double.isFinite(multiplier) || multiplier<1 || multiplier>10)
             throw new IllegalArgumentException("暴击率 0–100%，暴击倍率 1–10。");
-        var path = FMLPaths.CONFIGDIR.get().resolve("mineturn-trails.json");
+        var path = com.matuvent.mineturn.platform.RuntimePlatform.configDir().resolve("mineturn-trails.json");
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var json = Files.exists(path) ? com.google.gson.JsonParser.parseString(Files.readString(path)).getAsJsonObject() : gson.toJsonTree(current).getAsJsonObject();
         json.addProperty("encounterRadius", encounter); json.addProperty("verticalRange", vertical); json.addProperty("movementRadius", movement);
@@ -57,7 +56,7 @@ public final class TrailsConfig {
     }
 
     public static void load() {
-        var path = FMLPaths.CONFIGDIR.get().resolve("mineturn-trails.json");
+        var path = com.matuvent.mineturn.platform.RuntimePlatform.configDir().resolve("mineturn-trails.json");
         var gson = new GsonBuilder().setPrettyPrinting().create();
         try {
             if (Files.exists(path)) {

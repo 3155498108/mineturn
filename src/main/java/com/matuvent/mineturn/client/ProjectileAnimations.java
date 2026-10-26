@@ -37,7 +37,7 @@ final class ProjectileAnimations {
         if(item.is(net.minecraft.world.item.Items.SLIME_BALL))return new net.minecraft.world.entity.projectile.LlamaSpit(net.minecraft.world.entity.EntityType.LLAMA_SPIT,world);
         return null;
     }
-    static void tick(){
+    public static void tick(){
         checkWorld();if(world==null)return;long now=System.nanoTime();
         var iterator=FLIGHTS.iterator();while(iterator.hasNext()){
             var flight=iterator.next();var p=flight.packet;
@@ -53,8 +53,8 @@ final class ProjectileAnimations {
             }
         }
     }
-    static void render(net.neoforged.neoforge.client.event.RenderLevelStageEvent event){
-        if(event.getStage()!=net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS)return;
+    public static void render(WorldRenderFrame event){
+        if(event.getStage()!=WorldRenderFrame.Stage.AFTER_TRANSLUCENT_BLOCKS)return;
         checkWorld();if(world==null)return;var mc=Minecraft.getInstance();var buffers=mc.renderBuffers().bufferSource();var camera=event.getCamera().getPosition();long now=System.nanoTime();
         for(var flight:FLIGHTS){
             var p=flight.packet;flight.advance(now);double t=Math.clamp((double)flight.elapsed/(p.ticks()*50_000_000L),0,1);

@@ -107,7 +107,7 @@ final class BattleSession {
         long airRecoveryTurns;
         double airRecoveryUntil;
         UUID chargeTarget;
-        net.neoforged.neoforge.event.entity.living.MobSplitEvent split;
+        com.matuvent.mineturn.platform.MobSplit split;
         UUID beamTarget,lastBeamTarget;
         double beamStart, beamEnd, beamRange;
         boolean aiFailed;
@@ -292,7 +292,7 @@ final class BattleSession {
     }
     void message(String text) {
         lastMessage = text;
-        for (ServerPlayer player : players()) if (!player.connection.hasChannel(BattleNetwork.State.TYPE))
+        for (ServerPlayer player : players()) if (!com.matuvent.mineturn.platform.RuntimePlatform.canSend(player,BattleNetwork.State.TYPE))
             player.sendSystemMessage(Component.literal("[MineTurn] " + text));
     }
     void sync(ServerPlayer player) {

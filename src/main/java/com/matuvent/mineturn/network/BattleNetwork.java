@@ -7,8 +7,6 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -24,8 +22,7 @@ public final class BattleNetwork {
     public static Consumer<ProjectileVisual> receiveProjectile=ignored->{};
     public static Consumer<ActionAnimation> receiveActionAnimation=ignored->{};
     private BattleNetwork() {}
-    public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("30-trails");
+    public static void register(com.matuvent.mineturn.platform.PayloadRegistrar registrar) {
         registrar.playToClient(ProjectileVisual.TYPE,ProjectileVisual.CODEC,(payload,context)->receiveProjectile.accept(payload));
         registrar.playToServer(AmmoUse.TYPE,AmmoUse.CODEC,(payload,context)->{
             if(context.player() instanceof ServerPlayer player) BattleManager.request(player,payload.request(),payload);
@@ -46,8 +43,9 @@ public final class BattleNetwork {
     }
     public static void send(ServerPlayer player, CustomPacketPayload payload) {
         // Mock GameTest connections do not negotiate play channels.
-        if (player.connection.hasChannel(payload.type())) PacketDistributor.sendToPlayer(player, payload);
+        if (com.matuvent.mineturn.platform.RuntimePlatform.canSend(player,payload.type())) com.matuvent.mineturn.platform.RuntimePlatform.send(player,payload);
     }
+    public static void sendToServer(CustomPacketPayload... payloads){com.matuvent.mineturn.platform.RuntimePlatform.sendToServer(payloads);}
     private static Vec3 vector(FriendlyByteBuf buf) { return new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble()); }
     private static void vector(FriendlyByteBuf buf, Vec3 value) { buf.writeDouble(value.x); buf.writeDouble(value.y); buf.writeDouble(value.z); }
     public record ItemAction(String id, String name, boolean self, boolean allied,String unavailable,int mainCost,int bonusCost,String ammo,int ammoCount,boolean ground,boolean teleport) {

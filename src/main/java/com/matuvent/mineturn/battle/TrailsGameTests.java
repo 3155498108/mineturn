@@ -447,7 +447,7 @@ public final class TrailsGameTests {
 
     @GameTest(template = "empty")
     public static void settingsPersistRangesWithoutReplacingOtherFields(GameTestHelper h) throws Exception {
-        var path = net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("mineturn-trails.json");
+        var path = com.matuvent.mineturn.platform.RuntimePlatform.configDir().resolve("mineturn-trails.json");
         byte[] saved = java.nio.file.Files.readAllBytes(path);
         var gson = new com.google.gson.Gson(); var previous = gson.fromJson(gson.toJson(com.matuvent.mineturn.TrailsConfig.current), com.matuvent.mineturn.TrailsConfig.class);
         try {

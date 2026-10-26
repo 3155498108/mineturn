@@ -9,7 +9,6 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
 /** Roster chunks keep encounters independent of an arbitrary 32-member UI/packet limit. */
 public final class TrailsNetwork {
@@ -22,14 +21,13 @@ public final class TrailsNetwork {
     public static Consumer<Performance> receivePerformance = ignored -> {};
     public static Consumer<PartyState> receiveParty=ignored->{};
 
-    public static void register(RegisterPayloadHandlersEvent event) {
-        var r = event.registrar("trails-8");
+    public static void register(com.matuvent.mineturn.platform.PayloadRegistrar r) {
         r.playToServer(PartyRequest.TYPE,PartyRequest.CODEC,(p,ctx)->{if(ctx.player() instanceof ServerPlayer player)com.matuvent.mineturn.battle.TrailsTeams.handle(player,p);});
         r.playToClient(PartyState.TYPE,PartyState.CODEC,(p,ctx)->receiveParty.accept(p));
         r.playToClient(Impact.TYPE, Impact.CODEC, (p, ctx) -> receiveImpact.accept(p));
         r.playToClient(Performance.TYPE, Performance.CODEC, (p, ctx) -> receivePerformance.accept(p));
         r.playBidirectional(Settings.TYPE, Settings.CODEC, (p, ctx) -> {
-            if (ctx.flow().isServerbound() && ctx.player() instanceof ServerPlayer player) TrailsCombat.settings(player, p);
+            if (ctx.flow()==net.minecraft.network.protocol.PacketFlow.SERVERBOUND && ctx.player() instanceof ServerPlayer player) TrailsCombat.settings(player, p);
             else receiveSettings.accept(p);
         });
         r.playToServer(Command.TYPE, Command.CODEC, (p, ctx) -> {

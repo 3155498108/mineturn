@@ -75,7 +75,7 @@ final class BattleTeleport {
         try{
             pearl.setPos(point);
             var hit=new net.minecraft.world.phys.BlockHitResult(point,net.minecraft.core.Direction.UP,BlockPos.containing(point.add(0,-0.01,0)),false);
-            var event=net.neoforged.neoforge.event.EventHooks.onEnderPearlLand(player,point.x,point.y,point.z,pearl,5,hit);
+            var event=com.matuvent.mineturn.platform.RuntimePlatform.pearl(player,point.x,point.y,point.z,pearl,5,hit);
             if(event.isCanceled())throw new IllegalArgumentException("末影珍珠传送被事件取消，未消耗物品或行动。");
             point=point(battle,player,event.getTarget(),range,true);
             float damage=event.getAttackDamage();
@@ -90,7 +90,7 @@ final class BattleTeleport {
         for(int attempt=0;attempt<16;attempt++){
             var random=player.getRandom();
             double range=Math.min(16,action.range());
-            var event=net.neoforged.neoforge.event.EventHooks.onChorusFruitTeleport(player,
+            var event=com.matuvent.mineturn.platform.RuntimePlatform.chorus(player,
                     origin.x+(random.nextDouble()*2-1)*range,origin.y+random.nextInt(16)-8,
                     origin.z+(random.nextDouble()*2-1)*range);
             if(event.isCanceled())break;

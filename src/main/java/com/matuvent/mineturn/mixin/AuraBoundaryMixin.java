@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /** Block auras have no entity source; keep their real-time refresh outside combat. */
-@Mixin({BeaconBlockEntity.class,ConduitBlockEntity.class})
+@Mixin(BeaconBlockEntity.class)
 public abstract class AuraBoundaryMixin {
     @Redirect(method="applyEffects",at=@At(value="INVOKE",target="Lnet/minecraft/world/entity/player/Player;addEffect(Lnet/minecraft/world/effect/MobEffectInstance;)Z"))
     private static boolean mineturn$refresh(Player player,MobEffectInstance effect){

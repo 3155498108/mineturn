@@ -14,8 +14,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.client.event.EntityRenderersEvent;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
 /** Critical telegraphs follow authoritative roster state, never a short particle timer or an effects toggle. */
 public final class TrailsWarnings {
@@ -32,8 +30,8 @@ public final class TrailsWarnings {
     public static RenderType glow(float time){return RenderType.energySwirl(TEXTURE,time*.007f,time*.004f);}
     public static int color(float time){return ((int)(135+45*Math.sin(time*.15))<<24)|0xffd23c;}
     @SuppressWarnings({"rawtypes","unchecked"})
-    static void layers(EntityRenderersEvent.AddLayers event) {
-        for(var type:event.getEntityTypes())if(event.getRenderer(type) instanceof LivingEntityRenderer renderer)renderer.addLayer(new GoldLayer(renderer));
+    public static void layers(Iterable<?> renderers) {
+        for(var value:renderers)if(value instanceof LivingEntityRenderer renderer)((com.matuvent.mineturn.mixin.LivingRendererAccess)renderer).mineturn$addLayer(new GoldLayer(renderer));
     }
     private static final class GoldLayer<T extends LivingEntity,M extends EntityModel<T>> extends RenderLayer<T,M> {
         GoldLayer(RenderLayerParent<T,M> parent){super(parent);}
@@ -44,8 +42,8 @@ public final class TrailsWarnings {
             poses.popPose();goldenModels++;
         }
     }
-    static void render(RenderLevelStageEvent event) {
-        if(!TrailsClient.active() || event.getStage()!=RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS)return;
+    public static void render(WorldRenderFrame event) {
+        if(!TrailsClient.active() || event.getStage()!=WorldRenderFrame.Stage.AFTER_TRANSLUCENT_BLOCKS)return;
         var mc=Minecraft.getInstance();if(mc.level==null)return;
         Vec3 camera=event.getCamera().getPosition();var poses=new PoseStack();poses.translate(-camera.x,-camera.y,-camera.z);
         var buffers=mc.renderBuffers().bufferSource();var out=buffers.getBuffer(RenderType.lines());

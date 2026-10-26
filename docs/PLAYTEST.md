@@ -1,13 +1,13 @@
 # MineTurn AT Prototype 试玩说明
 
-版本：1.0.0-trails.8。面向 Minecraft Java 1.21.1、NeoForge 21.1.251、Java 21，支持单人和多人规则，见[多人安装与组队](TRAILS_MULTIPLAYER.md)。
+版本：1.0.0-trails.9。面向 Minecraft Java 1.21.1、Java 21，支持 Fabric / NeoForge、单人和多人规则，见[加载器安装](FABRIC.md)与[多人安装与组队](TRAILS_MULTIPLAYER.md)。
 
 在当前开发电脑可以直接双击项目根目录的 `launch-client.bat`，从正常主菜单进入单人游戏；开发实例的配置、存档和截图位于 `run` 文件夹。启动脚本使用本机已安装的 Java 21 与已缓存的开发依赖，需要保留项目目录，不能把该脚本单独当成发行版启动器使用。
 
 ## 安装
 
-1. 在启动器中建立上述 Minecraft / NeoForge 实例，选择 Java 21。
-2. 把 `mineturn-1.0.0-trails.8.jar` 放进该实例的 `mods` 文件夹，再启动游戏。
+1. 在启动器中建立上述 Minecraft / NeoForge 或 Fabric 实例；Fabric 另装 Fabric API，选择 Java 21。
+2. 把 对应加载器的 `mineturn-1.0.0-trails.9.jar` 或 `mineturn-fabric-1.0.0-trails.9.jar` 放进该实例的 `mods` 文件夹，再启动游戏。
 3. 建议新建测试存档，用创造模式准备武器、普通箭、风弹、食物和药水，在附近生成僵尸、猪、羊、狼；切回生存模式再进入战斗。
 
 本包包含修改后的完整 MineTurn，不要同时安装上游 MineTurn 的另一个 jar。多人双方及服务端须使用同版模组；其他模组兼容尚未验收。

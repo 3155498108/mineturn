@@ -6,16 +6,15 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.ExplosionDamageCalculator;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.event.level.ExplosionEvent;
 
 /** Native explosion calculation, restricted before knockback and entity callbacks as well as damage. */
-final class BattleExplosion {
+public final class BattleExplosion {
     private record Scope(BattleSession battle,LivingEntity source) {}
     private static final ThreadLocal<Scope> CURRENT=new ThreadLocal<>();
-    static void filter(ExplosionEvent.Detonate event) {
+    public static void filter(Explosion explosion,java.util.List<Entity> entities) {
         var scope=CURRENT.get();
-        if(scope!=null && event.getExplosion().getDirectSourceEntity()==scope.source())
-            event.getAffectedEntities().removeIf(entity->!allowed(scope,entity));
+        if(scope!=null && explosion.getDirectSourceEntity()==scope.source())
+            entities.removeIf(entity->!allowed(scope,entity));
     }
     private static boolean allowed(Scope scope,Entity entity) {
         return entity instanceof LivingEntity living && living.isAlive() && scope.battle().members.containsKey(entity.getUUID())

@@ -13,16 +13,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.common.util.TriState;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
-import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.server.ServerStoppedEvent;
-import net.neoforged.neoforge.event.tick.EntityTickEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -57,34 +47,22 @@ public final class BattleManager {
         }
     }
     private BattleManager() {}
-    @SubscribeEvent(priority=net.neoforged.bus.api.EventPriority.LOWEST)
-    public static void explosion(net.neoforged.neoforge.event.level.ExplosionEvent.Detonate event){BattleExplosion.filter(event);}
-    public static boolean locked(Entity entity) { return !entity.level().isClientSide && (ACTIVE.containsKey(entity.getUUID()) || BattleRiding.locked(entity)); }
-    public static boolean authorized() { return EXECUTING.get(); }
-    @SubscribeEvent(priority=net.neoforged.bus.api.EventPriority.LOWEST)
-    public static void split(net.neoforged.neoforge.event.entity.living.MobSplitEvent event){
-        if(BattleSummons.temporary(event.getParent())){event.setCanceled(true);return;}
-        var battle=ACTIVE.get(event.getParent().getUUID());
-        if(battle!=null && !battle.closed)battle.member(event.getParent()).split=event;
-    }
-    @SubscribeEvent
-    public static void temporarySummonDrops(net.neoforged.neoforge.event.entity.living.LivingDropsEvent event){if(BattleSummons.temporary(event.getEntity()))event.setCanceled(true);}
-    @SubscribeEvent
-    public static void temporarySummonExperience(net.neoforged.neoforge.event.entity.living.LivingExperienceDropEvent event){if(BattleSummons.temporary(event.getEntity()))event.setDroppedExperience(0);}
-    @SubscribeEvent
-    public static void loadedTemporarySummon(net.neoforged.neoforge.event.entity.EntityJoinLevelEvent event){
-        if(!event.getLevel().isClientSide && event.loadedFromDisk() && BattleSummons.temporary(event.getEntity()))event.setCanceled(true);
+    public static void split(net.minecraft.world.entity.Mob parent,com.matuvent.mineturn.platform.MobSplit split){
+        var battle=ACTIVE.get(parent.getUUID());
+        if(battle!=null && !battle.closed)battle.member(parent).split=split;
     }
     public static void finishSplit(net.minecraft.world.entity.monster.Slime parent){
         var battle=ACTIVE.get(parent.getUUID());
         if(battle!=null && !battle.closed)battle.acceptSplit(parent);
     }
-    @SubscribeEvent(priority=net.neoforged.bus.api.EventPriority.LOWEST)
-    public static void shieldBlocked(net.neoforged.neoforge.event.entity.living.LivingShieldBlockEvent event){
-        var battle=ACTIVE.get(event.getEntity().getUUID());
-        if(battle!=null && battle.member(event.getEntity()).guarding && event.getBlocked() && event.getBlockedDamage()>0)
-            battle.member(event.getEntity()).guardConsumed=true;
+    public static void shieldBlocked(LivingEntity entity,boolean blocked,float damage){
+        var battle=ACTIVE.get(entity.getUUID());
+        if(battle!=null && battle.member(entity).guarding && blocked && damage>0)battle.member(entity).guardConsumed=true;
     }
+    public static boolean locked(Entity entity) { return !entity.level().isClientSide && (ACTIVE.containsKey(entity.getUUID()) || BattleRiding.locked(entity)); }
+    public static boolean authorized() { return EXECUTING.get(); }
+    public static boolean temporarySummon(Entity entity){return BattleSummons.temporary(entity);}
+    public static boolean ridingCarrier(Entity entity){return BattleRiding.rider(entity)!=null;}
     public static void finishShieldHit(LivingEntity entity){
         var battle=ACTIVE.get(entity.getUUID());if(battle==null)return;
         var member=battle.member(entity);
@@ -252,68 +230,53 @@ public final class BattleManager {
         }
         return true;
     }
-    @SubscribeEvent(priority=net.neoforged.bus.api.EventPriority.LOWEST)
-    public static void externalEffect(net.neoforged.neoforge.event.entity.living.MobEffectEvent.Applicable event){
-        if(!event.getEntity().level().isClientSide && !authorized() && event.getEffectSource()!=null
-                && !allowsRealtimeEffect(event.getEffectSource(),event.getEntity()))
-            event.setResult(net.neoforged.neoforge.event.entity.living.MobEffectEvent.Applicable.Result.DO_NOT_APPLY);
-    }
-    @SubscribeEvent public static void knockback(net.neoforged.neoforge.event.entity.living.LivingKnockBackEvent event){
-        if(locked(event.getEntity()) || BattleRiding.rider(event.getEntity())!=null)event.setCanceled(true);
-    }
-    @SubscribeEvent(priority=net.neoforged.bus.api.EventPriority.LOWEST)
-    public static void explosionKnockback(net.neoforged.neoforge.event.level.ExplosionKnockbackEvent event){
-        var source=event.getExplosion().getIndirectSourceEntity();
-        if(locked(event.getAffectedEntity()) || source!=null && locked(source))event.setKnockbackVelocity(Vec3.ZERO);
-    }
-    @SubscribeEvent public static void incoming(LivingIncomingDamageEvent event) {
-        TrailsCombat.guardDamage(event);
-        if(event.getEntity() instanceof net.minecraft.world.entity.monster.breeze.Breeze
-                && event.getSource().is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE)){event.setCanceled(true);return;}
-        if (authorized()) return;
-        Entity source = damageOwner(event.getSource());
-        if(event.getEntity().getFirstPassenger() instanceof ServerPlayer rider && BattleRiding.vehicle(rider)==event.getEntity()
-                && source instanceof LivingEntity && source!=rider && !locked(event.getEntity())) {
-            event.setCanceled(true);rider.hurt(event.getSource(),event.getAmount());return;
+    public static boolean cancelIncoming(LivingEntity victim,net.minecraft.world.damagesource.DamageSource damage,float amount) {
+        if(victim instanceof net.minecraft.world.entity.monster.breeze.Breeze
+                && damage.is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE)){return true;}
+        if (authorized()) return false;
+        Entity source = damageOwner(damage);
+        if(victim.getFirstPassenger() instanceof ServerPlayer rider && BattleRiding.vehicle(rider)==victim
+                && source instanceof LivingEntity && source!=rider && !locked(victim)) {
+            rider.hurt(damage,amount);return true;
         }
-        var riding=BattleRiding.rider(event.getEntity());
-        var session = ACTIVE.get(riding==null?event.getEntity().getUUID():riding.getUUID());
+        var riding=BattleRiding.rider(victim);
+        var session = ACTIVE.get(riding==null?victim.getUUID():riding.getUUID());
         if (session != null || source != null && locked(source)) {
-            if (session != null && source instanceof LivingEntity living && !locked(living)) session.joinAttacker(living,riding==null?event.getEntity():riding);
-            event.setCanceled(true);
+            if (session != null && source instanceof LivingEntity living && !locked(living)) session.joinAttacker(living,riding==null?victim:riding);
+            return true;
         }
+        return false;
     }
-    @SubscribeEvent public static void damaged(LivingDamageEvent.Post event) {
-        BattleAxolotl.damage(event);
-        if(!event.getEntity().level().isClientSide && event.getNewDamage()>0 && event.getEntity() instanceof net.minecraft.world.entity.animal.Bee bee && event.getSource().getEntity() instanceof LivingEntity source){
+    public static void damaged(LivingEntity victim,net.minecraft.world.damagesource.DamageSource damage,float amount) {
+        BattleAxolotl.damage(victim,damage,amount);
+        if(!victim.level().isClientSide && amount>0 && victim instanceof net.minecraft.world.entity.animal.Bee bee && damage.getEntity() instanceof LivingEntity source){
             var current=ACTIVE.get(source.getUUID());
             var owner=source instanceof ServerPlayer player?player:current!=null && current.side(source)!=null?current.level.getPlayerByUUID(current.side(source)):null;
             if(owner instanceof ServerPlayer player)BattleCompanions.provoke(bee,player);
         }
-        if(!event.getEntity().level().isClientSide && event.getNewDamage()>0
-                && event.getEntity() instanceof net.minecraft.world.entity.monster.ZombifiedPiglin piglin
-                && event.getSource().getEntity() instanceof LivingEntity source) {
+        if(!victim.level().isClientSide && amount>0
+                && victim instanceof net.minecraft.world.entity.monster.ZombifiedPiglin piglin
+                && damage.getEntity() instanceof LivingEntity source) {
             var current=ACTIVE.get(source.getUUID());
             var owner=source instanceof ServerPlayer player?player
                     :current!=null && current.side(source)!=null?current.level.getPlayerByUUID(current.side(source)):null;
             if(owner instanceof ServerPlayer player)BattleAnger.provoke(piglin,player);
         }
-        if(!event.getEntity().level().isClientSide && event.getNewDamage()>0){
-            var current=ACTIVE.get(event.getEntity().getUUID());
+        if(!victim.level().isClientSide && amount>0){
+            var current=ACTIVE.get(victim.getUUID());
             if(current!=null){
-                current.member(event.getEntity()).lastDamageAv=current.clock.time();
-                if(damageOwner(event.getSource()) instanceof LivingEntity attacker && attacker!=event.getEntity() && current.members.containsKey(attacker.getUUID())
-                        && current.neutral(event.getEntity()) && current.side(event.getEntity())==null)
-                    current.directHostilities.add(Set.of(attacker.getUUID(),event.getEntity().getUUID()));
+                current.member(victim).lastDamageAv=current.clock.time();
+                if(damageOwner(damage) instanceof LivingEntity attacker && attacker!=victim && current.members.containsKey(attacker.getUUID())
+                        && current.neutral(victim) && current.side(victim)==null)
+                    current.directHostilities.add(Set.of(attacker.getUUID(),victim.getUUID()));
             }
         }
-        TrailsCombat.damaged(event);
+        TrailsCombat.damaged(victim,damage,amount);
         // Manual encounters are the product default; retain old admission only for baseline regression tests.
         if (!Boolean.getBoolean("mineturn.legacyAutoStart")) return;
-        if (reloading() || authorized() || event.getEntity().level().isClientSide || event.getNewDamage() <= 0
-                || STOPPING.contains(event.getEntity().getServer())) return;
-        LivingEntity victim = event.getEntity();
-        if (!(damageOwner(event.getSource()) instanceof LivingEntity attacker) || !victim.isAlive() || !attacker.isAlive()) return;
+        if (reloading() || authorized() || victim.level().isClientSide || amount <= 0
+                || STOPPING.contains(victim.getServer())) return;
+        if (!(damageOwner(damage) instanceof LivingEntity attacker) || !victim.isAlive() || !attacker.isAlive()) return;
         if(attacker==victim)return;
         ServerPlayer player; LivingEntity mob;
         if(attacker instanceof ServerPlayer p && victim instanceof ServerPlayer other){player=p;mob=other;}
@@ -354,40 +317,37 @@ public final class BattleManager {
         else entity.teleportTo(destination.x,destination.y,destination.z);
         entity.fallDistance=fall;
     }
-    @SubscribeEvent public static void entityTick(EntityTickEvent.Pre event) {
-        if (TrailsCombat.stunned(event.getEntity())) { event.getEntity().setDeltaMovement(Vec3.ZERO); event.setCanceled(true); return; }
-        if(event.getEntity() instanceof BattleCloud cloud){cloud.freezeAge();event.setCanceled(true);return;}
-        if (event.getEntity() instanceof Mob mob && mob.isAlive() && locked(mob)) event.setCanceled(true);
+    public static boolean freezeTick(Entity entity) {
+        if (TrailsCombat.stunned(entity)) { entity.setDeltaMovement(Vec3.ZERO); return true; }
+        if(entity instanceof BattleCloud cloud){cloud.freezeAge();return true;}
+        return entity instanceof Mob mob && mob.isAlive() && locked(mob);
     }
-    @SubscribeEvent public static void pickup(ItemEntityPickupEvent.Pre event) {
-        if (locked(event.getPlayer())) event.setCanPickup(TriState.FALSE);
-    }
-    @SubscribeEvent public static void tick(ServerTickEvent.Post event) {
+    public static void tick() {
         for (var battle : new HashSet<>(ACTIVE.values())) {
             try { battle.tick(); }
             catch (RuntimeException ex) { MineTurn.LOGGER.error("Battle failed", ex); closeSafely(battle,"战斗异常，已恢复控制。"); }
         }
     }
-    @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent event) {
-        var battle = ACTIVE.get(event.getEntity().getUUID());
-        if (battle != null) {if(battle.trails!=null && battle.trails.multiplayer && event.getEntity() instanceof ServerPlayer p)battle.trails.withdraw(p);else battle.leave(event.getEntity(), "玩家离线，已退出当前战斗。");}
+    public static void logout(net.minecraft.world.entity.player.Player player) {
+        var battle = ACTIVE.get(player.getUUID());
+        if (battle != null) {if(battle.trails!=null && battle.trails.multiplayer && player instanceof ServerPlayer p)battle.trails.withdraw(p);else battle.leave(player, "玩家离线，已退出当前战斗。");}
     }
-    @SubscribeEvent public static void changedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
-        var battle = ACTIVE.get(event.getEntity().getUUID());
-        if (battle != null) {if(battle.trails!=null && battle.trails.multiplayer && event.getEntity() instanceof ServerPlayer p)battle.trails.withdraw(p);else battle.leave(event.getEntity(), "跨维度传送，已退出当前战斗。");}
+    public static void changedDimension(net.minecraft.world.entity.player.Player player) {
+        var battle = ACTIVE.get(player.getUUID());
+        if (battle != null) {if(battle.trails!=null && battle.trails.multiplayer && player instanceof ServerPlayer p)battle.trails.withdraw(p);else battle.leave(player, "跨维度传送，已退出当前战斗。");}
     }
-    @SubscribeEvent public static void stopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
-        STOPPING.add(event.getServer());
+    public static void stopping(net.minecraft.server.MinecraftServer server) {
+        STOPPING.add(server);
         // ServerStopping fires before player/world saving; return native clocks and remove temporary units first.
         for (var battle : new HashSet<>(ACTIVE.values()))
-            if (battle.level.getServer() == event.getServer()) closeSafely(battle,"服务器关闭，战斗已结束。");
+            if (battle.level.getServer() == server) closeSafely(battle,"服务器关闭，战斗已结束。");
     }
-    @SubscribeEvent public static void stopped(ServerStoppedEvent event) {
-        ACTIVE.clear(); BattleRiding.clear(); reloads.set(0); STOPPING.remove(event.getServer());
+    public static void stopped(net.minecraft.server.MinecraftServer server) {
+        ACTIVE.clear(); BattleRiding.clear(); reloads.set(0); STOPPING.remove(server);
     }
-    @SubscribeEvent public static void commands(RegisterCommandsEvent event) {
-        FunctionAi.register(event.getDispatcher());
-        event.getDispatcher().register(Commands.literal("mineturn")
+    public static void commands(com.mojang.brigadier.CommandDispatcher<net.minecraft.commands.CommandSourceStack> dispatcher) {
+        FunctionAi.register(dispatcher);
+        dispatcher.register(Commands.literal("mineturn")
                 .executes(ctx -> command(ctx.getSource().getPlayerOrException(), "status", 0, null, 0, 0))
                 .then(Commands.literal("end").executes(ctx -> command(ctx.getSource().getPlayerOrException(), "end", 0, null, 0, 0)))
                 .then(Commands.literal("sprint").executes(ctx -> command(ctx.getSource().getPlayerOrException(), "sprint", 0, null, 0, 0)))

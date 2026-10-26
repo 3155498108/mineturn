@@ -23,7 +23,6 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.item.*;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 
 /** Manual AT rules, built on MineTurn's isolated membership/status clock. */
 public final class TrailsCombat {
@@ -62,7 +61,7 @@ public final class TrailsCombat {
     }
     void perform(LivingEntity source, String animation, int ticks, boolean red, Vec3 aim, String style, String title) {
         if(b.closed)return;
-        var packet=new TrailsNetwork.Performance(b.id, ++b.actionSequence, source.getId(), animation, ticks, red, aim, style, title,style.startsWith("burst_") && source instanceof ServerPlayer p?p.getPersistentData().getString(PRIMARY):"");
+        var packet=new TrailsNetwork.Performance(b.id, ++b.actionSequence, source.getId(), animation, ticks, red, aim, style, title,style.startsWith("burst_") && source instanceof ServerPlayer p?com.matuvent.mineturn.platform.RuntimePlatform.data(p).getString(PRIMARY):"");
         lastPerformances.put(source.getUUID(),packet);broadcast(packet);
     }
     void windup(LivingEntity source, LivingEntity victim, int ticks, boolean red, Runnable release) {
@@ -146,7 +145,7 @@ public final class TrailsCombat {
             else factions.put(m.entity.getUUID(),"hostiles");
         }
         for(var m:b.members.values()){if(Objects.equals(factions.get(host.getUUID()),factions.get(m.entity.getUUID())))allies.add(m.entity.getUUID());m.allyOwner=m.entity instanceof ServerPlayer?null:controllers.get(m.entity.getUUID());}
-        for(var p:b.players())if(p.getPersistentData().getString(PRIMARY).isEmpty() && weapon(p.getMainHandItem()))setPrimary(p);
+        for(var p:b.players())if(com.matuvent.mineturn.platform.RuntimePlatform.data(p).getString(PRIMARY).isEmpty() && weapon(p.getMainHandItem()))setPrimary(p);
         if (primary().isEmpty() && weapon(player.getMainHandItem())) setPrimary(player);
         if (advantage) {
             for (var m : List.copyOf(b.members.values())) {
@@ -160,31 +159,31 @@ public final class TrailsCombat {
     }
 
     public static boolean stunned(Entity entity) {
-        return !entity.level().isClientSide && entity.getPersistentData().getLong(AMBUSH) > entity.level().getGameTime();
+        return !entity.level().isClientSide && com.matuvent.mineturn.platform.RuntimePlatform.data(entity).getLong(AMBUSH) > entity.level().getGameTime();
     }
-    public static void guardDamage(net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event) {
-        var session = BattleManager.ACTIVE.get(event.getEntity().getUUID());
+    public static float guardDamage(LivingEntity target,float amount) {
+        var session = BattleManager.ACTIVE.get(target.getUUID());
         if (BattleManager.authorized() && session != null && session.trails != null
-                && session.trails.guarding.contains(event.getEntity().getUUID())) event.setAmount(event.getAmount() * .5f);
+                && session.trails.guarding.contains(target.getUUID())) return amount*.5f;
+        return amount;
     }
-    public static void damaged(LivingDamageEvent.Post event) {
-        var victim = event.getEntity();
-        if (victim.level().isClientSide || event.getNewDamage() <= 0) return;
+    public static void damaged(LivingEntity victim,net.minecraft.world.damagesource.DamageSource source,float damage) {
+        if (victim.level().isClientSide || damage <= 0) return;
         var active = BattleManager.ACTIVE.get(victim.getUUID());
         if(active!=null && active.trails!=null)active.trails.addCp(victim,cfg().cpOnDamage);
         if (BattleManager.authorized() || BattleManager.locked(victim) || !victim.isAlive()
-                || !(event.getSource().getEntity() instanceof ServerPlayer p)
-                || !(event.getSource().getDirectEntity() == p || event.getSource().getDirectEntity() instanceof net.minecraft.world.entity.projectile.Projectile)
+                || !(source.getEntity() instanceof ServerPlayer p)
+                || !(source.getDirectEntity() == p || source.getDirectEntity() instanceof net.minecraft.world.entity.projectile.Projectile)
                 || BattleManager.locked(p) || !hostile(victim, p)) return;
         long now = victim.level().getGameTime();
-        if (victim.getPersistentData().getLong("mineturn.trails.ambushCooldown") > now) return;
+        if (com.matuvent.mineturn.platform.RuntimePlatform.data(victim).getLong("mineturn.trails.ambushCooldown") > now) return;
         Vec3 facing = victim.getLookAngle().multiply(1, 0, 1).normalize();
         Vec3 towardPlayer = p.position().subtract(victim.position()).multiply(1, 0, 1).normalize();
         if (facing.dot(towardPlayer) > -.5) return;
         int ticks = (int) Math.clamp(cfg().backstabSeconds * 20, 20, 400);
-        victim.getPersistentData().putLong(AMBUSH, now + ticks);
-        victim.getPersistentData().putLong("mineturn.trails.ambushCooldown", now + 1200);
-        victim.getPersistentData().putUUID(OWNER, p.getUUID());
+        com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putLong(AMBUSH, now + ticks);
+        com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putLong("mineturn.trails.ambushCooldown", now + 1200);
+        com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putUUID(OWNER, p.getUUID());
         victim.setDeltaMovement(Vec3.ZERO);
         BattleNetwork.send(p, new TrailsNetwork.Cue("ready", "背袭成功 · 按住切换键圈选", ticks, cfg().encounterRadius));
         victim.playSound(SoundEvents.PLAYER_ATTACK_CRIT, .7f, 1.4f);
@@ -248,7 +247,7 @@ public final class TrailsCombat {
         if (!inventoryAllowed(p)) return;
         var session = BattleManager.ACTIVE.get(p.getUUID());
         ((com.matuvent.mineturn.mixin.StatusAccess) p).mineturn$equipment();
-        if (weapon(p.getMainHandItem())) p.getPersistentData().putString(PRIMARY, itemId(p.getMainHandItem()));
+        if (weapon(p.getMainHandItem())) com.matuvent.mineturn.platform.RuntimePlatform.data(p).putString(PRIMARY, itemId(p.getMainHandItem()));
         session.revision++; session.syncAll();
     }
 
@@ -272,10 +271,10 @@ public final class TrailsCombat {
         if(candidates.stream().noneMatch(e->{if(e instanceof ServerPlayer other)return !TrailsParties.teammates(p,other);UUID owner=TrailsParties.owner(e);return multi && owner!=null?players.stream().anyMatch(q->q.getUUID().equals(owner) && !TrailsParties.teammates(p,q)):hostile(e,p);}))
             throw new IllegalArgumentException("圈内没有可参战对手；多人友军需先由主人使用命名牌登记。");
         long now = p.level().getGameTime();
-        boolean advantage = candidates.stream().anyMatch(e -> hostile(e, p) && e.getPersistentData().getLong(AMBUSH) > now
-                && e.getPersistentData().hasUUID(OWNER) && p.getUUID().equals(e.getPersistentData().getUUID(OWNER)));
-        for (var e : candidates) if (e.getPersistentData().hasUUID(OWNER) && p.getUUID().equals(e.getPersistentData().getUUID(OWNER))) {
-            e.getPersistentData().remove(AMBUSH); e.getPersistentData().remove(OWNER);
+        boolean advantage = candidates.stream().anyMatch(e -> hostile(e, p) && com.matuvent.mineturn.platform.RuntimePlatform.data(e).getLong(AMBUSH) > now
+                && com.matuvent.mineturn.platform.RuntimePlatform.data(e).hasUUID(OWNER) && p.getUUID().equals(com.matuvent.mineturn.platform.RuntimePlatform.data(e).getUUID(OWNER)));
+        for (var e : candidates) if (com.matuvent.mineturn.platform.RuntimePlatform.data(e).hasUUID(OWNER) && p.getUUID().equals(com.matuvent.mineturn.platform.RuntimePlatform.data(e).getUUID(OWNER))) {
+            com.matuvent.mineturn.platform.RuntimePlatform.data(e).remove(AMBUSH); com.matuvent.mineturn.platform.RuntimePlatform.data(e).remove(OWNER);
         }
         var battle = new BattleSession(p, candidates, advantage,multi);
         battle.syncAll();
@@ -283,14 +282,14 @@ public final class TrailsCombat {
         return battle;
     }
 
-    int cp() { return Math.clamp(player.getPersistentData().getInt(CP), 0, 200); }
+    int cp() { return Math.clamp(com.matuvent.mineturn.platform.RuntimePlatform.data(player).getInt(CP), 0, 200); }
     void addCp(int amount){addCp(player,amount);}
-    void addCp(LivingEntity source,int amount){var owner=controller(source);if(owner!=null)owner.getPersistentData().putInt(CP,Math.clamp(owner.getPersistentData().getInt(CP)+amount,0,200));}
-    String primary() { return player.getPersistentData().getString(PRIMARY); }
+    void addCp(LivingEntity source,int amount){var owner=controller(source);if(owner!=null)com.matuvent.mineturn.platform.RuntimePlatform.data(owner).putInt(CP,Math.clamp(com.matuvent.mineturn.platform.RuntimePlatform.data(owner).getInt(CP)+amount,0,200));}
+    String primary() { return com.matuvent.mineturn.platform.RuntimePlatform.data(player).getString(PRIMARY); }
     static void setPrimary(ServerPlayer p) {
         var stack = p.getMainHandItem();
         if (!weapon(stack)) throw new IllegalArgumentException("请手持剑、斧、弓、弩、重锤或三叉戟，再设为主武器。");
-        p.getPersistentData().putString(PRIMARY, itemId(stack));
+        com.matuvent.mineturn.platform.RuntimePlatform.data(p).putString(PRIMARY, itemId(stack));
         p.displayClientMessage(Component.literal("主武器：" + stack.getHoverName().getString() + " · " + burstName(stack)), true);
     }
     static boolean weapon(ItemStack stack) {
@@ -415,7 +414,7 @@ public final class TrailsCombat {
             player.getInventory().selected = p.slot();
             ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
             if (p.operation().equals("primary")) setPrimary(player);
-            else if (weapon(player.getMainHandItem())) player.getPersistentData().putString(PRIMARY, itemId(player.getMainHandItem()));
+            else if (weapon(player.getMainHandItem())) com.matuvent.mineturn.platform.RuntimePlatform.data(player).putString(PRIMARY, itemId(player.getMainHandItem()));
             b.revision++; b.syncAll(); return;
         }
         if (p.operation().equals("end")) { finish(.7); return; }

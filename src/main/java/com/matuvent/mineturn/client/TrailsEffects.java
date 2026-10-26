@@ -8,7 +8,6 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
 /** Additive weapon trails and vanilla particles. No world entities, explosions, fire or damage. */
 public final class TrailsEffects {
@@ -35,7 +34,7 @@ public final class TrailsEffects {
         if(ACTIVE.size()>=MAX_EFFECTS)ACTIVE.removeFirst();ACTIVE.addLast(new Effect(p,e));
     }
     public static void reset(){ACTIVE.clear();}
-    static void tick() {
+    public static void tick() {
         if(!TrailsClient.active() || !TrailsPresentationOptions.effects){reset();return;}
         long now=System.nanoTime(); ACTIVE.removeIf(f->now-f.start>f.ticks*50_000_000L);
         var level=Minecraft.getInstance().level;if(level==null){reset();return;}
@@ -69,8 +68,8 @@ public final class TrailsEffects {
             }
         }
     }
-    static void render(RenderLevelStageEvent event){
-        if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_PARTICLES || !TrailsClient.active() || !TrailsPresentationOptions.effects || ACTIVE.isEmpty())return;
+    public static void render(WorldRenderFrame event){
+        if(event.getStage()!=WorldRenderFrame.Stage.AFTER_PARTICLES || !TrailsClient.active() || !TrailsPresentationOptions.effects || ACTIVE.isEmpty())return;
         var mc=Minecraft.getInstance();var buffers=mc.renderBuffers().bufferSource();var out=buffers.getBuffer(RenderType.lightning());
         Vec3 camera=event.getCamera().getPosition();
         for(var f:ACTIVE){

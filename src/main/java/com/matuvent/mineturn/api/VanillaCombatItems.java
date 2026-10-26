@@ -25,16 +25,16 @@ final class VanillaCombatItems {
             var target=context.target();var stack=context.item();
             // Battle mace attacks are ordinary melee; only the initiating vanilla hit may smash.
             if(stack.getItem() instanceof net.minecraft.world.item.MaceItem)player.resetFallDistance();
-            if(!net.neoforged.neoforge.common.CommonHooks.onPlayerAttackTarget(player,target))return;
+            if(!com.matuvent.mineturn.platform.RuntimePlatform.attack(player,target))return;
             if(!context.battle().canContinue(target))return;
             var damageSource=player.damageSources().playerAttack(player);
             float base=(float)player.getAttributeValue(Attributes.ATTACK_DAMAGE);
             float damage=EnchantmentHelper.modifyDamage(player.serverLevel(),stack,target,damageSource,base)
                     +stack.getItem().getAttackDamageBonus(target,base,damageSource);
             // Snapshot around the selected target; never query arbitrary world entities for collateral damage.
-            var sweepTargets=stack.canPerformAction(net.neoforged.neoforge.common.ItemAbilities.SWORD_SWEEP)
+            var sweepTargets=com.matuvent.mineturn.platform.RuntimePlatform.swordSweep(stack)
                     ? context.battle().enemies().stream().filter(other->other!=target && other.isAlive()
-                        && stack.getSweepHitBox(player,target).intersects(other.getBoundingBox())
+                        && com.matuvent.mineturn.platform.RuntimePlatform.sweep(stack,player,target).intersects(other.getBoundingBox())
                         && player.distanceToSqr(other)<player.entityInteractionRange()*player.entityInteractionRange()
                         && player.hasLineOfSight(other)).toList()
                     : java.util.List.<net.minecraft.world.entity.LivingEntity>of();
@@ -97,7 +97,7 @@ final class VanillaCombatItems {
         var stack=context.item();
         for(int slot=0;slot<36;slot++)if(player.getInventory().getItem(slot)==stack) {
             // Player.eat owns consumption and FOOD.using_converts_to, including last-stack replacement.
-            var result=player.eat(player.level(),stack,stack.getFoodProperties(player));
+            var result=player.eat(player.level(),stack,com.matuvent.mineturn.platform.RuntimePlatform.food(stack,player));
             storeUseResult(player,slot,stack,result);
             player.inventoryMenu.broadcastChanges();
             return;

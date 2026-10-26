@@ -6,15 +6,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import java.util.ArrayList;
 import java.util.List;
 
 /** Capture only lightning spawned by a committed player trident's native enchantment callback. */
-@EventBusSubscriber(modid=MineTurn.MODID)
 public final class CombatChanneling {
     public static final String VISUAL="mineturn:channeling_visual";
     private static final ThreadLocal<List<LightningBolt>> CAPTURE=new ThreadLocal<>();
@@ -25,14 +20,14 @@ public final class CombatChanneling {
         finally {if(previous==null)CAPTURE.remove();else CAPTURE.set(previous);}
         for(var bolt:bolts)strike(context,bolt);
     }
-    @SubscribeEvent(priority=EventPriority.LOWEST)
-    public static void capture(EntityJoinLevelEvent event) {
+    public static boolean capture(net.minecraft.world.entity.Entity entity) {
         var bolts=CAPTURE.get();
-        if(bolts!=null && !event.getLevel().isClientSide() && event.getEntity() instanceof LightningBolt bolt
-                && !bolt.getPersistentData().getBoolean(VISUAL)) {
-            event.setCanceled(true);
+        if(bolts!=null && !entity.level().isClientSide() && entity instanceof LightningBolt bolt
+                && !com.matuvent.mineturn.platform.RuntimePlatform.data(bolt).getBoolean(VISUAL)) {
             if(bolts.size()<8)bolts.add(bolt);
+            return true;
         }
+        return false;
     }
     private static void strike(CombatEffects.Context context,LightningBolt bolt) {
         var level=(ServerLevel)context.source().level();var p=bolt.position();
@@ -40,7 +35,7 @@ public final class CombatChanneling {
         var hit=new ArrayList<net.minecraft.world.entity.Entity>();
         for(var target:context.battle().participants()) {
             if(target.level()!=level || !target.isAlive() || !target.getBoundingBox().intersects(area))continue;
-            if(net.neoforged.neoforge.event.EventHooks.onEntityStruckByLightning(target,bolt))continue;
+            if(com.matuvent.mineturn.platform.RuntimePlatform.lightning(target,bolt))continue;
             target.invulnerableTime=0;
             target.thunderHit(level,bolt);
             // Native lightning relies on repeated ticks to ignite; this adapter settles once.
@@ -49,7 +44,7 @@ public final class CombatChanneling {
         }
         if(context.source() instanceof ServerPlayer player)
             net.minecraft.advancements.CriteriaTriggers.CHANNELED_LIGHTNING.trigger(player,hit);
-        bolt.setVisualOnly(true);bolt.getPersistentData().putBoolean(VISUAL,true);
+        bolt.setVisualOnly(true);com.matuvent.mineturn.platform.RuntimePlatform.data(bolt).putBoolean(VISUAL,true);
         level.addFreshEntity(bolt);
     }
     private CombatChanneling() {}

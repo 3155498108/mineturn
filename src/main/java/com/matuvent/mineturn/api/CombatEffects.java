@@ -264,7 +264,7 @@ public final class CombatEffects {
             }
             @Override public String validate(Context context){
                 String error=VanillaCombatItems.slotError(context);
-                return error!=null?error:context.item().getFoodProperties(context.source())==null || context.item().is(net.minecraft.world.item.Items.CHORUS_FRUIT)?"该食物尚未适配战斗。":null;
+                return error!=null?error:com.matuvent.mineturn.platform.RuntimePlatform.food(context.item(),context.source())==null || context.item().is(net.minecraft.world.item.Items.CHORUS_FRUIT)?"该食物尚未适配战斗。":null;
             }
             @Override public void execute(Context context){VanillaCombatItems.drink(context);}
         });
@@ -337,7 +337,7 @@ public final class CombatEffects {
         register(ResourceLocation.parse("mineturn:heal"), context -> context.target().heal((float) context.action().amount()));
         register(ResourceLocation.parse("mineturn:food"), new Effect() {
             @Override public String validate(Context context) {
-                var food = context.item().getFoodProperties(context.source());
+                var food = com.matuvent.mineturn.platform.RuntimePlatform.food(context.item(),context.source());
                 return context.source() instanceof ServerPlayer player && food != null
                         && context.action().self() && context.action().consume() == 1 ? null : "现在不能食用该物品。";
             }

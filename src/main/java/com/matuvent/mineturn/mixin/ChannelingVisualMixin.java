@@ -13,7 +13,7 @@ public abstract class ChannelingVisualMixin {
     @Inject(method="tick",at=@At("HEAD"),cancellable=true)
     private void mineturn$visualTick(CallbackInfo ci) {
         var bolt=(LightningBolt)(Object)this;
-        if(!bolt.level().isClientSide && bolt.getPersistentData().getBoolean(CombatChanneling.VISUAL)) {
+        if(!bolt.level().isClientSide && com.matuvent.mineturn.platform.RuntimePlatform.data(bolt).getBoolean(CombatChanneling.VISUAL)) {
             // visualOnly alone still powers rods and cleans copper in vanilla's server tick.
             if(++mineturn$visualAge>=20)bolt.discard();
             ci.cancel();

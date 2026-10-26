@@ -5,7 +5,6 @@ import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.effect.*;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 
 final class BattleAxolotl {
     static void begin(BattleSession b,Axolotl axolotl,int ticks){
@@ -27,10 +26,10 @@ final class BattleAxolotl {
             b.message("美西螈苏醒，可以重新行动。");b.revision++;
         }else a.getBrain().setMemory(MemoryModuleType.PLAY_DEAD_TICKS,left);
     }
-    static void damage(LivingDamageEvent.Post event){
-        if(event.getNewDamage()<=0 || event.getEntity().level().isClientSide)return;
-        var victim=event.getEntity();var b=BattleManager.ACTIVE.get(victim.getUUID());if(b==null)return;
-        var source=event.getSource().getEntity();
+    static void damage(LivingEntity victim,net.minecraft.world.damagesource.DamageSource cause,float damage){
+        if(damage<=0 || victim.level().isClientSide)return;
+        var b=BattleManager.ACTIVE.get(victim.getUUID());if(b==null)return;
+        var source=cause.getEntity();
         if(victim instanceof Axolotl a && a.isAlive() && source instanceof LivingEntity attacker && b.members.containsKey(attacker.getUUID()) && b.enemy(attacker,a)
                 && !b.member(a).axolotlPlaying && AquaticPath.inWater(b.level,a.position())
                 && (a.getHealth()<=a.getMaxHealth()/2 || a.getBrain().getMemory(MemoryModuleType.PLAY_DEAD_TICKS).isPresent()))begin(b,a,200);

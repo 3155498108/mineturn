@@ -24,7 +24,7 @@ public abstract class LivingMixin {
     }
     @Redirect(method="baseTick",at=@At(value="INVOKE",target="Lnet/neoforged/neoforge/common/CommonHooks;onLivingBreathe(Lnet/minecraft/world/entity/LivingEntity;II)V"))
     private void mineturn$breathing(LivingEntity entity,int consume,int refill) {
-        if(!BattleManager.locked(entity))net.neoforged.neoforge.common.CommonHooks.onLivingBreathe(entity,consume,refill);
+        if(!BattleManager.locked(entity))com.matuvent.mineturn.platform.RuntimePlatform.breathe(entity,consume,refill);
     }
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     private void mineturn$freezeTravel(CallbackInfo ci) {

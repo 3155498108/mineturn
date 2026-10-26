@@ -6,11 +6,13 @@
 
 新增白色伤害跳字、红色大字暴击和数字血条；默认暴击率 10%、倍率 1.5，O 页可调整。
 
-当前本地分支版本 `1.0.0-trails.8`，协议 `30-trails` / `trails-8`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
+当前分支版本 `1.0.0-trails.9`，提供 **Fabric 与 NeoForge 两个独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。协议仍为 `30-trails` / `trails-8`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
+
+下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases) · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
 
 [English](README.md) | **中文**
 
-**Minecraft 1.21.1 / NeoForge 21.1.251 / Java 21 的回合制战术战斗模组。**
+**Minecraft 1.21.1 / Fabric 或 NeoForge / Java 21 的回合制战术战斗模组。**
 
 MineTurn 把原版 Minecraft 的实时砍杀改成回合制：出手顺序由 **AV（行动值）行动条**决定，每次行动获得
 可分配的移动距离与主要/次要行动，而**全部战斗内容** —— 动作、怪物 AI、物品映射 —— 均由**数据包**定义。

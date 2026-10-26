@@ -1,5 +1,4 @@
 import json
-import shutil
 import tempfile
 import unittest
 import warnings
@@ -64,10 +63,8 @@ class VerifyReleaseJarTests(unittest.TestCase):
     def setUp(self):
         test_root = Path(__file__).resolve().parents[1] / 'build' / 'jar-verify-tests'
         test_root.mkdir(parents=True, exist_ok=True)
-        self.temp = tempfile.TemporaryDirectory(dir=test_root)
-        self.root = Path(self.temp.name)
-        self.addCleanup(self.temp.cleanup)
-        self.addCleanup(shutil.rmtree, self.root, True)
+        # Keep small fixtures in ignored build/; workspace rules prohibit bulk directory deletion.
+        self.root = Path(tempfile.mkdtemp(dir=test_root))
 
     def build(self, name, entries=None, *, duplicates=(), raw=None):
         path = self.root / name
@@ -89,6 +86,50 @@ class VerifyReleaseJarTests(unittest.TestCase):
 
     def test_valid_jar_passes(self):
         self.assertEqual([], self.failures(self.build('ok.jar')))
+
+    def fabric_entries(self):
+        entries = valid_entries()
+        entries.pop('META-INF/neoforge.mods.toml')
+        entries['fabric.mod.json'] = json.dumps({
+            'schemaVersion': 1, 'id': 'mineturn', 'version': '1.0.0', 'license': 'LGPL-2.1-only',
+            'entrypoints': {'main': ['example.Main'], 'client': ['example.Client']},
+            'depends': {'fabricloader': '>=0.16.14', 'fabric-api': '*', 'minecraft': '1.21.1', 'java': '>=21'},
+            'mixins': ['mineturn.mixins.json'],
+        })
+        entries['example/Main.class'] = 'bytecode'
+        entries['example/Client.class'] = 'bytecode'
+        return entries
+
+    def test_fabric_native_package_passes(self):
+        self.assertEqual([], self.failures(self.build('fabric.jar', self.fabric_entries())))
+
+    def test_fabric_rejects_wrong_loader_or_qa_classes(self):
+        for name, content, expected in (
+            ('example/Wrong.class', b'net/neoforged/api/Example', 'NeoForge reference'),
+            ('example/FabricBoundaryGameTests.class', b'bytecode', 'QA GameTests'),
+        ):
+            with self.subTest(name=name):
+                entries = self.fabric_entries()
+                entries[name] = content
+                self.assertTrue(any(expected in f for f in self.failures(self.build('leak.jar', entries))))
+
+    def test_fabric_requires_dependencies_and_entrypoint_classes(self):
+        entries = self.fabric_entries()
+        metadata = json.loads(entries['fabric.mod.json'])
+        metadata['depends'].pop('fabric-api')
+        metadata['entrypoints']['fabric-gametest'] = ['example.Test']
+        entries['fabric.mod.json'] = json.dumps(metadata)
+        entries.pop('example/Client.class')
+        problems = self.failures(self.build('incomplete-fabric.jar', entries))
+        for expected in ('dependency missing: fabric-api', 'entrypoint class missing', 'QA entrypoint'):
+            self.assertTrue(any(expected in f for f in problems), problems)
+
+    def test_fabric_mixin_and_malformed_metadata_are_checked(self):
+        entries = self.fabric_entries()
+        entries.pop('mineturn.mixins.json')
+        self.assertTrue(any('not in the archive' in f for f in self.failures(self.build('fabric-mixin.jar', entries))))
+        entries['fabric.mod.json'] = '{'
+        self.assertTrue(any('invalid metadata' in f for f in self.failures(self.build('fabric-json.jar', entries))))
 
     def test_missing_file_fails(self):
         self.assertTrue(any('not a file' in f for f in self.failures(self.root / 'absent.jar')))

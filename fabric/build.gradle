@@ -1,0 +1,102 @@
+plugins {
+    id 'fabric-loom' version '1.14.10'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = 'com.matuvent.mineturn'
+base { archivesName = 'mineturn-fabric' }
+
+repositories { mavenCentral() }
+
+sourceSets.main {
+    java.srcDir '../src/main/java'
+    java.exclude { element ->
+        def f = element.file
+        def shared = f.toPath().startsWith(file('../src/main/java').toPath())
+        shared && (f.name.endsWith('GameTests.java') || f.path.replace('\\','/').contains('/test/') ||
+            f.name in ['MineTurn.java','RuntimePlatform.java','NeoForgePayloads.java','NeoForgeClient.java','NeoForgeBattleEvents.java','LivingMixin.java','StatusClockMixin.java','BattleCameraMixin.java'])
+    }
+    resources.srcDir '../src/main/resources'
+    resources.exclude 'META-INF/neoforge.mods.toml'
+    resources.exclude 'mineturn.mixins.json'
+}
+
+loom {
+    runs {
+        client {
+            client()
+            if (providers.gradleProperty('encounterSmoke').isPresent()) {
+                runDir providers.gradleProperty('qaRunDir').getOrElse('../build/qa-fabric-single')
+                vmArg '-Dmineturn.encounterSmoke=true'
+                vmArg "-Dmineturn.qaWorld=${providers.gradleProperty('qaWorld').getOrElse('AT-QA-Fabric-20261026')}"
+                vmArg "-Dmineturn.qaTag=${providers.gradleProperty('qaTag').getOrElse('fabric')}"
+                programArgs '--quickPlaySingleplayer',providers.gradleProperty('qaWorld').getOrElse('AT-QA-Fabric-20261026')
+            }
+        }
+        server { server();runDir '../build/qa-fabric-server' }
+        if (providers.gradleProperty('multiplayerSmoke').isPresent()) {
+            multiHost {
+                client();runDir '../build/qa-fabric-multi-host'
+                vmArg '-Dmineturn.multiplayerSmoke=host'
+                programArgs '--username','AT_A','--uuid',java.util.UUID.nameUUIDFromBytes('OfflinePlayer:AT_A'.getBytes('UTF-8')).toString(),'--quickPlaySingleplayer','AT-QA-Multiplayer-20261026'
+            }
+            multiGuest {
+                client();runDir '../build/qa-fabric-multi-guest'
+                vmArg '-Dmineturn.multiplayerSmoke=guest'
+                programArgs '--username','AT_B','--uuid',java.util.UUID.nameUUIDFromBytes('OfflinePlayer:AT_B'.getBytes('UTF-8')).toString(),'--quickPlayMultiplayer','127.0.0.1:25578'
+            }
+        }
+        if (providers.gradleProperty('fabricQa').isPresent()) {
+            gameTest {
+                server()
+                runDir '../build/qa-fabric-gametest'
+                vmArg '-Dfabric-api.gametest=true'
+                vmArg '-Dfabric-api.gametest.report-file=reports/gametest-report.xml'
+            }
+        }
+    }
+}
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+java { toolchain.languageVersion = JavaLanguageVersion.of(21); withSourcesJar() }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }
+tasks.named('processResources') { inputs.property 'version', project.version;inputs.property 'fabricQa',providers.gradleProperty('fabricQa').isPresent();filesMatching('fabric.mod.json') { expand version: project.version } }
+tasks.named('jar') { from('../LICENSE'); from('../NOTICE'); from('../TEMPLATE_LICENSE.txt');exclude '**/*GameTests*' }
+
+if (providers.gradleProperty('fabricQa').isPresent()) {
+    def generatedQa = layout.buildDirectory.dir('generated/fabricQa')
+    def generateQa = tasks.register('generateFabricQa') {
+        inputs.files(fileTree('../src/main/java/com/matuvent/mineturn/battle') { include 'Trails*GameTests.java' })
+        outputs.dir generatedQa
+        doLast {
+            inputs.files.each { source ->
+                def content = source.getText('UTF-8')
+                    .replaceAll('(?m)^import net\\.neoforged[^\\n]*\\n', '')
+                    .replaceAll('@GameTestHolder\\("trails"\\)', '')
+                    .replaceAll('@PrefixGameTestTemplate\\(false\\)', '')
+                    .replaceAll('template\\s*=\\s*"empty"','template="mineturn:empty"')
+                    .replaceAll('private (Trails\\w*GameTests)\\(', 'public $1(')
+                def target = generatedQa.get().file("com/matuvent/mineturn/battle/${source.name}").asFile
+                target.parentFile.mkdirs();target.setText(content,'UTF-8')
+            }
+        }
+    }
+    sourceSets.main.java.srcDir generatedQa
+    sourceSets.main.java.srcDir 'src/qa/java'
+    tasks.named('compileJava') { dependsOn generateQa }
+    tasks.named('processResources') {
+        doLast {
+            def metadata = destinationDir.toPath().resolve('fabric.mod.json').toFile()
+            def json = new groovy.json.JsonSlurper().parse(metadata)
+            json.entrypoints['fabric-gametest'] = ['TrailsGameTests','TrailsCriticalGameTests','TrailsBestiaryGameTests','TrailsMultiplayerGameTests'].collect { "com.matuvent.mineturn.battle.${it}" }
+            json.entrypoints['fabric-gametest'].add('com.matuvent.mineturn.battle.FabricBoundaryGameTests')
+            metadata.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)),'UTF-8')
+        }
+    }
+}

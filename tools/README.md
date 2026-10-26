@@ -40,7 +40,7 @@ python tools/validate_examples.py
 
 ## 成品 JAR 结构核验（`tools/verify_release_jar.py`）
 
-对**已经构建好的**模组 JAR 做只读结构核验：
+对**已经构建好的** NeoForge / Fabric 模组 JAR 做只读结构核验；自动识别元数据，Fabric 额外检查依赖、入口类、NeoForge 引用和 QA 内容泄漏：
 
 ```bash
 python tools/verify_release_jar.py build/libs/mineturn-1.0.0.jar
@@ -75,7 +75,7 @@ python tools/verify_release_jar.py build/libs/mineturn-1.0.0.jar
 python -m unittest discover -s tools -p "test_*.py"
 ```
 
-`tools/test_verify_release_jar.py` 用**临时合成 JAR** 覆盖：文件缺失、ZIP 损坏、重复条目、
+`tools/test_verify_release_jar.py` 用保留在忽略目录 `build/jar-verify-tests` 的**合成 JAR** 覆盖（不批量删除夹具）：文件缺失、ZIP 损坏、重复条目、
 缺 Mixin class（含 client 列表与包名不匹配）、坏 JSON、缺必要资源、元数据带行尾注释、
 带空格与中文的路径。
 

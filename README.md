@@ -9,9 +9,11 @@
 
 White normal damage, larger red critical numbers, numeric HP bars and configurable critical chance (10%) / multiplier (1.5) in the AT settings.
 
+Version `1.0.0-trails.9` provides separate **Fabric and NeoForge** artifacts. Fabric requires Fabric API; install one loader's artifact on both the client and server. See [installation, architecture and validation](docs/FABRIC.md). Downloads: [GitHub Releases](https://github.com/3155498108/mineturn/releases), [Modrinth](https://modrinth.com/mod/mineturn-at-prototype).
+
 **English** | [中文](README.zh_cn.md)
 
-**Turn-based tactical combat for Minecraft 1.21.1 / NeoForge 21.1.251 / Java 21.**
+**Turn-based tactical combat for Minecraft 1.21.1 / Fabric or NeoForge / Java 21.**
 
 MineTurn replaces vanilla Minecraft's real-time combat with a turn-based system: turn order is driven by an
 **action-value (AV) timeline**, every turn grants spendable movement and main/bonus actions, and *all* combat

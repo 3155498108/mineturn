@@ -45,7 +45,7 @@ final class TrailsSmoke {
         previousFrame = camera;
     }
     static void tick() {
-        if (net.neoforged.fml.loading.FMLLoader.isProduction()) return;
+        if (com.matuvent.mineturn.platform.RuntimePlatform.production()) return;
         var mc = Minecraft.getInstance();
         if (mc.player == null || mc.getSingleplayerServer() == null) {
             if (++bootTicks % 100 == 0) MineTurn.LOGGER.info("QA waiting for world, screen={}", mc.screen == null ? "none" : mc.screen.getClass().getName());
@@ -194,7 +194,7 @@ final class TrailsSmoke {
         inv.setItem(7, potion); inv.setItem(8, new ItemStack(Items.IRON_AXE)); inv.selected = 0;
         inv.setItem(9, new ItemStack(Items.DIAMOND_SWORD));
         p.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.DIAMOND_BOOTS));
-        p.getPersistentData().putInt("mineturn.trails.cp", 150);
+        com.matuvent.mineturn.platform.RuntimePlatform.data(p).putInt("mineturn.trails.cp", 150);
         p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 1200, 1));
         p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED, 1200, 1));
         for (int i = 0; i < 2; i++) {

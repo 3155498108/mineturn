@@ -33,7 +33,7 @@ public final class Riptide implements CombatEffects.Effect {
                 net.minecraft.core.BlockPos.containing(box.maxX,box.maxY,box.maxZ))){
             if(!level.hasChunkAt(point))return false;
             var fluid=level.getFluidState(point);
-            if(fluid.getFluidType()==net.neoforged.neoforge.common.NeoForgeMod.WATER_TYPE.value() && point.getY()+fluid.getHeight(level,point)>box.minY)return true;
+            if(com.matuvent.mineturn.platform.RuntimePlatform.water(fluid) && point.getY()+fluid.getHeight(level,point)>box.minY)return true;
         }
         return false;
     }
@@ -44,7 +44,7 @@ public final class Riptide implements CombatEffects.Effect {
     /** Battle adapters supply ownership checks around externally dispatched native callbacks. */
     public static void hit(ServerPlayer player,net.minecraft.world.entity.LivingEntity target,ItemStack weapon,
             java.util.function.BooleanSupplier canHit,java.util.function.BooleanSupplier canFinish) {
-        if(!net.neoforged.neoforge.common.CommonHooks.onPlayerAttackTarget(player,target))return;
+        if(!com.matuvent.mineturn.platform.RuntimePlatform.attack(player,target))return;
         if(!canHit.getAsBoolean())return;
         var source=new net.minecraft.world.damagesource.DamageSource(player.damageSources().playerAttack(player).typeHolder(),player){
             @Override public ItemStack getWeaponItem(){return weapon;}

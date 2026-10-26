@@ -5,14 +5,13 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class TrailsPartyScreen extends Screen {
     private final Screen parent;private EditBox name;private int page;
     static TrailsNetwork.PartyState state=new TrailsNetwork.PartyState("","","","正在读取队伍…");
     public TrailsPartyScreen(Screen parent){super(Component.literal("玩家队伍"));this.parent=parent;}
     static void received(TrailsNetwork.PartyState p){state=p;var mc=net.minecraft.client.Minecraft.getInstance();if(mc.screen instanceof TrailsPartyScreen s)s.rebuildWidgets();}
-    private void send(String op,String value){PacketDistributor.sendToServer(new TrailsNetwork.PartyRequest(op,value));}
+    private void send(String op,String value){com.matuvent.mineturn.network.BattleNetwork.sendToServer(new TrailsNetwork.PartyRequest(op,value));}
     @Override protected void init(){
         name=addRenderableWidget(new EditBox(font,width/2-130,57,174,20,Component.literal("队伍名称")));name.setMaxLength(24);name.setValue(minecraft.player.getScoreboardName()+"的小队");
         button("创建",width/2+48,57,80,()->send("create",name.getValue())).active=state.team().isEmpty();

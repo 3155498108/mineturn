@@ -36,6 +36,7 @@
     "CloudTargetsMixin",
     "PotionBoundaryMixin",
     "AuraBoundaryMixin",
+    "ConduitAuraBoundaryMixin",
     "BeaconAuraAccess",
     "ConduitAuraAccess",
     "FluidAccess",
@@ -47,6 +48,7 @@
     "AxolotlAirAccess"
   ],
   "client": [
+    "LivingRendererAccess",
     "BattleCameraMixin",
     "BattleClientMovementMixin",
     "BattleRendererMixin",

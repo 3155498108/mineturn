@@ -6,7 +6,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class TrailsConfigScreen extends Screen {
     private final Screen parent;
@@ -28,7 +27,7 @@ public final class TrailsConfigScreen extends Screen {
         toggle("numbers", "伤害数字", left+cell+4, cell, TrailsPresentationOptions.numbers);
         toggle("shake", "命中微震", left+cell*2+8, cell, TrailsPresentationOptions.shake);
         toggle("effects", "武器特效", left+cell*3+12, cell, TrailsPresentationOptions.effects);
-        if (minecraft.player != null) PacketDistributor.sendToServer(new TrailsNetwork.Settings(0, 0, 0,0,1, false, ""));
+        if (minecraft.player != null) com.matuvent.mineturn.network.BattleNetwork.sendToServer(new TrailsNetwork.Settings(0, 0, 0,0,1, false, ""));
         else message = "请先进入游戏；房主或管理员可修改战斗范围。";
     }
     private void toggle(String key,String name,int x,int width,boolean value) {
@@ -53,7 +52,7 @@ public final class TrailsConfigScreen extends Screen {
             if (!Double.isFinite(a) || a < 2 || a > 64 || !Double.isFinite(b) || b < 1 || b > 64 || !Double.isFinite(c) || c < 0 || c > 32) throw new NumberFormatException();
             double chance=Double.parseDouble(criticalChance.getValue())/100,multiplier=Double.parseDouble(criticalMultiplier.getValue());
             if(!Double.isFinite(chance) || chance<0 || chance>1 || !Double.isFinite(multiplier) || multiplier<1 || multiplier>10)throw new NumberFormatException();
-            PacketDistributor.sendToServer(new TrailsNetwork.Settings(a, b, c,chance,multiplier, true, "")); message = "正在保存…";
+            com.matuvent.mineturn.network.BattleNetwork.sendToServer(new TrailsNetwork.Settings(a, b, c,chance,multiplier, true, "")); message = "正在保存…";
         } catch (NumberFormatException error) { message = "范围或暴击值无效；暴击率 0–100%，倍率 1–10。"; }
     }
     @Override public void render(GuiGraphics g, int x, int y, float partial) {

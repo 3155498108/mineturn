@@ -169,7 +169,7 @@ public final class TrailsScreen extends Screen {
         if (!moving && !sentMovement) return;
         if (moving && ++movementTick % 2 != 0) return;
         double a = Math.toRadians(BattleClient.yaw), length = Math.max(1, Math.sqrt(x * x + z * z));
-        net.neoforged.neoforge.network.PacketDistributor.sendToServer(new TrailsNetwork.MoveInput(view.battle(), view.turn(), ++TrailsClient.movementSequence,
+        com.matuvent.mineturn.network.BattleNetwork.sendToServer(new TrailsNetwork.MoveInput(view.battle(), view.turn(), ++TrailsClient.movementSequence,
                 (-x * Math.cos(a) - z * Math.sin(a)) / length, (-x * Math.sin(a) + z * Math.cos(a)) / length));
         sentMovement = moving;
     }

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "mineturn",
+  "version": "${version}",
+  "name": "MineTurn AT Prototype",
+  "description": "In-place tactical AT combat with directional weapon skills, S-Breaks and personally owned multiplayer allies.",
+  "authors": ["3155498108"],
+  "contributors": ["Matuvent (original MineTurn)"],
+  "contact": {"sources": "https://github.com/3155498108/mineturn", "issues": "https://github.com/3155498108/mineturn/issues"},
+  "license": "LGPL-2.1-only",
+  "environment": "*",
+  "entrypoints": {"main": ["com.matuvent.mineturn.MineTurn"], "client": ["com.matuvent.mineturn.client.FabricClient"]},
+  "mixins": ["mineturn.fabric.mixins.json"],
+  "depends": {"fabricloader": ">=0.16.14", "minecraft": "1.21.1", "java": ">=21", "fabric-api": ">=0.116.6"}
+}

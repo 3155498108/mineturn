@@ -4,7 +4,7 @@
 
 ## 开发基线
 
-Minecraft Java 1.21.1、NeoForge 21.1.251、Java 21。以 [Matuvent/mineturn](https://github.com/Matuvent/mineturn) 为基础保留 Git 历史与 LGPL-2.1-only 许可证；当前分支增加手动切换和轨迹式规则，不声称为上游官方版本。无需另装上游 MineTurn，也不能同时装两个相同 mod ID 的 jar。
+Minecraft Java 1.21.1、Java 21；NeoForge 21.1.251 或 Fabric Loader 0.16.14 / Fabric API 0.116.6+1.21.1，见[安装与移植](FABRIC.md)。以 [Matuvent/mineturn](https://github.com/Matuvent/mineturn) 为基础保留 Git 历史与 LGPL-2.1-only 许可证；当前分支增加手动切换和轨迹式规则，不声称为上游官方版本。无需另装上游 MineTurn，也不能同时装两个相同 mod ID 的 jar。
 
 ## 已确认的用户规则
 

@@ -60,7 +60,7 @@ public final class TrailsCriticalGameTests {
     }
     @GameTest(template="empty")
     public static void criticalSettingsPersistAndRejectInvalidValuesWithoutPartialWrite(GameTestHelper h) throws Exception {
-        var path=net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("mineturn-trails.json");byte[] saved=java.nio.file.Files.readAllBytes(path);var previous=TrailsConfig.current;
+        var path=com.matuvent.mineturn.platform.RuntimePlatform.configDir().resolve("mineturn-trails.json");byte[] saved=java.nio.file.Files.readAllBytes(path);var previous=TrailsConfig.current;
         try{
             TrailsConfig.current=new com.google.gson.Gson().fromJson(new String(saved,java.nio.charset.StandardCharsets.UTF_8),TrailsConfig.class);
             TrailsConfig.saveCombat(14,7,4,.25,2);

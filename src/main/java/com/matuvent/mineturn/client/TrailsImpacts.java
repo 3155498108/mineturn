@@ -5,7 +5,6 @@ import java.util.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 
@@ -40,8 +39,8 @@ public final class TrailsImpacts {
             strength=Math.max(strength,(float)Math.sin(Math.PI*(now-n.started)/230_000_000.));
         return strength;
     }
-    static void render(RenderLevelStageEvent event){
-        if(event.getStage()!=RenderLevelStageEvent.Stage.AFTER_PARTICLES)return;
+    public static void render(WorldRenderFrame event){
+        if(event.getStage()!=WorldRenderFrame.Stage.AFTER_PARTICLES)return;
         long now=System.nanoTime();while(!NUMBERS.isEmpty() && now-NUMBERS.peekFirst().started>1_200_000_000L)NUMBERS.removeFirst();
         var level=Minecraft.getInstance().level;
         if(!TrailsClient.active() && (lingerWorld==null || lingerWorld!=level || NUMBERS.isEmpty())){reset();return;}

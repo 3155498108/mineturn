@@ -11,7 +11,7 @@ import net.minecraft.world.level.storage.LevelResource;
 public final class TrailsSmokeScenario {
     private static final List<LivingEntity> spawned = new ArrayList<>();
     public static void prepare(ServerPlayer p, int mode) {
-        if (net.neoforged.fml.loading.FMLLoader.isProduction() || !Boolean.getBoolean("mineturn.encounterSmoke")
+        if (com.matuvent.mineturn.platform.RuntimePlatform.production() || !Boolean.getBoolean("mineturn.encounterSmoke")
                 || !p.server.getWorldPath(LevelResource.ROOT).normalize().getFileName().toString().matches("AT-QA-[A-Za-z0-9-]+"))
             throw new IllegalStateException("QA scenario refused outside named QA save");
         boolean counter=mode==24;if(counter)mode=7;
@@ -36,7 +36,7 @@ public final class TrailsSmokeScenario {
             var weapons = List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.MACE, Items.TRIDENT);
             int weaponIndex=mode==23?0:mode<6?mode:mode<17?mode-11:mode-17;
             p.getInventory().setItem(0, new ItemStack(weapons.get(weaponIndex)));
-            p.getPersistentData().putInt("mineturn.trails.cp", 200);
+            com.matuvent.mineturn.platform.RuntimePlatform.data(p).putInt("mineturn.trails.cp", 200);
  p.getInventory().selected = 0;
             TrailsCombat.setPrimary(p);
             p.inventoryMenu.broadcastChanges();
@@ -56,7 +56,7 @@ public final class TrailsSmokeScenario {
         var b = BattleManager.ACTIVE.get(p.getUUID()); if (b != null) b.close("QA presentation complete");
     }
     public static void bestiary(ServerPlayer p,String id,boolean ultimate) {
-        if(net.neoforged.fml.loading.FMLLoader.isProduction() || !Boolean.getBoolean("mineturn.encounterSmoke")
+        if(com.matuvent.mineturn.platform.RuntimePlatform.production() || !Boolean.getBoolean("mineturn.encounterSmoke")
                 || !p.server.getWorldPath(LevelResource.ROOT).normalize().getFileName().toString().matches("AT-QA-[A-Za-z0-9-]+"))throw new IllegalStateException("QA save required");
         stop(p);for(var e:spawned)e.discard();spawned.clear();
         for(var mob:p.serverLevel().getEntitiesOfClass(Mob.class,p.getBoundingBox().inflate(40)))mob.discard();

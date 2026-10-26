@@ -69,11 +69,11 @@ public final class TrailsMultiplayerGameTests {
         boolean pvp=h.getLevel().getServer().isPvpAllowed();h.getLevel().getServer().setPvpAllowed(true);
         try(var a=new TrailsGameTests.Fixture(h);var b=new TrailsGameTests.Fixture(h)){
             for(int i=0;i<61;i++){a.p.tick();b.p.tick();}b.p.teleportTo(a.p.getX(),a.p.getY(),a.p.getZ()+3);
-            for(var p:List.of(a.p,b.p)){p.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100);p.setHealth(100);p.getPersistentData().putInt("mineturn.trails.cp",100);}
+            for(var p:List.of(a.p,b.p)){p.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100);p.setHealth(100);com.matuvent.mineturn.platform.RuntimePlatform.data(p).putInt("mineturn.trails.cp",100);}
             b.p.getInventory().setItem(0,new ItemStack(Items.IRON_AXE));var session=battle(a,b);var c=session.trails;session.actor=a.p;c.onTurn();
             c.attack(b.p.getId(),0,false);var pending=c.pending;
             TrailsCombat.request(b.p,new TrailsNetwork.Command(session.id,session.revision,"burst",a.p.getId(),0,0,-1));
-            h.assertTrue(b.p.getPersistentData().getInt("mineturn.trails.cp")==0 && a.p.getPersistentData().getInt("mineturn.trails.cp")==100 && c.pending==pending && c.lastPerformances.get(b.p.getUUID()).weapon().equals("minecraft:iron_axe"),"Remote S spent other player's resources or replaced original cast");
+            h.assertTrue(com.matuvent.mineturn.platform.RuntimePlatform.data(b.p).getInt("mineturn.trails.cp")==0 && com.matuvent.mineturn.platform.RuntimePlatform.data(a.p).getInt("mineturn.trails.cp")==100 && c.pending==pending && c.lastPerformances.get(b.p.getUUID()).weapon().equals("minecraft:iron_axe"),"Remote S spent other player's resources or replaced original cast");
             int safety=0;while(c.burstAction!=null && safety++<150)c.tick();
             h.assertTrue(c.pending==pending && session.actor==a.p && a.p.getHealth()<100,"S failed to damage rival or restore interrupted turn");
             TrailsGameTests.resolve(c);h.assertTrue(b.p.getHealth()<100,"Original player never resumed attack after rival S");
@@ -115,7 +115,7 @@ public final class TrailsMultiplayerGameTests {
             for(var e:List.of(a.p,b.p,sheep,zombie))e.setHealth(2);
             session.actor=sheep;c.onTurn();c.companionSkill(-1);TrailsGameTests.resolve(c);
             h.assertTrue(a.p.getHealth()>2 && b.p.getHealth()>2 && zombie.getHealth()==2,"Team heal missed teammate or healed wild enemy");
-            h.assertTrue(a.p.getPersistentData().getInt("mineturn.trails.cp")==10 && b.p.getPersistentData().getInt("mineturn.trails.cp")==0,"Pet credited another owner's CP");
+            h.assertTrue(com.matuvent.mineturn.platform.RuntimePlatform.data(a.p).getInt("mineturn.trails.cp")==10 && com.matuvent.mineturn.platform.RuntimePlatform.data(b.p).getInt("mineturn.trails.cp")==0,"Pet credited another owner's CP");
             session.close("test");TrailsTeams.leave(b.p);TrailsTeams.leave(a.p);
         }h.succeed();
     }

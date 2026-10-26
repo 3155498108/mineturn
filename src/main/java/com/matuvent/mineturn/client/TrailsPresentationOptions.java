@@ -3,12 +3,11 @@ package com.matuvent.mineturn.client;
 import com.google.gson.*;
 import com.matuvent.mineturn.MineTurn;
 import java.nio.file.*;
-import net.neoforged.fml.loading.FMLPaths;
 
 /** Client-only preferences, independent from the server's balance/range configuration. */
 public final class TrailsPresentationOptions {
     public static boolean camera = true, numbers = true, shake = false, effects = true;
-    private static Path path() { return FMLPaths.CONFIGDIR.get().resolve("mineturn-presentation.json"); }
+    private static Path path() { return com.matuvent.mineturn.platform.RuntimePlatform.configDir().resolve("mineturn-presentation.json"); }
     public static void load() {
         try {
             if (!Files.exists(path())) return;

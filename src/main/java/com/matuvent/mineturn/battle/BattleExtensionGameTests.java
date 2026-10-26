@@ -432,9 +432,9 @@ public final class BattleExtensionGameTests {
             battle.scheduled.add(new BattleSession.Scheduled(25,99,battle.member(player),()->{throw new AssertionError("Departed skill executed");}));
             battle.member(player).windUntil=battle.clock.time()+75;
             player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED,200));
-            if(mode==0)BattleManager.logout(new net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent(player));
-            else if(mode==1)BattleManager.changedDimension(new net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerChangedDimensionEvent(player,h.getLevel().dimension(),net.minecraft.world.level.Level.NETHER));
-            else BattleManager.stopping(new net.neoforged.neoforge.event.server.ServerStoppingEvent(h.getLevel().getServer()));
+            if(mode==0)BattleManager.logout(player);
+            else if(mode==1)BattleManager.changedDimension(player);
+            else BattleManager.stopping(h.getLevel().getServer());
             h.assertTrue(battle.closed && !BattleManager.locked(player) && !BattleManager.locked(enemy),"Exit retained battle locks");
             h.assertTrue(core.isRemoved() && unit.isRemoved() && battle.fields.isEmpty() && battle.summons.isEmpty() && battle.scheduled.isEmpty(),"Exit retained temporary entities or callbacks");
             var cooldown=(com.matuvent.mineturn.api.RemainingItemCooldown)player.getCooldowns();
@@ -444,7 +444,7 @@ public final class BattleExtensionGameTests {
             battle.close("again");h.assertTrue(cooldown.mineturn$remaining(net.minecraft.world.item.Items.WIND_CHARGE)==14,"Duplicate close reset cooldown");
         }finally{
             battle.close("test");
-            if(mode==2)BattleManager.stopped(new net.neoforged.neoforge.event.server.ServerStoppedEvent(h.getLevel().getServer()));
+            if(mode==2)BattleManager.stopped(h.getLevel().getServer());
             cleanup(player);enemy.discard();
         }
     }
@@ -4108,9 +4108,9 @@ public final class BattleExtensionGameTests {
             h.assertTrue(captured.get()!=null && captured.get().isRemoved() && battle.summons.isEmpty() && player.experienceLevel==2 && !battle.budget.canAct(),"Spawn cancellation leaked entity or refunded committed fees");
             var unit=(net.minecraft.world.entity.LivingEntity)captured.get();
             var drops=new net.neoforged.neoforge.event.entity.living.LivingDropsEvent(unit,unit.damageSources().generic(),new java.util.ArrayList<>(),true);
-            BattleManager.temporarySummonDrops(drops);h.assertTrue(drops.isCanceled(),"Temporary unit drops not blocked");
-            var xp=new net.neoforged.neoforge.event.entity.living.LivingExperienceDropEvent(unit,player,5);BattleManager.temporarySummonExperience(xp);h.assertTrue(xp.getDroppedExperience()==0,"Temporary XP not blocked");
-            var loaded=new net.neoforged.neoforge.event.entity.EntityJoinLevelEvent(unit,h.getLevel(),true);BattleManager.loadedTemporarySummon(loaded);h.assertTrue(loaded.isCanceled(),"Saved orphan allowed to load");
+            NeoForgeBattleEvents.drops(drops);h.assertTrue(drops.isCanceled(),"Temporary unit drops not blocked");
+            var xp=new net.neoforged.neoforge.event.entity.living.LivingExperienceDropEvent(unit,player,5);NeoForgeBattleEvents.experience(xp);h.assertTrue(xp.getDroppedExperience()==0,"Temporary XP not blocked");
+            var loaded=new net.neoforged.neoforge.event.entity.EntityJoinLevelEvent(unit,h.getLevel(),true);NeoForgeBattleEvents.join(loaded);h.assertTrue(loaded.isCanceled(),"Saved orphan allowed to load");
         }finally{net.neoforged.neoforge.common.NeoForge.EVENT_BUS.unregister(listener);battle.close("test");cleanup(player);mob.discard();}h.succeed();
     }
     @GameTest(template="empty")
@@ -4879,7 +4879,7 @@ public final class BattleExtensionGameTests {
             h.assertTrue(creeper.isPowered() && creeper.getHealth()==15,"Native lightning failed to charge creeper");
             h.assertTrue(near.getRemainingFireTicks()==160 && outside.getRemainingFireTicks()<=0,"Lightning ignition was not scoped to participants");
             var bolts=level.getEntitiesOfClass(net.minecraft.world.entity.LightningBolt.class,mob.getBoundingBox().inflate(2),
-                    bolt->bolt.getPersistentData().getBoolean(com.matuvent.mineturn.api.CombatChanneling.VISUAL));
+                    bolt->com.matuvent.mineturn.platform.RuntimePlatform.data(bolt).getBoolean(com.matuvent.mineturn.api.CombatChanneling.VISUAL));
             h.assertTrue(bolts.size()==1,"Missing managed lightning visual");
             for(int i=0;i<21;i++)bolts.getFirst().tick();
             h.assertTrue(mob.getHealth()==11 && near.getHealth()==19 && near.getRemainingFireTicks()==160 && outside.getHealth()==24,
@@ -4917,7 +4917,7 @@ public final class BattleExtensionGameTests {
     }
     private static void clearChannelingItems(GameTestHelper h,net.minecraft.world.entity.LivingEntity target) {
         h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,target.getBoundingBox().inflate(3),e->e.getItem().is(net.minecraft.world.item.Items.TRIDENT)).forEach(net.minecraft.world.entity.Entity::discard);
-        h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.LightningBolt.class,target.getBoundingBox().inflate(3),e->e.getPersistentData().getBoolean(com.matuvent.mineturn.api.CombatChanneling.VISUAL)).forEach(net.minecraft.world.entity.Entity::discard);
+        h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.LightningBolt.class,target.getBoundingBox().inflate(3),e->com.matuvent.mineturn.platform.RuntimePlatform.data(e).getBoolean(com.matuvent.mineturn.api.CombatChanneling.VISUAL)).forEach(net.minecraft.world.entity.Entity::discard);
     }
     @GameTest(template="empty")
     public static void playerTridentImpalingDryTargetsAndLevels(GameTestHelper h) {
