@@ -9,7 +9,8 @@
 - Fabric 两个独立 JVM 经真实回环 TCP 联机通过（`build-fabric-multi-host-v2.log`、`build-fabric-multi-guest-v2.log`）；随后 v3 两端再次通过，远端武器各绘制 130 帧、固定镜头各采样约 195 次：PvP、CP/武器隔离、抢 S/远端斧头/原攻击恢复、队伍 GUI 邀请接受、各自宠物控制/WASD、个人退场与断线清理。第一次运行在 S CP 检查失败；未修改资源逻辑，保留失败日志 `build-fabric-multi-host-v1.log`，增强断言上下文后重跑通过，复杂延迟仍属未验收范围。
 - 发行 Fabric JAR（非开发 classpath）配合原版 Fabric API 在独立生产环境专服启动、数据重载及正常保存关闭通过（`build-fabric-production-server.log`）；两个发行 JAR 均通过只读结构核验（Fabric 66 / NeoForge 53 个 Mixin 类，123 / 122 个 JSON），Fabric 没有 NeoForge 引用或 GameTest 入口。核验工具 20 项测试通过。
 - Fabric 全武器真实客户端通过（`build-fabric-weapons-client.log`）：六类武器普攻/战技/S 共 18 项演出，以及旋风人、骷髅、友军、抢 S 暂停恢复、墙体与设置模式；每项检查固定镜头、姿态、伤害浮字和特效绘制。
-- 投稿：Modrinth 项目 [MineTurn AT Prototype](https://modrinth.com/mod/mineturn-at-prototype) 已上传 NeoForge trails.8 并提交，状态 Under review / Unlisted；MC 百科审核列表已确认「添加模组 MineTurn AT Prototype」**审核中**，编号 **808408**。申请存在，不重复投稿；Fabric trails.9 发布状态以实际上传回执为准。
+- 发布：源码已推送 GitHub main，发行 [v1.0.0-trails.9](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.9) 对应 `67d97a62dbbeadbfe5d02752825653882cf20711`，包含 Fabric / NeoForge JAR、完整源码 ZIP、安装说明和 SHA256。GitHub 资产摘要与本地一致；Modrinth CDN 实际下载的两个 JAR 逐字节一致。
+- 投稿：Modrinth 同一项目已追加 [Fabric trails.9](https://modrinth.com/mod/mineturn-at-prototype/version/xhh6YSAm)（Fabric API 必需依赖）与 [NeoForge trails.9](https://modrinth.com/mod/mineturn-at-prototype/version/FMfWa6lk)，项目仍 Under review / Unlisted；介绍已更新双加载器支持。MC 百科审核列表已确认「添加模组 MineTurn AT Prototype」**审核中**，编号 **808408**。现有申请的 Fabric 补充已填好，更新提交需网站新验证码；不重复创建申请。
 - 原有未完整验收范围继续有效：复杂公网延迟、第三方模组、原版 Boss 完整阶段、附魔/特殊箭完整适配、复杂地形、长期平衡和大队伍性能。
 
 ## trails.8 功能基线（2026-10-26）

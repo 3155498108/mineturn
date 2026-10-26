@@ -42,6 +42,6 @@ Fabric QA 从现有四个 `Trails*GameTests` 源文件生成加载器无关注�
 
 ## 投稿
 
-Modrinth 沿用 [同一项目](https://modrinth.com/mod/mineturn-at-prototype)，两个加载器各自发布版本并标注依赖。项目如显示 Under review，表示已经提交，尚未审核通过。
+Modrinth 沿用 [同一项目](https://modrinth.com/mod/mineturn-at-prototype)，已上传 [Fabric trails.9](https://modrinth.com/mod/mineturn-at-prototype/version/xhh6YSAm) 和 [NeoForge trails.9](https://modrinth.com/mod/mineturn-at-prototype/version/FMfWa6lk)，前者标注 Fabric API 必需依赖。项目如显示 Under review，表示已经提交，尚未审核通过。
 
 MC 百科申请为 `MineTurn AT Prototype`，审核编号 `808408`，可在登录账号的 [个人审核列表](https://www.mcmod.cn/verify.html?selfonly=1&order=createtime) 查看；不会重复创建申请。
