@@ -1,11 +1,14 @@
 # MineTurn 开发任务表
 
-## Fabric 多版本适配进行中（2026-10-27）
+## Fabric 多版本适配（2026-10-27）
 
-- 用户确认先做 Fabric：Minecraft 1.20.1、1.21（即所称 1.21.0）、1.21.8、1.21.10。构建及版本差异见 [FABRIC_PORTS.md](FABRIC_PORTS.md)。工作分支 `codex/multi-version-ports`；当前还未发布这些版本。
-- 1.21：86 项服务器测试通过（`build/port-1.21-tests.log`）。真实客户端命名牌收纳、物品模型、放出/5 HP/名字、跟随、蹲下回收、长按及快速 R 退场和下一次入战通过（`build/port-1.21-client.log`，`TRAILS_COMPANION_CLIENT_PASSED`）。
-- 1.20.1：Java 17 目标的正式编译通过，服务端加载 56 个动作 / 39 个生物配置 / 1255 个物品，启动、RCON 重载及正常保存关闭通过（`build/port-1.20.1-server-v6.log`）。真实客户端同样的友军/R 原生交互通过（`build/port-1.20.1-client-v2.log`）。尚未把这些结果当作全部武器、多人或 Java 17 实际运行验证。
-- 1.21.8 的 Java 与 JAR 构建已经通过，正在依目标版本修复并验证运行时 Mixin；1.21.10 正在复用共同适配并补接口差异。两者尚未达到可交付状态，不声称能玩。
+- 用户确认先做 Fabric：Minecraft 1.20.1、1.21（即所称 1.21.0）、1.21.8、1.21.10。依赖及构建见 [FABRIC_PORTS.md](FABRIC_PORTS.md)，端口版本为 `1.0.0-trails.11+mc<游戏版本>`；1.21.1 Fabric / NeoForge 仍为 trails.10。
+- 1.21：86 项服务器测试通过（`build/port-1.21-tests.log`）。真实客户端命名牌收纳、物品模型、放出/5 HP/名字、跟随、蹲下回收、长按及快速 R 退场和下一次入战通过（`build/port-1.21-client.log`）。完整客户端入战流程也通过（`build/port-1.21-combat-client.log`）。
+- 1.20.1：Java 17 目标编译、服务端启动/重载/正常保存通过（`build/port-1.20.1-server-v6.log`，56 动作 / 39 生物配置 / 1255 物品）。友军/R 原生交互通过（`build/port-1.20.1-client-v2.log`）；使用实际 **JRE 17.0.12.7** 的完整客户端入战测试通过（`build/port-1.20.1-combat-java17-client.log`），含扇形/矩形预览、WASD、平滑镜头、背包换武器、道具、抢 S 和镜头恢复。
+- 1.21.8：服务端启动/重载/保存通过（`build/port-1.21.8-server-v4.log`，59 动作 / 41 生物配置 / 1416 物品）；友军/R 通过（`build/port-1.21.8-client-v3.log`），完整入战流程通过（`build/port-1.21.8-combat-client-v3.log`）。首次完整流程失败由 QA 存档遗留选择弩引起；测试明确初始化快捷栏后通过，不修改实际武器规则。
+- 1.21.10：服务端启动/重载/保存通过（`build/port-1.21.10-server-v2.log`）；友军/R 原生交互通过（`build/port-1.21.10-client-v1.log`）。完整入战及 18 种武器动作、反击抢 S、固定镜头、原版姿态/粒子、跳字、物种动作、墙体机位和设置持久化通过（`build/port-1.21.10-weapons-client-v1.log`）。旧 trails.10 / 1.21.1 Fabric QA 存档升级后，原收纳牌从磁盘放出同 UUID/名字/5 HP 的友军、实际跟随及收回通过（`build/port-1.21.10-migration-client.log`）。
+- 1.21.8 与 1.21.10 的独立生物演出检查通过（`build/port-1.21.8-bestiary-client.log`、`build/port-1.21.10-bestiary-client-v2.log`）：凋灵/末影龙/监守者持续金光、下次行动 S 技、关闭装饰特效后仍有危险预警，以及怨灵/幻翼/唤魔者/潜影贝/青蛙/河豚/犰狳/悦灵/羊动作与退出清理。已核对 Boss 小预览。1.21.10 的首轮金光计数虽通过，截图显示偏白；已改用模型提交完整重载传入 ARGB，重跑后再核对金色。
+- 各版本验证分别记账，没有将原 1.21.1 的 80 / 86 / 389 项或多人实测数字沿用到全部端口；多人尚未逐个端口重新跑双客户端验收。截图均以小预览检查。
 
 > **2026-10-26 工作区清理**：构建中间文件、多轮 QA 副本与根目录临时日志已移入 Windows 回收站，项目从约 11.85 GiB 缩至 490 MiB；回收站尚未清空，不把目录缩小冒充磁盘释放。源码、普通 `run/` 存档/截图、`output/` 素材和全部 `dist/` 发行包保留，trails.10 发行文件哈希核对通过。
 >

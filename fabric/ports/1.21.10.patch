@@ -371,9 +371,20 @@
          for(BlockPos pos:BlockPos.betweenClosed(BlockPos.containing(sweep.minX,sweep.minY,sweep.minZ),BlockPos.containing(sweep.maxX,sweep.maxY,sweep.maxZ)))
              if(!level.hasChunkAt(pos)||level.getFluidState(pos).is(FluidTags.LAVA))return false;
          var mount=BattleRiding.vehicle(entity);var walker=mount==null?entity:mount;
+--- a/com/matuvent/mineturn/battle/BattleAxolotl.java
++++ b/com/matuvent/mineturn/battle/BattleAxolotl.java
+@@ -27,7 +27,7 @@
+         }else a.getBrain().setMemory(MemoryModuleType.PLAY_DEAD_TICKS,left);
+     }
+     static void damage(LivingEntity victim,net.minecraft.world.damagesource.DamageSource cause,float damage){
+-        if(damage<=0 || victim.level().isClientSide)return;
++        if(damage<=0 || victim.level().isClientSide())return;
+         var b=BattleManager.ACTIVE.get(victim.getUUID());if(b==null)return;
+         var source=cause.getEntity();
+         if(victim instanceof Axolotl a && a.isAlive() && source instanceof LivingEntity attacker && b.members.containsKey(attacker.getUUID()) && b.enemy(attacker,a)
 --- a/com/matuvent/mineturn/battle/BattleBullet.java
 +++ b/com/matuvent/mineturn/battle/BattleBullet.java
-@@ -6,7 +6,7 @@
+@@ -6,13 +6,13 @@
  import java.util.UUID;
  
  /** Targetable, non-persistent battle unit; movement and lifetime are owned by its AV turns. */
@@ -382,6 +393,13 @@
      UUID caster,target;
      int turns;
      public BattleBullet(EntityType<? extends BattleBullet> type,Level level){super(type,level);setNoGravity(true);setNoAi(true);}
+     public static AttributeSupplier.Builder attributes(){return Mob.createMobAttributes().add(Attributes.MAX_HEALTH,1).add(Attributes.MOVEMENT_SPEED,0.23);}
+     @Override public void tick(){
+-        if(!level().isClientSide && !BattleManager.locked(this)){discard();return;}
++        if(!level().isClientSide() && !BattleManager.locked(this)){discard();return;}
+         super.tick();
+     }
+ }
 --- a/com/matuvent/mineturn/battle/BattleCompanions.java
 +++ b/com/matuvent/mineturn/battle/BattleCompanions.java
 @@ -36,16 +36,16 @@
@@ -428,7 +446,7 @@
          var floor=entity.getOnPos();var state=level.getBlockState(floor);
 --- a/com/matuvent/mineturn/battle/BattleDevice.java
 +++ b/com/matuvent/mineturn/battle/BattleDevice.java
-@@ -5,7 +5,7 @@
+@@ -5,9 +5,9 @@
  import net.minecraft.world.level.Level;
  
  /** Stationary target, excluded from the action clock and owned by a field. */
@@ -437,6 +455,9 @@
      public BattleDevice(EntityType<? extends BattleDevice> type,Level level){super(type,level);setNoGravity(true);setNoAi(true);}
      public static AttributeSupplier.Builder attributes(){return Mob.createMobAttributes().add(Attributes.MAX_HEALTH,10).add(Attributes.MOVEMENT_SPEED,0);}
      @Override public boolean shouldBeSaved(){return false;}
+-    @Override public void tick(){if(!level().isClientSide&&!BattleManager.locked(this)){discard();return;}super.tick();}
++    @Override public void tick(){if(!level().isClientSide()&&!BattleManager.locked(this)){discard();return;}super.tick();}
+ }
 --- a/com/matuvent/mineturn/battle/BattleExplosion.java
 +++ b/com/matuvent/mineturn/battle/BattleExplosion.java
 @@ -21,8 +21,8 @@
@@ -450,6 +471,17 @@
          try{at(battle,source,source.position(),power);}finally{source.discard();}
      }
      static void at(BattleSession battle,LivingEntity source,net.minecraft.world.phys.Vec3 point,float power) {
+@@ -33,9 +33,7 @@
+             battle.level.explode(source,null,new ExplosionDamageCalculator(){
+                 @Override public boolean shouldDamageEntity(Explosion explosion,Entity entity){return allowed(scope,entity);}
+                 @Override public float getKnockbackMultiplier(Entity entity){return 0;}
+-            },point.x,point.y,point.z,power,false,Level.ExplosionInteraction.NONE,
+-                    net.minecraft.core.particles.ParticleTypes.EXPLOSION,net.minecraft.core.particles.ParticleTypes.EXPLOSION_EMITTER,
+-                    net.minecraft.sounds.SoundEvents.GENERIC_EXPLODE);
++            },point.x,point.y,point.z,power,false,Level.ExplosionInteraction.NONE);
+         }finally {
+             for(var target:targets)target.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+             if(previous==null)CURRENT.remove();else CURRENT.set(previous);
 --- a/com/matuvent/mineturn/battle/BattleFields.java
 +++ b/com/matuvent/mineturn/battle/BattleFields.java
 @@ -30,7 +30,7 @@
@@ -502,6 +534,36 @@
          m.shieldDisabledUntil=sync(battle,m,Items.SHIELD,m.shieldDisabledUntil);
 --- a/com/matuvent/mineturn/battle/BattleManager.java
 +++ b/com/matuvent/mineturn/battle/BattleManager.java
+@@ -59,7 +59,7 @@
+         var battle=ACTIVE.get(entity.getUUID());
+         if(battle!=null && battle.member(entity).guarding && blocked && damage>0)battle.member(entity).guardConsumed=true;
+     }
+-    public static boolean locked(Entity entity) { return !entity.level().isClientSide && (ACTIVE.containsKey(entity.getUUID()) || BattleRiding.locked(entity)); }
++    public static boolean locked(Entity entity) { return !entity.level().isClientSide() && (ACTIVE.containsKey(entity.getUUID()) || BattleRiding.locked(entity)); }
+     public static boolean authorized() { return EXECUTING.get(); }
+     public static boolean temporarySummon(Entity entity){return BattleSummons.temporary(entity);}
+     public static boolean ridingCarrier(Entity entity){return BattleRiding.rider(entity)!=null;}
+@@ -96,17 +96,17 @@
+         return battle == null ? null : battle.snapshot(player);
+     }
+     public static double remainingCooldown(ServerPlayer player,String action) {
+-        if(!player.getServer().isSameThread())throw new IllegalStateException("Cooldown queries require the server thread");
++        if(!player.level().getServer().isSameThread())throw new IllegalStateException("Cooldown queries require the server thread");
+         var battle=ACTIVE.get(player.getUUID());return battle==null?0:battle.remainingCooldown(player,action);
+     }
+     public static boolean hasRecoverableTrident(ServerPlayer player) {
+-        if(!player.getServer().isSameThread())return false;
++        if(!player.level().getServer().isSameThread())return false;
+         var battle=ACTIVE.get(player.getUUID());if(battle==null)return false;
+         var action=battle.definitions.actions().get("mineturn:recover_trident");
+         return action!=null && BattleTridents.nearest(battle,player,action.range())!=null;
+     }
+     public static com.matuvent.mineturn.api.CombatCasting.Result castGranted(ServerPlayer player,String grant,int targetId) {
+-        if(!player.getServer().isSameThread())throw new IllegalStateException("Combat casting requires the server thread");
++        if(!player.level().getServer().isSameThread())throw new IllegalStateException("Combat casting requires the server thread");
+         var battle=ACTIVE.get(player.getUUID());
+         if(battle==null)return new com.matuvent.mineturn.api.CombatCasting.Result(false,"当前不在战斗中。");
+         try {
 @@ -237,7 +237,7 @@
          Entity source = damageOwner(damage);
          if(victim.getFirstPassenger() instanceof ServerPlayer rider && BattleRiding.vehicle(rider)==victim
@@ -511,6 +573,41 @@
          }
          var riding=BattleRiding.rider(victim);
          var session = ACTIVE.get(riding==null?victim.getUUID():riding.getUUID());
+@@ -249,12 +249,12 @@
+     }
+     public static void damaged(LivingEntity victim,net.minecraft.world.damagesource.DamageSource damage,float amount) {
+         BattleAxolotl.damage(victim,damage,amount);
+-        if(!victim.level().isClientSide && amount>0 && victim instanceof net.minecraft.world.entity.animal.Bee bee && damage.getEntity() instanceof LivingEntity source){
++        if(!victim.level().isClientSide() && amount>0 && victim instanceof net.minecraft.world.entity.animal.Bee bee && damage.getEntity() instanceof LivingEntity source){
+             var current=ACTIVE.get(source.getUUID());
+             var owner=source instanceof ServerPlayer player?player:current!=null && current.side(source)!=null?current.level.getPlayerByUUID(current.side(source)):null;
+             if(owner instanceof ServerPlayer player)BattleCompanions.provoke(bee,player);
+         }
+-        if(!victim.level().isClientSide && amount>0
++        if(!victim.level().isClientSide() && amount>0
+                 && victim instanceof net.minecraft.world.entity.monster.ZombifiedPiglin piglin
+                 && damage.getEntity() instanceof LivingEntity source) {
+             var current=ACTIVE.get(source.getUUID());
+@@ -262,7 +262,7 @@
+                     :current!=null && current.side(source)!=null?current.level.getPlayerByUUID(current.side(source)):null;
+             if(owner instanceof ServerPlayer player)BattleAnger.provoke(piglin,player);
+         }
+-        if(!victim.level().isClientSide && amount>0){
++        if(!victim.level().isClientSide() && amount>0){
+             var current=ACTIVE.get(victim.getUUID());
+             if(current!=null){
+                 current.member(victim).lastDamageAv=current.clock.time();
+@@ -274,8 +274,8 @@
+         TrailsCombat.damaged(victim,damage,amount);
+         // Manual encounters are the product default; retain old admission only for baseline regression tests.
+         if (!Boolean.getBoolean("mineturn.legacyAutoStart")) return;
+-        if (reloading() || authorized() || victim.level().isClientSide || amount <= 0
+-                || STOPPING.contains(victim.getServer())) return;
++        if (reloading() || authorized() || victim.level().isClientSide() || amount <= 0
++                || STOPPING.contains(victim.level().getServer())) return;
+         if (!(damageOwner(damage) instanceof LivingEntity attacker) || !victim.isAlive() || !attacker.isAlive()) return;
+         if(attacker==victim)return;
+         ServerPlayer player; LivingEntity mob;
 @@ -303,7 +303,7 @@
              var start=mount.position();var delta=new Vec3(Math.floor(start.x)+0.5-start.x,0,Math.floor(start.z)+0.5-start.z);
              var swept=BattleRiding.body(entity).expandTowards(delta).deflate(1e-6);
@@ -741,6 +838,22 @@
          var point=source.getBoundingBox().getCenter();
 --- a/com/matuvent/mineturn/battle/BattleStatus.java
 +++ b/com/matuvent/mineturn/battle/BattleStatus.java
+@@ -14,13 +14,13 @@
+     public static boolean running(){return CURRENT.get()!=null;}
+     public static int effectTick(LivingEntity entity){var frame=CURRENT.get();return frame!=null && frame.entity==entity ? frame.tick : entity.tickCount;}
+     public static void applyClientFire(LivingEntity entity,int fireTicks) {
+-        if(!entity.level().isClientSide)return;
++        if(!entity.level().isClientSide())return;
+         Frame previous=CURRENT.get();CURRENT.set(new Frame(entity,entity.tickCount));
+         try{entity.setRemainingFireTicks(fireTicks);}finally{if(previous==null)CURRENT.remove();else CURRENT.set(previous);}
+     }
+     static void sync(LivingEntity entity,boolean locked) {
+         var level=(net.minecraft.server.level.ServerLevel)entity.level();
+-        for(var effect:entity.getActiveEffects())level.getChunkSource().broadcastAndSend(entity,
++        for(var effect:entity.getActiveEffects())level.getChunkSource().sendToTrackingPlayersAndSelf(entity,
+                 new net.minecraft.network.protocol.game.ClientboundUpdateMobEffectPacket(entity.getId(),effect,false));
+         var payload=new com.matuvent.mineturn.network.BattleNetwork.StatusClock(entity.getId(),entity.getUUID(),locked,entity.getRemainingFireTicks());
+         for(var player:level.players())if(player==entity || player.distanceToSqr(entity)<128*128)
 @@ -42,7 +42,7 @@
              // Native repeated suffocation hits are separated by its ten-tick hurt window.
              // Track that interval explicitly because each logical status tick clears invulnerability.
@@ -938,7 +1051,7 @@
      }
 --- a/com/matuvent/mineturn/battle/CompanionFollowGoal.java
 +++ b/com/matuvent/mineturn/battle/CompanionFollowGoal.java
-@@ -20,7 +20,7 @@
+@@ -20,11 +20,11 @@
      private int cooldown;
      public CompanionFollowGoal(Mob mob) { this.mob = mob; setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK)); }
      private boolean eligible() {
@@ -947,6 +1060,11 @@
                  || mob.isPassenger() || mob.isVehicle() || mob.isLeashed() || mob.isNoAi()
                  || mob instanceof TamableAnimal pet && pet.isOrderedToSit()) return false;
          var id = TrailsParties.owner(mob);
+-        owner = id == null || mob.getServer() == null ? null : mob.getServer().getPlayerList().getPlayer(id);
++        owner = id == null || mob.level().getServer() == null ? null : mob.level().getServer().getPlayerList().getPlayer(id);
+         return owner != null && owner.isAlive() && !owner.isSpectator() && owner.level() == mob.level()
+                 && !BattleManager.locked(owner);
+     }
 @@ -64,10 +64,10 @@
                      || level.getBlockState(pos).is(Blocks.SWEET_BERRY_BUSH) || level.getBlockState(pos).is(Blocks.WITHER_ROSE)) continue;
              var offset = net.minecraft.world.phys.Vec3.atBottomCenterOf(pos).subtract(mob.position());
@@ -994,16 +1112,18 @@
          tag.put("companions", list); return tag;
 --- a/com/matuvent/mineturn/battle/CompanionTokenItem.java
 +++ b/com/matuvent/mineturn/battle/CompanionTokenItem.java
-@@ -10,7 +10,7 @@
+@@ -10,19 +10,19 @@
  import net.minecraft.world.phys.Vec3;
  
  public final class CompanionTokenItem extends Item {
 -    public CompanionTokenItem() { super(new Properties().stacksTo(1)); }
 +    public CompanionTokenItem() { super(new Properties().setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.ITEM,net.minecraft.resources.ResourceLocation.parse("mineturn:companion_token"))).stacksTo(1)); }
      @Override public InteractionResult useOn(UseOnContext context) {
-         if (context.getLevel().isClientSide) return InteractionResult.SUCCESS;
+-        if (context.getLevel().isClientSide) return InteractionResult.SUCCESS;
++        if (context.getLevel().isClientSide()) return InteractionResult.SUCCESS;
          if (!(context.getPlayer() instanceof ServerPlayer player)) return InteractionResult.FAIL;
-@@ -19,10 +19,10 @@
+         var pos = context.getClickedPos();
+         if (!context.getLevel().getBlockState(pos).getCollisionShape(context.getLevel(), pos).isEmpty()) pos = pos.relative(context.getClickedFace());
          return TrailsCompanions.release(player, context.getHand(), Vec3.atBottomCenterOf(pos)) != null
                  ? InteractionResult.CONSUME : InteractionResult.FAIL;
      }
@@ -1146,11 +1266,20 @@
  
      public static boolean stunned(Entity entity) {
 -        return !entity.level().isClientSide && com.matuvent.mineturn.platform.RuntimePlatform.data(entity).getLong(AMBUSH) > entity.level().getGameTime();
-+        return !entity.level().isClientSide && com.matuvent.mineturn.platform.RuntimePlatform.data(entity).getLongOr(AMBUSH,0L) > entity.level().getGameTime();
++        return !entity.level().isClientSide() && com.matuvent.mineturn.platform.RuntimePlatform.data(entity).getLongOr(AMBUSH,0L) > entity.level().getGameTime();
      }
      public static float guardDamage(LivingEntity target,float amount) {
          var session = BattleManager.ACTIVE.get(target.getUUID());
-@@ -176,14 +176,14 @@
+@@ -168,7 +168,7 @@
+         return amount;
+     }
+     public static void damaged(LivingEntity victim,net.minecraft.world.damagesource.DamageSource source,float damage) {
+-        if (victim.level().isClientSide || damage <= 0) return;
++        if (victim.level().isClientSide() || damage <= 0) return;
+         var active = BattleManager.ACTIVE.get(victim.getUUID());
+         if(active!=null && active.trails!=null)active.trails.addCp(victim,cfg().cpOnDamage);
+         if (BattleManager.authorized() || BattleManager.locked(victim) || !victim.isAlive()
+@@ -176,21 +176,21 @@
                  || !(source.getDirectEntity() == p || source.getDirectEntity() instanceof net.minecraft.world.entity.projectile.Projectile)
                  || BattleManager.locked(p) || !hostile(victim, p)) return;
          long now = victim.level().getGameTime();
@@ -1167,12 +1296,20 @@
          victim.setDeltaMovement(Vec3.ZERO);
          BattleNetwork.send(p, new TrailsNetwork.Cue("ready", "背袭成功 · 按住切换键圈选", ticks, cfg().encounterRadius));
          victim.playSound(SoundEvents.PLAYER_ATTACK_CRIT, .7f, 1.4f);
+     }
+ 
+     public static void request(ServerPlayer p, TrailsNetwork.Command packet) {
+-        if (p.level().isClientSide || !p.isAlive()) return;
++        if (p.level().isClientSide() || !p.isAlive()) return;
+         var session = BattleManager.ACTIVE.get(p.getUUID());
+         try {
+             if (packet.operation().equals("preview") && session == null) {
 @@ -236,7 +236,7 @@
      public static void settings(ServerPlayer p, TrailsNetwork.Settings packet) {
          String message = "范围设置；移动半径在下一回合生效。";
          if (packet.save()) {
 -            if (!p.server.isSingleplayerOwner(p.getGameProfile()) && !p.hasPermissions(2)) message = "只有单人存档主人或管理员可修改。";
-+            if (!p.level().getServer().isSingleplayerOwner(p.getGameProfile()) && !p.hasPermissions(2)) message = "只有单人存档主人或管理员可修改。";
++            if (!p.level().getServer().isSingleplayerOwner(new net.minecraft.server.players.NameAndId(p.getGameProfile())) && !p.hasPermissions(2)) message = "只有单人存档主人或管理员可修改。";
              else try { TrailsConfig.saveCombat(packet.encounter(), packet.vertical(), packet.movement(),packet.criticalChance(),packet.criticalMultiplier()); message = "已保存；暴击设置立即生效，移动半径下回合生效。"; }
              catch (IllegalArgumentException | IllegalStateException | java.io.IOException | com.google.gson.JsonParseException error) { message = "保存失败：" + error.getMessage(); }
          }
@@ -1321,7 +1458,7 @@
      private TrailsCompanionScenario(){}
 --- a/com/matuvent/mineturn/battle/TrailsCompanions.java
 +++ b/com/matuvent/mineturn/battle/TrailsCompanions.java
-@@ -28,25 +28,25 @@
+@@ -28,25 +28,26 @@
      public static boolean hasSpace(ServerPlayer player, ItemStack namingTag) {
          if (player.getInventory().getFreeSlot() >= 0) return true;
          // A final naming tag in a normal inventory slot is consumed before capture runs.
@@ -1341,6 +1478,7 @@
          var entity = new CompoundTag();
 -        if (!mob.save(entity)) return false;
 +        if (!com.matuvent.mineturn.compat.Port.save(mob,entity)) return false;
++        entity.putInt("DataVersion",4556);
          var ticket = UUID.randomUUID();
 -        var data = new CompoundTag(); data.putUUID(TICKET, ticket);
 +        var data = new CompoundTag(); com.matuvent.mineturn.compat.Port.uuid(data,TICKET,ticket);
@@ -1352,7 +1490,7 @@
          storage.put(ticket, player.getUUID(), entity);
          player.getInventory().setItem(slot, item);
          mob.discard();
-@@ -57,24 +57,24 @@
+@@ -57,24 +58,24 @@
      public static Mob release(ServerPlayer player, InteractionHand hand, Vec3 position) {
          if (BattleManager.locked(player)) { message(player, "请先退出战斗，再放出友军。"); return null; }
          var stack = player.getItemInHand(hand); var ticket = ticket(stack);
@@ -1365,10 +1503,11 @@
          var pos = net.minecraft.core.BlockPos.containing(position);
          if (!Double.isFinite(position.x + position.y + position.z) || !level.hasChunkAt(pos)
                  || position.distanceToSqr(player.position()) > 64 || !level.getWorldBorder().isWithinBounds(pos)) return null;
-         var tag = entry.entity().copy();
+-        var tag = entry.entity().copy();
 -        if (!tag.hasUUID("UUID")) return null;
 -        for (var world : player.server.getAllLevels()) if (world.getEntity(tag.getUUID("UUID")) != null) return null;
 -        var loaded = EntityType.loadEntityRecursive(tag, level, entity -> entity);
++        var tag = (CompoundTag)net.minecraft.util.datafix.DataFixers.getDataFixer().update(net.minecraft.util.datafix.fixes.References.ENTITY,new com.mojang.serialization.Dynamic<>(net.minecraft.nbt.NbtOps.INSTANCE,entry.entity().copy()),entry.entity().getIntOr("DataVersion",3955),4556).getValue();
 +        if (com.matuvent.mineturn.compat.Port.uuid(tag,"UUID")==null) return null;
 +        for (var world : player.level().getServer().getAllLevels()) if (world.getEntity(com.matuvent.mineturn.compat.Port.uuid(tag,"UUID")) != null) return null;
 +        var loaded = EntityType.loadEntityRecursive(tag, level, net.minecraft.world.entity.EntitySpawnReason.LOAD, entity -> entity);
@@ -1407,6 +1546,15 @@
              com.matuvent.mineturn.platform.RuntimePlatform.data(p).putInt("mineturn.trails.cp",p==a?200:100);com.matuvent.mineturn.platform.RuntimePlatform.data(p).putString("mineturn.trails.primary",p==a?"minecraft:iron_sword":"minecraft:iron_axe");
              p.inventoryMenu.broadcastChanges();
          }
+@@ -53,7 +53,7 @@
+         check(server.getWorldPath(LevelResource.ROOT).normalize().getFileName().toString().equals("AT-QA-Multiplayer-20261026"),"wrong save");
+         a=server.getPlayerList().getPlayerByName("AT_A");if(a==null)return;
+         if(!listening){
+-            try{server.setUsesAuthentication(false);server.setPvpAllowed(true);server.getConnection().startTcpServerListener(InetAddress.getByName("127.0.0.1"),25578);listening=true;MineTurn.LOGGER.info("MULTI_QA_HOST_LISTENING 127.0.0.1:25578");}catch(Exception error){throw new IllegalStateException(error);}return;
++            try{server.setUsesAuthentication(false);server.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_PVP).set(true,server);server.getConnection().startTcpServerListener(InetAddress.getByName("127.0.0.1"),25578);listening=true;MineTurn.LOGGER.info("MULTI_QA_HOST_LISTENING 127.0.0.1:25578");}catch(Exception error){throw new IllegalStateException(error);}return;
+         }
+         if(++total>12000)throw new IllegalStateException("MULTI_QA timeout stage="+stage);
+         if(stage==0){b=server.getPlayerList().getPlayerByName("AT_B");if(b==null)return;fixture();next(1,"ready");return;}
 @@ -65,7 +65,7 @@
                  battle.trails.criticalRoll=()->1;turn(a);next(3,"pvp_view");}}
              case 3->{if(age==65){check(battle.actor==a && battle.trails.inputTicks==0,"rival forged turn/input accepted");hpA=a.getHealth();hpB=b.getHealth();next(4,"pvp_attack");}}
@@ -1529,7 +1677,15 @@
          if(mode==3)b.enemies(p).forEach(e->e.setInvulnerable(true));
 --- a/com/matuvent/mineturn/battle/TrailsTeams.java
 +++ b/com/matuvent/mineturn/battle/TrailsTeams.java
-@@ -27,24 +27,24 @@
+@@ -20,39 +20,39 @@
+     public static void create(ServerPlayer p,String name){
+         unlocked(p);if(p.getTeam()!=null)throw new IllegalArgumentException("请先离开当前队伍。");
+         name=name.strip();if(name.isEmpty() || name.length()>24)throw new IllegalArgumentException("队伍名需为 1–24 字。");
+-        var board=p.getScoreboard();String key;do{key="mt_"+UUID.randomUUID().toString().replace("-","").substring(0,13);}while(board.getPlayerTeam(key)!=null);
++        var board=p.level().getScoreboard();String key;do{key="mt_"+UUID.randomUUID().toString().replace("-","").substring(0,13);}while(board.getPlayerTeam(key)!=null);
+         var team=board.addPlayerTeam(key);team.setDisplayName(Component.literal(name));team.setAllowFriendlyFire(false);board.addPlayerToTeam(p.getScoreboardName(),team);
+     }
+     public static void invite(ServerPlayer p,ServerPlayer target){
          unlocked(p);unlocked(target);if(p==target)throw new IllegalArgumentException("请选择其他在线玩家。");
          if(target.getTeam()!=null)throw new IllegalArgumentException("对方已经在队伍中，请对方先离队。");
          if(p.getTeam()==null)create(p,p.getScoreboardName()+"的小队");
@@ -1542,25 +1698,27 @@
 -        unlocked(p);var invite=invites(p.server).get(p.getUUID());if(invite==null)throw new IllegalArgumentException("没有有效邀请，或邀请已过期。");
 -        var sender=p.server.getPlayerList().getPlayer(invite.from);var team=p.getScoreboard().getPlayerTeam(invite.team);
 +        unlocked(p);var invite=invites(p.level().getServer()).get(p.getUUID());if(invite==null)throw new IllegalArgumentException("没有有效邀请，或邀请已过期。");
-+        var sender=p.level().getServer().getPlayerList().getPlayer(invite.from);var team=p.getScoreboard().getPlayerTeam(invite.team);
++        var sender=p.level().getServer().getPlayerList().getPlayer(invite.from);var team=p.level().getScoreboard().getPlayerTeam(invite.team);
          if(sender==null || team==null || sender.getTeam()!=team)throw new IllegalArgumentException("邀请者已离线或更换队伍，请重新邀请。");
          unlocked(sender);if(p.getTeam()!=null)throw new IllegalArgumentException("请先离开当前队伍。");
 -        p.getScoreboard().addPlayerToTeam(p.getScoreboardName(),team);invites(p.server).remove(p.getUUID());state(sender,p.getScoreboardName()+" 已接受邀请。");
-+        p.getScoreboard().addPlayerToTeam(p.getScoreboardName(),team);invites(p.level().getServer()).remove(p.getUUID());state(sender,p.getScoreboardName()+" 已接受邀请。");
++        p.level().getScoreboard().addPlayerToTeam(p.getScoreboardName(),team);invites(p.level().getServer()).remove(p.getUUID());state(sender,p.getScoreboardName()+" 已接受邀请。");
      }
      public static void leave(ServerPlayer p){
          unlocked(p);var team=p.getTeam();if(team==null)throw new IllegalArgumentException("当前没有队伍。");
 -        p.getScoreboard().removePlayerFromTeam(p.getScoreboardName());invites(p.server).remove(p.getUUID());
-+        p.getScoreboard().removePlayerFromTeam(p.getScoreboardName());invites(p.level().getServer()).remove(p.getUUID());
-         if(team.getName().matches("mt_[0-9a-f]{13}") && team.getPlayers().isEmpty())p.getScoreboard().removePlayerTeam(team);
+-        if(team.getName().matches("mt_[0-9a-f]{13}") && team.getPlayers().isEmpty())p.getScoreboard().removePlayerTeam(team);
++        p.level().getScoreboard().removePlayerFromTeam(p.getScoreboardName());invites(p.level().getServer()).remove(p.getUUID());
++        if(team.getName().matches("mt_[0-9a-f]{13}") && team.getPlayers().isEmpty())p.level().getScoreboard().removePlayerTeam(team);
      }
      public static void state(ServerPlayer p,String message){
 -        var invite=invites(p.server).get(p.getUUID());var from=invite==null?null:p.server.getPlayerList().getPlayer(invite.from);
+-        var team=invite==null?null:p.getScoreboard().getPlayerTeam(invite.team);
 +        var invite=invites(p.level().getServer()).get(p.getUUID());var from=invite==null?null:p.level().getServer().getPlayerList().getPlayer(invite.from);
-         var team=invite==null?null:p.getScoreboard().getPlayerTeam(invite.team);
++        var team=invite==null?null:p.level().getScoreboard().getPlayerTeam(invite.team);
          BattleNetwork.send(p,new TrailsNetwork.PartyState(p.getTeam()==null?"":p.getTeam().getDisplayName().getString(),from==null?"":from.getScoreboardName(),team==null?"":team.getDisplayName().getString(),message));
      }
-@@ -52,7 +52,7 @@
+     public static String handle(ServerPlayer p,TrailsNetwork.PartyRequest request){
          String message="组队共用原版队伍；未组队玩家默认是对手。";
          try{switch(request.operation()){
              case "create"->{create(p,request.value());message="队伍已创建。";}
@@ -1600,14 +1758,23 @@
 +    BattleBulletRenderer(EntityRendererProvider.Context context){super(context);model=new ShulkerBulletModel(context.bakeLayer(ModelLayers.SHULKER_BULLET));}
 +    @Override public net.minecraft.client.renderer.entity.state.ShulkerBulletRenderState createRenderState(){return new net.minecraft.client.renderer.entity.state.ShulkerBulletRenderState();}
 +    @Override public void extractRenderState(BattleBullet entity,net.minecraft.client.renderer.entity.state.ShulkerBulletRenderState state,float partial){super.extractRenderState(entity,state,partial);state.yRot=entity.getYRot();state.xRot=entity.getXRot();}
-+    @Override public void render(net.minecraft.client.renderer.entity.state.ShulkerBulletRenderState state,PoseStack pose,MultiBufferSource buffers,int light){
++    @Override public void submit(net.minecraft.client.renderer.entity.state.ShulkerBulletRenderState state,PoseStack pose,net.minecraft.client.renderer.SubmitNodeCollector collector,net.minecraft.client.renderer.state.CameraRenderState camera){
 +        pose.pushPose();pose.translate(0,0.15,0);pose.mulPose(Axis.YP.rotationDegrees(state.ageInTicks*8));pose.scale(-0.5f,-0.5f,0.5f);
-+        model.setupAnim(state);model.renderToBuffer(pose,buffers.getBuffer(model.renderType(TEXTURE)),15728880,OverlayTexture.NO_OVERLAY);
-+        pose.popPose();super.render(state,pose,buffers,light);
++        collector.order(0).submitModel(model,state,pose,model.renderType(TEXTURE),15728880,OverlayTexture.NO_OVERLAY,0xffffffff,null,state.outlineColor,null);
++        pose.popPose();super.submit(state,pose,collector,camera);
      }
  }
 --- a/com/matuvent/mineturn/client/BattleClient.java
 +++ b/com/matuvent/mineturn/client/BattleClient.java
+@@ -42,7 +42,7 @@
+     public BattleClient() {
+         TrailsClient.initialize();
+ 
+-        com.matuvent.mineturn.battle.BattleManager.clientStatusLocked=entity->entity.level().isClientSide && statusLocks.locked(entity.getUUID(),System.nanoTime());
++        com.matuvent.mineturn.battle.BattleManager.clientStatusLocked=entity->entity.level().isClientSide() && statusLocks.locked(entity.getUUID(),System.nanoTime());
+         BattleNetwork.receiveStatusClock=packet->{
+             var level=Minecraft.getInstance().level;if(level==null)return;
+             var entity=level.getEntity(packet.entityId());
 @@ -119,7 +119,7 @@
              positionLocal(packet.anchor());
              mc.player.setOldPosAndRot();
@@ -1644,16 +1811,16 @@
          var buffers = mc.renderBuffers().bufferSource();
          var lines = buffers.getBuffer(RenderType.lines());
 -        LevelRenderer.renderLineBox(pose, lines, new AABB(point.x - 0.43, point.y + 0.02, point.z - 0.43,
-+        net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose, lines, new AABB(point.x - 0.43, point.y + 0.02, point.z - 0.43,
++        net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), lines, new AABB(point.x - 0.43, point.y + 0.02, point.z - 0.43,
                  point.x + 0.43, point.y + 0.08, point.z + 0.43), r, g, b, 1);
          if (valid) for (Vec3 p : preview.path()) {
 -            LevelRenderer.renderLineBox(pose, lines, new AABB(p.x - 0.025, p.y + 0.035, p.z - 0.025, p.x + 0.025, p.y + 0.055, p.z + 0.025), r, g, b, 0.8f);
-+            net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose, lines, new AABB(p.x - 0.025, p.y + 0.035, p.z - 0.025, p.x + 0.025, p.y + 0.055, p.z + 0.025), r, g, b, 0.8f);
++            net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), lines, new AABB(p.x - 0.025, p.y + 0.035, p.z - 0.025, p.x + 0.025, p.y + 0.055, p.z + 0.025), r, g, b, 0.8f);
          }
          if(screen.potionGround() && screen.potionRadius()>0)for(int i=0;i<72;i++) {
              double angle=i*Math.PI*2/72,x=point.x+Math.cos(angle)*screen.potionRadius(),z=point.z+Math.sin(angle)*screen.potionRadius();
 -            LevelRenderer.renderLineBox(pose,lines,new AABB(x-.035,point.y+.04,z-.035,x+.035,point.y+.06,z+.035),r,g,b,.8f);
-+            net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose,lines,new AABB(x-.035,point.y+.04,z-.035,x+.035,point.y+.06,z+.035),r,g,b,.8f);
++            net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(),lines,new AABB(x-.035,point.y+.04,z-.035,x+.035,point.y+.06,z+.035),r,g,b,.8f);
          }
          buffers.endBatch(RenderType.lines());
      }
@@ -1670,11 +1837,12 @@
 -    @Override public ResourceLocation getTextureLocation(BattleDevice e){return net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS;}
 -    @Override public void render(BattleDevice e,float yaw,float partial,PoseStack pose,MultiBufferSource buffers,int light){
 +    @Override public net.minecraft.client.renderer.entity.state.EntityRenderState createRenderState(){return new net.minecraft.client.renderer.entity.state.EntityRenderState();}
-+    @Override public void render(net.minecraft.client.renderer.entity.state.EntityRenderState state,PoseStack pose,MultiBufferSource buffers,int light){
++    @Override public void submit(net.minecraft.client.renderer.entity.state.EntityRenderState state,PoseStack pose,net.minecraft.client.renderer.SubmitNodeCollector collector,net.minecraft.client.renderer.state.CameraRenderState camera){
          pose.pushPose();pose.scale(0.75f,0.75f,0.75f);pose.translate(-0.5,0,-0.5);
-         blocks.renderSingleBlock(net.minecraft.world.level.block.Blocks.COPPER_BLOCK.defaultBlockState(),pose,buffers,light,OverlayTexture.NO_OVERLAY);
+-        blocks.renderSingleBlock(net.minecraft.world.level.block.Blocks.COPPER_BLOCK.defaultBlockState(),pose,buffers,light,OverlayTexture.NO_OVERLAY);
 -        pose.popPose();super.render(e,yaw,partial,pose,buffers,light);
-+        pose.popPose();super.render(state,pose,buffers,light);
++        collector.order(0).submitBlock(pose,net.minecraft.world.level.block.Blocks.COPPER_BLOCK.defaultBlockState(),state.lightCoords,OverlayTexture.NO_OVERLAY,state.outlineColor);
++        pose.popPose();super.submit(state,pose,collector,camera);
      }
  }
 --- a/com/matuvent/mineturn/client/BattleScreen.java
@@ -1688,17 +1856,126 @@
              graphics.renderItem(new ItemStack(item),button.getX()+2,button.getY()+2);
          }
          for (int i = 0; i < hotbar.size(); i++) {
+@@ -286,7 +286,7 @@
+             String label = actions(i).isEmpty() ? "—" : actions(i).size() > 1 ? "动作" : actions(i).getFirst().name();
+             boolean usable=button.active && actions(i).stream().anyMatch(action->action.unavailable().isEmpty());
+             graphics.drawCenteredString(font, font.plainSubstrByWidth(label, slotSize - 4), x + slotSize / 2, y + slotSize, usable ? 0xD8E7F0 : 0x7A828A);
+-            if (i == chosenSlot) graphics.renderOutline(x, y, slotSize, slotSize + 12, 0xFF77E1BD);
++            if (i == chosenSlot) graphics.submitOutline(x, y, slotSize, slotSize + 12, 0xFF77E1BD);
+         }
+         String text = BattleClient.pending ? "正在确认…" : localMessage.isEmpty() ? state.message() : localMessage;
+         if (moving && destination != null) text = verifiedDestination() ? BattleClient.preview.reason().isEmpty()
+@@ -387,20 +387,20 @@
+                 && preview.requestId() == previewId && preview.destination().distanceToSqr(destination) < 1e-6;
+     }
+     public boolean validDestination() { return verifiedDestination() && BattleClient.preview.valid(); }
+-    @Override public boolean mouseClicked(double x, double y, int button) {
++    @Override public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event,boolean doubleClick){double x=event.x(), y=event.y();int button=event.button();
+         if (button == 1) { clearModes(); return true; }
+         if (button == 0 && overQueue(x, y) && y >= 27 && y <= 42) {
+             showRoster = x >= 57; queueScroll = 0; return true;
+         }
+-        if (super.mouseClicked(x, y, button)) return true;
++        if (super.mouseClicked(new net.minecraft.client.input.MouseButtonEvent(x,y,new net.minecraft.client.input.MouseButtonInfo(button,0)),false)) return true;
+         if (button == 0 && !overPanel(x, y)) { worldPressed = true; dragged = false; pressX = x; pressY = y; return true; }
+         return false;
+     }
+-    @Override public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
++    @Override public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event,double dx,double dy){double x=event.x(), y=event.y();int button=event.button();
+         if (button == 0 && worldPressed) {
+             if (Math.hypot(x - pressX, y - pressY) > 4) dragged = true;
+             if (dragged) {
+-                if (hasShiftDown()) {
++                if (event.hasShiftDown()) {
+                     var camera = minecraft.gameRenderer.getMainCamera();
+                     Vec3 delta = new Vec3(camera.getLeftVector()).scale(dx * BattleClient.distance * 0.003)
+                             .add(new Vec3(camera.getUpVector()).scale(dy * BattleClient.distance * 0.003));
+@@ -415,15 +415,15 @@
+             }
+             return true;
+         }
+-        return super.mouseDragged(x, y, button, dx, dy);
+-    }
+-    @Override public boolean mouseReleased(double x, double y, int button) {
++        return super.mouseDragged(new net.minecraft.client.input.MouseButtonEvent(x,y,new net.minecraft.client.input.MouseButtonInfo(button,0)),dx,dy);
++    }
++    @Override public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event){double x=event.x(), y=event.y();int button=event.button();
+         if (button == 0 && worldPressed) {
+             worldPressed = false;
+             if (!dragged && !overPanel(x, y) && !BattleClient.pending) worldClick(x, y);
+             return true;
+         }
+-        return super.mouseReleased(x, y, button);
++        return super.mouseReleased(new net.minecraft.client.input.MouseButtonEvent(x,y,new net.minecraft.client.input.MouseButtonInfo(button,0)));
+     }
+     private void worldClick(double x, double y) {
+         if(potionGround()) {
+@@ -463,7 +463,7 @@
+         BattleClient.distance = Math.clamp(BattleClient.distance * Math.pow(0.88, vertical), 2.5, 24);
+         return true;
+     }
+-    @Override public boolean keyPressed(int key, int scanCode, int modifiers) {
++    @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event){int key=event.key(), scanCode=event.scancode(), modifiers=event.modifiers();
+         if(BattleClient.aim!=null && key==GLFW.GLFW_KEY_SPACE){BattleClient.judgeAim();return true;}
+         if((moving || riptideGround() || teleportGround()) && (key==GLFW.GLFW_KEY_Q||key==GLFW.GLFW_KEY_E) && com.matuvent.mineturn.battle.AquaticPath.inWater(minecraft.level,BattleClient.state.anchor())){
+             int limit=riptideGround() || teleportGround()?16:(int)BattleClient.state.movement();
+@@ -478,8 +478,8 @@
+             return true;
+         }
+         if (key == GLFW.GLFW_KEY_F) { BattleClient.focus = BattleClient.state.anchor().add(0, 1, 0); return true; }
+-        if (key == GLFW.GLFW_KEY_T || key == GLFW.GLFW_KEY_SLASH) { minecraft.setScreen(new ChatScreen(key == GLFW.GLFW_KEY_SLASH ? "/" : "")); return true; }
++        if (key == GLFW.GLFW_KEY_T || key == GLFW.GLFW_KEY_SLASH) { minecraft.setScreen(new ChatScreen(key == GLFW.GLFW_KEY_SLASH ? "/" : "",true)); return true; }
+         if (key >= GLFW.GLFW_KEY_1 && key <= GLFW.GLFW_KEY_9) { selectSlot(key - GLFW.GLFW_KEY_1); return true; }
+-        return super.keyPressed(key, scanCode, modifiers);
++        return super.keyPressed(new net.minecraft.client.input.KeyEvent(key,scanCode,modifiers));
+     }
+ }
 --- a/com/matuvent/mineturn/client/FabricClient.java
 +++ b/com/matuvent/mineturn/client/FabricClient.java
-@@ -23,7 +23,7 @@
-         ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new IdentifiableResourceReloadListener(){
-             private final ActionAnimationData animations=new ActionAnimationData();
-             public ResourceLocation getFabricId(){return ResourceLocation.fromNamespaceAndPath(MineTurn.MODID,"animations");}
+@@ -6,6 +6,7 @@
+ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+ import net.fabricmc.fabric.api.client.rendering.v1.*;
++import net.fabricmc.fabric.api.client.rendering.v1.world.*;
+ import net.fabricmc.fabric.api.resource.*;
+ import net.minecraft.resources.ResourceLocation;
+ import net.minecraft.server.packs.PackType;
+@@ -20,17 +21,19 @@
+         KeyBindingHelper.registerKeyBinding(TrailsClient.PRIMARY);KeyBindingHelper.registerKeyBinding(TrailsClient.CONFIG);
+         EntityRendererRegistry.register(MineTurn.BATTLE_BULLET.get(),BattleBulletRenderer::new);
+         EntityRendererRegistry.register(MineTurn.BATTLE_DEVICE.get(),BattleDeviceRenderer::new);
+-        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new IdentifiableResourceReloadListener(){
+-            private final ActionAnimationData animations=new ActionAnimationData();
+-            public ResourceLocation getFabricId(){return ResourceLocation.fromNamespaceAndPath(MineTurn.MODID,"animations");}
 -            public CompletableFuture<Void> reload(PreparableReloadListener.PreparationBarrier barrier,ResourceManager resources,ProfilerFiller preparation,ProfilerFiller application,Executor background,Executor game){return animations.reload(barrier,resources,preparation,application,background,game);}
-+            public CompletableFuture<Void> reload(PreparableReloadListener.PreparationBarrier barrier,ResourceManager resources,Executor background,Executor game){return animations.reload(barrier,resources,background,game);}
-         });
+-        });
++        net.fabricmc.fabric.api.resource.v1.ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloader(
++                ResourceLocation.fromNamespaceAndPath(MineTurn.MODID,"animations"),new ActionAnimationData());
          ClientTickEvents.END_CLIENT_TICK.register(client->{ProjectileAnimations.tick();TrailsEffects.tick();TrailsPerformances.tick();TrailsClient.tick();BattleClient.tick();});
-         WorldRenderEvents.AFTER_TRANSLUCENT.register(context->render(context,WorldRenderFrame.Stage.AFTER_TRANSLUCENT_BLOCKS));
+-        WorldRenderEvents.AFTER_TRANSLUCENT.register(context->render(context,WorldRenderFrame.Stage.AFTER_TRANSLUCENT_BLOCKS));
+-        WorldRenderEvents.LAST.register(context->render(context,WorldRenderFrame.Stage.AFTER_PARTICLES));
++        WorldRenderEvents.BEFORE_TRANSLUCENT.register(context->render(context,WorldRenderFrame.Stage.AFTER_TRANSLUCENT_BLOCKS));
++        WorldRenderEvents.BEFORE_ENTITIES.register(context->ProjectileAnimations.render(frame(context,WorldRenderFrame.Stage.AFTER_PARTICLES)));
++        WorldRenderEvents.END_MAIN.register(context->render(context,WorldRenderFrame.Stage.AFTER_PARTICLES));
++    }
++    private static WorldRenderFrame frame(WorldRenderContext context,WorldRenderFrame.Stage stage){
++        var mc=net.minecraft.client.Minecraft.getInstance();var camera=context.worldState().cameraRenderState;
++        return new WorldRenderFrame(stage,new com.matuvent.mineturn.compat.PortCamera(camera.pos,new org.joml.Quaternionf(camera.orientation)),new org.joml.Matrix4f().rotation(new org.joml.Quaternionf(camera.orientation).conjugate()),mc.gameRenderer.getProjectionMatrix(mc.options.fov().get().floatValue()),mc.getDeltaTracker(),context.commandQueue(),camera);
+     }
+     private static void render(WorldRenderContext context,WorldRenderFrame.Stage stage){
+-        var frame=new WorldRenderFrame(stage,context.camera(),context.positionMatrix(),context.projectionMatrix(),context.tickCounter());
+-        ProjectileAnimations.render(frame);BattleClient.world(frame);TrailsWarnings.render(frame);TrailsImpacts.render(frame);TrailsEffects.render(frame);TrailsClient.world(frame);
++        var frame=frame(context,stage);
++        BattleClient.world(frame);TrailsWarnings.render(frame);TrailsImpacts.render(frame);TrailsEffects.render(frame);TrailsClient.world(frame);
+     }
+ }
+--- /dev/null
++++ b/com/matuvent/mineturn/client/PortKeys.java
+@@ -0,0 +1,4 @@
++package com.matuvent.mineturn.client;
++public final class PortKeys {
++    public static final net.minecraft.client.KeyMapping.Category CATEGORY=net.minecraft.client.KeyMapping.Category.register(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("mineturn","combat"));
++}
 --- a/com/matuvent/mineturn/client/ProjectileAnimations.java
 +++ b/com/matuvent/mineturn/client/ProjectileAnimations.java
 @@ -30,7 +30,7 @@
@@ -1710,15 +1987,22 @@
          if(item.is(net.minecraft.world.item.Items.WITHER_SKELETON_SKULL))return new net.minecraft.world.entity.projectile.WitherSkull(net.minecraft.world.entity.EntityType.WITHER_SKULL,world);
          if(item.is(net.minecraft.world.item.Items.DRAGON_BREATH))return new net.minecraft.world.entity.projectile.DragonFireball(net.minecraft.world.entity.EntityType.DRAGON_FIREBALL,world);
          if(item.is(net.minecraft.world.item.Items.SHULKER_SHELL))return new net.minecraft.world.entity.projectile.ShulkerBullet(net.minecraft.world.entity.EntityType.SHULKER_BULLET,world);
-@@ -69,7 +69,7 @@
+@@ -69,11 +69,13 @@
                  model.setYRot(yaw);model.yRotO=yaw;model.setXRot(pitch);model.xRotO=pitch;
                  // Native renderers own geometry, texture, glint, scale and orientation.
                  pose.translate(at.x-camera.x,at.y-camera.y,at.z-camera.z);
 -                mc.getEntityRenderDispatcher().getRenderer(model).render(model,yaw,1,pose,buffers,net.minecraft.client.renderer.LightTexture.FULL_BRIGHT);
-+                com.matuvent.mineturn.compat.PortRender.projectile(model,pose,buffers);
++                com.matuvent.mineturn.compat.PortRender.projectile(model,pose,buffers,event);
              }else{
                  pose.translate(at.x-camera.x,at.y-camera.y,at.z-camera.z);
                  pose.mulPose(com.mojang.math.Axis.YP.rotation((float)Math.atan2(-direction.x,direction.z)));pose.scale(.65f,.65f,.65f);
+-                mc.getItemRenderer().renderStatic(p.item(),net.minecraft.world.item.ItemDisplayContext.FIXED,net.minecraft.client.renderer.LightTexture.FULL_BRIGHT,net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY,pose,buffers,world,0);
++                var itemState=new net.minecraft.client.renderer.item.ItemStackRenderState();
++                mc.getItemModelResolver().updateForTopItem(itemState,p.item(),net.minecraft.world.item.ItemDisplayContext.FIXED,world,null,0);
++                itemState.submit(pose,event.collector(),net.minecraft.client.renderer.LightTexture.FULL_BRIGHT,net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY,0);
+             }
+         }
+         if(!FLIGHTS.isEmpty())buffers.endBatch();
 --- a/com/matuvent/mineturn/client/TrailsBestiarySmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsBestiarySmoke.java
 @@ -37,7 +37,7 @@
@@ -1752,19 +2036,34 @@
          if (mc.player != null) point = clear(point, focus, mc.player);
 --- a/com/matuvent/mineturn/client/TrailsClient.java
 +++ b/com/matuvent/mineturn/client/TrailsClient.java
+@@ -13,10 +13,10 @@
+ import org.lwjgl.glfw.GLFW;
+ 
+ public final class TrailsClient {
+-    public static final KeyMapping SWITCH = new KeyMapping("key.mineturn.trails_switch", GLFW.GLFW_KEY_R, "key.categories.mineturn");
+-    public static final KeyMapping BURST = new KeyMapping("key.mineturn.trails_burst", GLFW.GLFW_KEY_V, "key.categories.mineturn");
+-    public static final KeyMapping PRIMARY = new KeyMapping("key.mineturn.trails_primary", GLFW.GLFW_KEY_B, "key.categories.mineturn");
+-    public static final KeyMapping CONFIG = new KeyMapping("key.mineturn.trails_config", GLFW.GLFW_KEY_O, "key.categories.mineturn");
++    public static final KeyMapping SWITCH = new KeyMapping("key.mineturn.trails_switch", GLFW.GLFW_KEY_R, com.matuvent.mineturn.client.PortKeys.CATEGORY);
++    public static final KeyMapping BURST = new KeyMapping("key.mineturn.trails_burst", GLFW.GLFW_KEY_V, com.matuvent.mineturn.client.PortKeys.CATEGORY);
++    public static final KeyMapping PRIMARY = new KeyMapping("key.mineturn.trails_primary", GLFW.GLFW_KEY_B, com.matuvent.mineturn.client.PortKeys.CATEGORY);
++    public static final KeyMapping CONFIG = new KeyMapping("key.mineturn.trails_config", GLFW.GLFW_KEY_O, com.matuvent.mineturn.client.PortKeys.CATEGORY);
+     public static TrailsNetwork.Settings settings = new TrailsNetwork.Settings(20, 6, 4,.1,1.5, false, "");
+     private static net.minecraft.world.phys.Vec3 previousFocus = net.minecraft.world.phys.Vec3.ZERO;
+     private static List<TrailsNetwork.Fighter> introAllies = List.of(), introEnemies = List.of();
 @@ -145,13 +145,13 @@
          var buffers = mc.renderBuffers().bufferSource(); var lines = buffers.getBuffer(RenderType.lines());
          if (preview) for (int i = 0; i < 144; i++) {
              double a = i * Math.PI * 2 / 144, x = center.x + Math.cos(a) * radius, z = center.z + Math.sin(a) * radius;
 -            LevelRenderer.renderLineBox(pose, lines, new AABB(x - .045, center.y + .08, z - .045, x + .045, center.y + .15, z + .045), 1, .12f, .26f, 1);
-+            net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose, lines, new AABB(x - .045, center.y + .08, z - .045, x + .045, center.y + .15, z + .045), 1, .12f, .26f, 1);
++            net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), lines, new AABB(x - .045, center.y + .08, z - .045, x + .045, center.y + .15, z + .045), 1, .12f, .26f, 1);
          }
          if (active() && mc.screen instanceof TrailsScreen screen) {
              if (view.controllable()) for (int i = 0; i < 128; i++) {
                  var origin = view.origin(); double a = i * Math.PI / 64;
                  double x = origin.x + view.movement() * Math.cos(a), z = origin.z + view.movement() * Math.sin(a);
 -                LevelRenderer.renderLineBox(pose, lines, new AABB(x - .025, origin.y + .06, z - .025, x + .025, origin.y + .10, z + .025), .2f, 1, .65f, .85f);
-+                net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose, lines, new AABB(x - .025, origin.y + .06, z - .025, x + .025, origin.y + .10, z + .025), .2f, 1, .65f, .85f);
++                net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), lines, new AABB(x - .025, origin.y + .06, z - .025, x + .025, origin.y + .10, z + .025), .2f, 1, .65f, .85f);
              }
              var shape = screen.previewShape();
              var actor = mc.level.getEntity(screen.preparing().equals("burst") ? mc.player.getId() : view.actor());
@@ -1773,7 +2072,7 @@
                      boolean side = friendlySkill ? !fighter.enemy() : fighter.enemy();
                      if (side && (shape.kind() == com.matuvent.mineturn.battle.TrailsArea.Kind.SINGLE ? fighter.id() == screen.selectedTarget() : shape.contains(actor.position(), aim, entity.position())))
 -                        LevelRenderer.renderLineBox(pose, lines, entity.getBoundingBox().inflate(.06), 1, .75f, .2f, 1);
-+                        net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose, lines, entity.getBoundingBox().inflate(.06), 1, .75f, .2f, 1);
++                        net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), lines, entity.getBoundingBox().inflate(.06), 1, .75f, .2f, 1);
                  }
              }
          }
@@ -1840,11 +2139,13 @@
      }
 --- a/com/matuvent/mineturn/client/TrailsCompanionSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsCompanionSmoke.java
-@@ -20,18 +20,18 @@
+@@ -19,19 +19,19 @@
+     private static void check(boolean condition,String text){if(!condition)throw new IllegalStateException("COMPANION_QA_CLIENT: "+text);}
      private static void next(int value){stage=value;age=0;MineTurn.LOGGER.info("COMPANION_QA_CLIENT_PHASE {}",value);}
      private static Pig pig(Minecraft mc){return mc.level.getEntitiesOfClass(Pig.class,mc.player.getBoundingBox().inflate(18)).stream().findFirst().orElse(null);}
-     private static void key(Minecraft mc,int action){mc.keyboardHandler.keyPress(mc.getWindow().getWindow(),GLFW.GLFW_KEY_R,0,action,0);}
+-    private static void key(Minecraft mc,int action){mc.keyboardHandler.keyPress(mc.getWindow().getWindow(),GLFW.GLFW_KEY_R,0,action,0);}
 -    private static void shot(String name){var mc=Minecraft.getInstance();Screenshot.grab(mc.gameDirectory,"companion-"+name+".png",mc.getMainRenderTarget(),message->{});}
++    private static void key(Minecraft mc,int action){((com.matuvent.mineturn.mixin.PortKeyboardAccess)mc.keyboardHandler).mineturn$keyPress(mc.getWindow().handle(),action,new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_R,0,0));}
 +    private static void shot(String name){var mc=Minecraft.getInstance();Screenshot.grab(mc.gameDirectory,"companion-"+name+".png",mc.getMainRenderTarget(),1,message->{});}
      static void tick(){
          if(com.matuvent.mineturn.platform.RuntimePlatform.production())return;
@@ -1876,7 +2177,24 @@
                  else{mc.getSingleplayerServer().execute(()->TrailsCompanionScenario.battle(mc.getSingleplayerServer()));next(7);}}}
 --- a/com/matuvent/mineturn/client/TrailsCriticalSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsCriticalSmoke.java
-@@ -48,6 +48,6 @@
+@@ -24,7 +24,7 @@
+         }return;}
+         if(mode==5){settings();return;}
+         if(ticks==10){BattleClient.yaw=0;BattleClient.pitch=25;BattleClient.distance=12;}
+-        if(ticks==15){if(!(mc.screen instanceof TrailsScreen))throw new IllegalStateException("Damage QA battle UI missing");mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER,0,0);mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER,0,0);}
++        if(ticks==15){if(!(mc.screen instanceof TrailsScreen))throw new IllegalStateException("Damage QA battle UI missing");mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));}
+         if(TrailsImpacts.received>received && impactTick==0){
+             impactTick=ticks;var p=TrailsImpacts.lastReceived;
+             if(p==null || p.critical()!=(mode==1 || mode==4) || mode==3 && p.amount()!=0 || mode!=3 && p.amount()<=0 || mode==2 && p.amount()<12)throw new IllegalStateException("Authoritative critical/amount failed mode="+mode+" packet="+p);
+@@ -41,13 +41,13 @@
+         if(ticks==8){
+             var boxes=mc.screen.children().stream().filter(c->c instanceof net.minecraft.client.gui.components.EditBox).map(c->(net.minecraft.client.gui.components.EditBox)c).toList();
+             if(boxes.size()!=5)throw new IllegalStateException("Critical setting fields missing");boxes.get(3).setValue("25");boxes.get(4).setValue("2");
+-            mc.screen.children().stream().filter(c->c instanceof net.minecraft.client.gui.components.Button b && b.getMessage().getString().equals("保存并应用")).map(c->(net.minecraft.client.gui.components.Button)c).findFirst().orElseThrow().onPress();
++            mc.screen.children().stream().filter(c->c instanceof net.minecraft.client.gui.components.Button b && b.getMessage().getString().equals("保存并应用")).map(c->(net.minecraft.client.gui.components.Button)c).findFirst().orElseThrow().onPress(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER,0,0));
+         }
+         if(ticks==24){
+             if(TrailsClient.settings.criticalChance()!=.25 || TrailsClient.settings.criticalMultiplier()!=2)throw new IllegalStateException("Critical GUI settings did not save/synchronize");
              shot("critical-settings");mc.screen.onClose();server(TrailsSmokeScenario::stop);mode=6;ticks=0;
          }
      }
@@ -1884,6 +2202,17 @@
 +    private static void shot(String name){var mc=Minecraft.getInstance();Screenshot.grab(mc.gameDirectory,"critical-"+name+"-"+System.getProperty("mineturn.qaTag")+".png",mc.getMainRenderTarget(),1,message->{});}
      private TrailsCriticalSmoke(){}
  }
+--- a/com/matuvent/mineturn/client/TrailsEffects.java
++++ b/com/matuvent/mineturn/client/TrailsEffects.java
+@@ -51,7 +51,7 @@
+                     case "mace"->i==0?ParticleTypes.CLOUD:ParticleTypes.ELECTRIC_SPARK;
+                     case "breeze"->f.emitted%8==0?ParticleTypes.GUST:ParticleTypes.CLOUD;
+                     case "support"->ParticleTypes.HAPPY_VILLAGER;
+-                    case "dragon"->ParticleTypes.DRAGON_BREATH;
++                    case "dragon"->net.minecraft.core.particles.PowerParticleOption.create(ParticleTypes.DRAGON_BREATH,1);
+                     case "wither","vex","phantom"->ParticleTypes.SOUL;
+                     case "spell","fangs"->ParticleTypes.WITCH;
+                     case "sonic","guardian"->ParticleTypes.ELECTRIC_SPARK;
 --- a/com/matuvent/mineturn/client/TrailsImpacts.java
 +++ b/com/matuvent/mineturn/client/TrailsImpacts.java
 @@ -62,8 +62,8 @@
@@ -1899,11 +2228,13 @@
      }
 --- a/com/matuvent/mineturn/client/TrailsMultiplayerSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsMultiplayerSmoke.java
-@@ -16,11 +16,11 @@
+@@ -15,12 +15,12 @@
+     private static void check(boolean ok,String text){if(!ok)throw new IllegalStateException("MULTI_QA_CLIENT "+text);}
      private static boolean host(){return System.getProperty("mineturn.multiplayerSmoke","").equals("host");}
      private static int other(){return TrailsClient.fighters.stream().filter(f->Minecraft.getInstance().level.getEntity(f.id()) instanceof net.minecraft.world.entity.player.Player && f.id()!=Minecraft.getInstance().player.getId()).findFirst().orElseThrow().id();}
-     private static void button(String text){var mc=Minecraft.getInstance();mc.screen.children().stream().filter(w->w instanceof Button b && b.getMessage().getString().equals(text)).map(w->(Button)w).findFirst().orElseThrow().onPress();}
+-    private static void button(String text){var mc=Minecraft.getInstance();mc.screen.children().stream().filter(w->w instanceof Button b && b.getMessage().getString().equals(text)).map(w->(Button)w).findFirst().orElseThrow().onPress();}
 -    private static void shot(){var mc=Minecraft.getInstance();Screenshot.grab(mc.gameDirectory,"multi-"+phase+".png",mc.getMainRenderTarget(),message->{});}
++    private static void button(String text){var mc=Minecraft.getInstance();mc.screen.children().stream().filter(w->w instanceof Button b && b.getMessage().getString().equals(text)).map(w->(Button)w).findFirst().orElseThrow().onPress(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER,0,0));}
 +    private static void shot(){var mc=Minecraft.getInstance();Screenshot.grab(mc.gameDirectory,"multi-"+phase+".png",mc.getMainRenderTarget(),1,message->{});}
      static void tick(){
          if(com.matuvent.mineturn.platform.RuntimePlatform.production())return;
@@ -1913,6 +2244,31 @@
          if(TrailsPerformances.bursting()){sawBurst=true;if(age==12)shot();}
          switch(phase){
              case "pvp_enter","coop_enter","reenter"->{if(age==4)mc.setScreen(null);if(age==8 && host())TrailsClient.send("toggle",-1,0,0,0);}
+@@ -39,8 +39,8 @@
+             case "coop_pig"->{
+                 if(age==25){check(TrailsClient.active() && TrailsClient.view.alliedTurn() && TrailsClient.view.controllable()!=host() && TrailsClient.view.controller().equals("AT_B"),"co-op shares faction but stole controls");shot();
+                     if(host()){TrailsClient.send("end",-1,0,0,0);com.matuvent.mineturn.network.BattleNetwork.sendToServer(new TrailsNetwork.MoveInput(TrailsClient.view.battle(),TrailsClient.view.turn(),10000,1,0));}
+-                    else mc.screen.keyPressed(GLFW.GLFW_KEY_W,0,0);
+-                }if(age==33 && !host())mc.screen.keyReleased(GLFW.GLFW_KEY_W,0,0);if(age==70)shot();
++                    else mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_W,0,0));
++                }if(age==33 && !host())mc.screen.keyReleased(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_W,0,0));if(age==70)shot();
+             }
+             case "coop_wolf"->{if(age==25){check(TrailsClient.view.controllable()==host() && TrailsClient.view.alliedTurn(),"other owner's wolf control");shot();}}
+             case "withdraw"->{if(age==12 && !host())TrailsClient.send("toggle",-1,0,0,0);}
+--- a/com/matuvent/mineturn/client/TrailsPartyScreen.java
++++ b/com/matuvent/mineturn/client/TrailsPartyScreen.java
+@@ -17,9 +17,9 @@
+         button("创建",width/2+48,57,80,()->send("create",name.getValue())).active=state.team().isEmpty();
+         button("接受邀请",width/2-130,83,126,()->send("accept","")).active=!state.inviter().isEmpty();
+         button("离开队伍",width/2+2,83,126,()->send("leave","")).active=!state.team().isEmpty();
+-        var players=minecraft.getConnection().getOnlinePlayers().stream().filter(p->!p.getProfile().getId().equals(minecraft.player.getUUID())).sorted(java.util.Comparator.comparing(p->p.getProfile().getName())).toList();
++        var players=minecraft.getConnection().getOnlinePlayers().stream().filter(p->!p.getProfile().id().equals(minecraft.player.getUUID())).sorted(java.util.Comparator.comparing(p->p.getProfile().name())).toList();
+         int rows=Math.max(1,(height-180)/23),pages=Math.max(1,(players.size()+rows-1)/rows);page=Math.clamp(page,0,pages-1);
+-        for(int i=page*rows;i<Math.min(players.size(),(page+1)*rows);i++){var p=players.get(i);button("邀请 "+p.getProfile().getName(),width/2-130,112+(i-page*rows)*23,258,()->send("invite",p.getProfile().getId().toString()));}
++        for(int i=page*rows;i<Math.min(players.size(),(page+1)*rows);i++){var p=players.get(i);button("邀请 "+p.getProfile().name(),width/2-130,112+(i-page*rows)*23,258,()->send("invite",p.getProfile().id().toString()));}
+         if(pages>1)button("在线玩家 "+(page+1)+"/"+pages+" ›",width/2-130,height-61,126,()->{page=(page+1)%pages;rebuildWidgets();});
+         button("返回",width/2+2,height-61,126,this::onClose);
+     }
 --- a/com/matuvent/mineturn/client/TrailsPerformances.java
 +++ b/com/matuvent/mineturn/client/TrailsPerformances.java
 @@ -1,5 +1,7 @@
@@ -2000,9 +2356,12 @@
          command("select"); rebuild();
      }
      private void movement(boolean forceStop) {
-@@ -200,7 +200,7 @@
+@@ -198,9 +198,9 @@
+             var q = queue.get(i); int x = 8 + i * 29;
+             var f = TrailsClient.fighters.stream().filter(v -> v.id() == q.id()).findFirst();
              TrailsPortraits.draw(g, q.id(), x, 21, 19, f.map(TrailsNetwork.Fighter::enemy).orElse(false));
-             if(f.isPresent() && f.get().threat()!=null){g.renderOutline(x-1,20,21,21,f.get().threat().golden()?0xffffd23c:0xffff3458);g.drawString(font,f.get().threat().golden()?"S":"!",x+13,19,f.get().threat().golden()?0xffffd23c:0xffff3458);}
+-            if(f.isPresent() && f.get().threat()!=null){g.renderOutline(x-1,20,21,21,f.get().threat().golden()?0xffffd23c:0xffff3458);g.drawString(font,f.get().threat().golden()?"S":"!",x+13,19,f.get().threat().golden()?0xffffd23c:0xffff3458);}
++            if(f.isPresent() && f.get().threat()!=null){g.submitOutline(x-1,20,21,21,f.get().threat().golden()?0xffffd23c:0xffff3458);g.drawString(font,f.get().threat().golden()?"S":"!",x+13,19,f.get().threat().golden()?0xffffd23c:0xffff3458);}
              g.drawCenteredString(font, i == 0 ? "NOW" : String.format(Locale.ROOT, "%.0f", q.inAv()), x + 9, 43, i == 0 ? 0xffffd486 : 0xffe4e7f0);
 -            if (mouseX >= x && mouseX < x + 20 && mouseY >= 21 && mouseY < 41 && f.isPresent()) g.renderTooltip(font, Component.literal(f.get().name()), mouseX, mouseY);
 +            if (mouseX >= x && mouseX < x + 20 && mouseY >= 21 && mouseY < 41 && f.isPresent()) g.setTooltipForNextFrame(font, Component.literal(f.get().name()), mouseX, mouseY);
@@ -2018,27 +2377,86 @@
                  g.renderItem(minecraft.player.getInventory().getItem(i), x, y);
                  g.drawString(font, Integer.toString(i + 1), x + 10, y + 9, 0xffeeeeee);
              }
-@@ -257,7 +257,7 @@
+@@ -255,9 +255,9 @@
+             TrailsPortraits.draw(g, f.id(), x + 3, y + 3, 21, enemy);
+             if(f.threat()!=null){
                  int color=f.threat().golden()?0xffffd23c:0xffff3458;
-                 g.renderOutline(x,y,column,42,color);
+-                g.renderOutline(x,y,column,42,color);
++                g.submitOutline(x,y,column,42,color);
                  g.drawString(font,"!",x+column-10,y+3,color);
 -                if(mouseX>=x && mouseX<x+column && mouseY>=y && mouseY<y+42)g.renderTooltip(font,Component.literal((f.threat().golden()?"S 技金色蓄力：":"危险蓄力：")+f.threat().name()+" · 下次自身回合发动，危险范围已锁定"),mouseX,mouseY);
 +                if(mouseX>=x && mouseX<x+column && mouseY>=y && mouseY<y+42)g.setTooltipForNextFrame(font,Component.literal((f.threat().golden()?"S 技金色蓄力：":"危险蓄力：")+f.threat().name()+" · 下次自身回合发动，危险范围已锁定"),mouseX,mouseY);
              }
              g.drawString(font, font.plainSubstrByWidth((f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name(), column - 30), x + 28, y + 3, -1);
              TrailsPortraits.effects(g, f, x + 28, y + 15, Math.max(1, (column - 45) / 15), mouseX, mouseY);
-@@ -266,8 +266,8 @@
+@@ -266,17 +266,17 @@
                      f.id()==target?0xffb57d28:enemy?0xffa72545:0xff157a61);
              String hp=TrailsImpacts.format(f.hp())+" / "+TrailsImpacts.format(f.maxHp());
              float scale=Math.min(1,(column-10f)/Math.max(1,font.width(hp)));
 -            g.pose().pushPose();g.pose().translate(x+column/2f,y+31,0);g.pose().scale(scale,scale,1);
 -            g.drawCenteredString(font,hp,0,0,0xffffffff);g.pose().popPose();renderedHealthNumbers++;
+-        }
+-    }
+-    @Override public boolean keyPressed(int key, int scan, int modifiers) {
 +            g.pose().pushMatrix();g.pose().translate((float)(x+column/2f),(float)(y+31));g.pose().scale((float)(scale),(float)(scale));
 +            g.drawCenteredString(font,hp,0,0,0xffffffff);g.pose().popMatrix();renderedHealthNumbers++;
++        }
++    }
++    @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event){int key=event.key(), scan=event.scancode(), modifiers=event.modifiers();
+         if (movementKey(key)) { movementKeys.add(key); return true; }
+-        if (TrailsClient.SWITCH.matches(key, scan)) { TrailsClient.exitSwitchPressed(); return true; }
+-        if (TrailsClient.CONFIG.matches(key, scan)) { minecraft.setScreen(new TrailsConfigScreen(this)); return true; }
+-        if (TrailsClient.BURST.matches(key, scan)) { prepare("burst"); return true; }
+-        if (TrailsClient.PRIMARY.matches(key, scan)) { if (playerTurn()) command("primary"); return true; }
+-        if (minecraft.options.keyInventory.matches(key, scan) && playerTurn()) {
++        if (TrailsClient.SWITCH.matches(new net.minecraft.client.input.KeyEvent(key,scan,0))) { TrailsClient.exitSwitchPressed(); return true; }
++        if (TrailsClient.CONFIG.matches(new net.minecraft.client.input.KeyEvent(key,scan,0))) { minecraft.setScreen(new TrailsConfigScreen(this)); return true; }
++        if (TrailsClient.BURST.matches(new net.minecraft.client.input.KeyEvent(key,scan,0))) { prepare("burst"); return true; }
++        if (TrailsClient.PRIMARY.matches(new net.minecraft.client.input.KeyEvent(key,scan,0))) { if (playerTurn()) command("primary"); return true; }
++        if (minecraft.options.keyInventory.matches(new net.minecraft.client.input.KeyEvent(key,scan,0)) && playerTurn()) {
+             minecraft.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(minecraft.player)); return true;
          }
+         if (key == GLFW.GLFW_KEY_I && TrailsClient.view.alliedTurn() && TrailsClient.view.actor() == minecraft.player.getId()) {
+@@ -289,33 +289,33 @@
+         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_SPACE) { if (preparing.isEmpty()) prepare("attack"); else confirm(); return true; }
+         if (key == GLFW.GLFW_KEY_F) { prepare(playerTurn() ? "weapon_skill" : "skill"); return true; }
+         if (key == GLFW.GLFW_KEY_ESCAPE) { preparing = ""; items = false; rebuild(); return true; }
+-        return super.keyPressed(key, scan, modifiers);
+-    }
+-    @Override public boolean keyReleased(int key, int scan, int modifiers) {
++        return super.keyPressed(new net.minecraft.client.input.KeyEvent(key,scan,modifiers));
++    }
++    @Override public boolean keyReleased(net.minecraft.client.input.KeyEvent event){int key=event.key(), scan=event.scancode(), modifiers=event.modifiers();
+         if (movementKey(key)) { movementKeys.remove(key); movement(false); return true; }
+-        return super.keyReleased(key, scan, modifiers);
+-    }
+-    @Override public boolean mouseClicked(double x, double y, int button) {
++        return super.keyReleased(new net.minecraft.client.input.KeyEvent(key,scan,modifiers));
++    }
++    @Override public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event,boolean doubleClick){double x=event.x(), y=event.y();int button=event.button();
+         if (button == 1) { orbit = true; return true; }
+         int start = (width - 180) / 2;
+         if (button == 0 && !items && y >= height - 110 && y <= height - 91 && x >= start && x < start + 180) {
+             selectSlot((int) ((x - start) / 20)); return true;
+         }
+-        return super.mouseClicked(x, y, button);
+-    }
+-    @Override public boolean mouseReleased(double x, double y, int button) {
++        return super.mouseClicked(new net.minecraft.client.input.MouseButtonEvent(x,y,new net.minecraft.client.input.MouseButtonInfo(button,0)),false);
++    }
++    @Override public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event){double x=event.x(), y=event.y();int button=event.button();
+         if (button == 1) { orbit = false; return true; }
+-        return super.mouseReleased(x, y, button);
+-    }
+-    @Override public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
++        return super.mouseReleased(new net.minecraft.client.input.MouseButtonEvent(x,y,new net.minecraft.client.input.MouseButtonInfo(button,0)));
++    }
++    @Override public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event,double dx,double dy){double x=event.x(), y=event.y();int button=event.button();
+         if (TrailsClient.view.busy() && TrailsPresentationOptions.camera) return true;
+         if (orbit) { BattleClient.yaw += (float) dx * .4f; BattleClient.pitch = Math.clamp(BattleClient.pitch + (float) dy * .3f, 10, 80); return true; }
+-        return super.mouseDragged(x, y, button, dx, dy);
++        return super.mouseDragged(new net.minecraft.client.input.MouseButtonEvent(x,y,new net.minecraft.client.input.MouseButtonInfo(button,0)),dx,dy);
      }
-     @Override public boolean keyPressed(int key, int scan, int modifiers) {
-@@ -315,7 +315,7 @@
      @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
          if (orbit) BattleClient.distance = Math.clamp(BattleClient.distance - vertical, 3, 30);
          else if (previewShape() != null && previewShape().kind() == TrailsArea.Kind.DISK && previewShape().cast() > 0) aimDistance = Math.clamp(aimDistance + vertical * .5, 0, previewShape().cast());
@@ -2049,8 +2467,11 @@
  }
 --- a/com/matuvent/mineturn/client/TrailsSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsSmoke.java
-@@ -70,7 +70,7 @@
+@@ -68,16 +68,17 @@
+         if (stage == 1 && mc.screen != null) return;
+         elapsed++;
          if (stage == 1) {
++            if (elapsed == 1) mc.player.getInventory().setSelectedSlot(0);
              TrailsClient.preview = true;
              if (elapsed == 16) screenshot("at-qa-01-circle.png");
 -            if (elapsed > 24) { mc.getToasts().clear(); TrailsClient.preview = false; TrailsClient.send("toggle", -1, 0, 0, 0); stage = 2; elapsed = 0; }
@@ -2058,7 +2479,102 @@
          } else if (stage == 2 && TrailsClient.active()) {
              if (elapsed == 16) screenshot("at-qa-02-cut-in.png");
              if (elapsed > 42) {
-@@ -175,7 +175,7 @@
+                 if (mc.options.getCameraType() != CameraType.THIRD_PERSON_BACK || !(mc.screen instanceof TrailsScreen))
+                     throw new IllegalStateException("Battle camera/screen did not activate");
+                 screenshot("at-qa-03-battle.png");
+-                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0); stage = 12; elapsed = 0;
++                mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER,0,0)); stage = 12; elapsed = 0;
+             }
+         } else if (stage == 12 && elapsed > 14) {
+                 if (!(mc.screen instanceof TrailsScreen screen) || screen.previewShape() == null
+@@ -85,32 +86,32 @@
+                     throw new IllegalStateException("Sword preview committed an action or failed to show a sector");
+                 screenshot("at-qa-09-sector.png");
+                 moveStart = mc.player.position();
+-                mc.screen.mouseClicked(100, 100, 1);
+-                mc.screen.mouseDragged(140, 100, 1, 40, 0);
+-                mc.screen.mouseReleased(140, 100, 1);
++                mc.screen.mouseClicked(new net.minecraft.client.input.MouseButtonEvent(100,100,new net.minecraft.client.input.MouseButtonInfo(1,0)),false);
++                mc.screen.mouseDragged(new net.minecraft.client.input.MouseButtonEvent(140,100,new net.minecraft.client.input.MouseButtonInfo(1,0)),40,0);
++                mc.screen.mouseReleased(new net.minecraft.client.input.MouseButtonEvent(140,100,new net.minecraft.client.input.MouseButtonInfo(1,0)));
+                 double yaw = Math.toRadians(BattleClient.yaw);
+                 moveDirection = new net.minecraft.world.phys.Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+-                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_W, 0, 0); stage = 7; elapsed = 0;
++                mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_W,0,0)); stage = 7; elapsed = 0;
+         } else if (stage == 7 && elapsed > 38) {
+             MineTurn.LOGGER.info("QA_MOTION: frames={} stationary={} largestStep={}", motionFrames, stillFrames, largestFrameStep);
+             if (motionFrames < 10 || stillFrames > motionFrames * .4) throw new IllegalStateException("Walking camera still advances in visible tick-sized steps");
+-            mc.screen.keyReleased(org.lwjgl.glfw.GLFW.GLFW_KEY_W, 0, 0);
++            mc.screen.keyReleased(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_W,0,0));
+             var delta = mc.player.position().subtract(moveStart).multiply(1, 0, 1);
+             if (delta.length() < 3.5 || delta.length() > TrailsClient.view.movement() + .05 || delta.normalize().dot(moveDirection) < .98)
+                 throw new IllegalStateException("Camera-relative W or circle boundary failed: " + delta);
+             screenshot("at-qa-07-movement.png"); stage = 8; elapsed = 0;
+         } else if (stage == 8) {
+-            if (elapsed == 8) { stoppedAt = mc.player.position(); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE, 0, 0); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_3, 0, 0); }
++            if (elapsed == 8) { stoppedAt = mc.player.position(); mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE,0,0)); mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_3,0,0)); }
+             if (elapsed > 20) {
+                 if (mc.player.position().distanceTo(stoppedAt) > .02 || !TrailsClient.view.primary().equals("minecraft:crossbow"))
+                     throw new IllegalStateException("Key release / live primary weapon selection failed");
+-                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0); stage = 13; elapsed = 0;
++                mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER,0,0)); stage = 13; elapsed = 0;
+             }
+         } else if (stage == 13 && elapsed > 12) {
+             if (!(mc.screen instanceof TrailsScreen screen) || screen.previewShape().kind() != com.matuvent.mineturn.battle.TrailsArea.Kind.RECTANGLE || TrailsClient.view.cp() != 150)
+                 throw new IllegalStateException("Crossbow did not preview a rectangular strip before firing");
+             screenshot("at-qa-10-rectangle.png");
+-            mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE, 0, 0); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_O, 0, 0); stage = 14; elapsed = 0;
++            mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE,0,0)); mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_O,0,0)); stage = 14; elapsed = 0;
+         } else if (stage == 14) {
+             if (elapsed == 10) {
+                 if (!(mc.screen instanceof TrailsConfigScreen)) throw new IllegalStateException("Config screen did not open");
+@@ -118,14 +119,14 @@
+                         .map(c -> (net.minecraft.client.gui.components.EditBox)c).toList();
+                 boxes.get(0).setValue("14"); boxes.get(1).setValue("7"); boxes.get(2).setValue("4");
+                 mc.screen.children().stream().filter(c -> c instanceof net.minecraft.client.gui.components.Button b && b.getMessage().getString().equals("保存并应用"))
+-                        .map(c -> (net.minecraft.client.gui.components.Button)c).findFirst().orElseThrow().onPress();
++                        .map(c -> (net.minecraft.client.gui.components.Button)c).findFirst().orElseThrow().onPress(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER,0,0));
+             }
+             if (elapsed > 25) {
+                 if (TrailsClient.settings.encounter() != 14 || TrailsClient.radius != 14) throw new IllegalStateException("Server did not save/synchronize settings");
+                 screenshot("at-qa-11-settings.png"); mc.screen.onClose(); stage = 15; elapsed = 0;
+             }
+         } else if (stage == 15 && elapsed > 8) {
+-            mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_E, 0, 0); stage = 9; elapsed = 0;
++            mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_E,0,0)); stage = 9; elapsed = 0;
+         } else if (stage == 9) {
+             if (elapsed == 8) {
+                 if (!(mc.screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen)) throw new IllegalStateException("E did not open vanilla inventory");
+@@ -139,15 +140,15 @@
+             }
+         } else if (stage == 10 && elapsed > 10) {
+             if (!(mc.screen instanceof TrailsScreen)) throw new IllegalStateException("Battle screen did not resume after inventory");
+-            stoppedAt = mc.player.position(); mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_S, 0, 0); stage = 11; elapsed = 0;
++            stoppedAt = mc.player.position(); mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_S,0,0)); stage = 11; elapsed = 0;
+         } else if (stage == 11 && elapsed > 10) {
+-            mc.screen.keyReleased(org.lwjgl.glfw.GLFW.GLFW_KEY_S, 0, 0);
++            mc.screen.keyReleased(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_S,0,0));
+             if (mc.player.position().distanceTo(stoppedAt) < .6) throw new IllegalStateException("Movement did not resume after inventory / sequence reset");
+-            mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_I, 0, 0); stage = 3; elapsed = 0;
++            mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_I,0,0)); stage = 3; elapsed = 0;
+         } else if (stage == 3) {
+             if (elapsed == 8) screenshot("at-qa-04-items.png");
+             if (elapsed > 20) {
+-                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE, 0, 0);
++                mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE,0,0));
+                 int target = TrailsClient.fighters.stream().filter(f -> f.enemy()).findFirst().orElseThrow().id();
+                 TrailsClient.send("burst", target, 0, 0, 0); stage = 4; elapsed = 0;
+             }
+@@ -156,7 +157,7 @@
+             if (elapsed > 45) {
+                 if (!TrailsClient.active() || TrailsClient.view.cp() != 50 || !TrailsClient.view.alliedTurn())
+                     throw new IllegalStateException("S-Break did not update CP / preserve allied control");
+-                mc.screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_O, 0, 0);
++                mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_O,0,0));
+                 TrailsClient.send("toggle", -1, 0, 0, 0); stage = 5; elapsed = 0;
+             }
+         } else if (stage == 5 && elapsed > 15) {
+@@ -175,7 +176,7 @@
      private static void screenshot(String file) {
          var mc = Minecraft.getInstance();
          String versioned = file.replace(".png", "-" + System.getProperty("mineturn.qaTag", "v1") + ".png");
@@ -2067,7 +2583,7 @@
      }
      private static void setup(MinecraftServer server) {
          var level = server.overworld();
-@@ -192,21 +192,21 @@
+@@ -192,21 +193,21 @@
          inv.setItem(4, new ItemStack(Items.ARROW, 32)); inv.setItem(5, new ItemStack(Items.WIND_CHARGE, 16));
          inv.setItem(6, new ItemStack(Items.BREAD, 8));
          var potion = new ItemStack(Items.POTION); potion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SWIFTNESS));
@@ -2109,11 +2625,11 @@
 -            if(!gold(entity))return;
 +    private static final class GoldLayer<S extends net.minecraft.client.renderer.entity.state.LivingEntityRenderState,M extends EntityModel<? super S>> extends RenderLayer<S,M> {
 +        GoldLayer(RenderLayerParent<S,M> parent){super(parent);}
-+        @Override public void render(PoseStack poses,MultiBufferSource buffers,int light,S state,float yaw,float pitch){
++        @Override public void submit(PoseStack poses,net.minecraft.client.renderer.SubmitNodeCollector collector,int light,S state,float yaw,float pitch){
 +            var entity=com.matuvent.mineturn.compat.EntityState.living(state);if(entity==null || !gold(entity))return;
              poses.pushPose();poses.scale(1.015f,1.015f,1.015f);
 -            getParentModel().renderToBuffer(poses,buffers.getBuffer(glow(age)),LightTexture.FULL_BRIGHT,OverlayTexture.NO_OVERLAY,color(age));
-+            getParentModel().renderToBuffer(poses,buffers.getBuffer(glow(state.ageInTicks)),LightTexture.FULL_BRIGHT,OverlayTexture.NO_OVERLAY,color(state.ageInTicks));
++            collector.order(1).submitModel(getParentModel(),state,poses,glow(state.ageInTicks),LightTexture.FULL_BRIGHT,OverlayTexture.NO_OVERLAY,color(state.ageInTicks),null,0,null);
              poses.popPose();goldenModels++;
          }
      }
@@ -2122,7 +2638,7 @@
              for(int i=0;i<40;i++){
                  double angle=i*Math.PI/20+time;var p=entity.position().add(Math.cos(angle)*radius,.15+((i%5)/5.+time*.45)%1*Math.min(5,entity.getBbHeight()),Math.sin(angle)*radius);
 -                LevelRenderer.renderLineBox(poses,out,new AABB(p.x-.035,p.y-.12,p.z-.035,p.x+.035,p.y+.12,p.z+.035),1,green,.12f,.9f);
-+                net.minecraft.client.renderer.ShapeRenderer.renderLineBox(poses,out,new AABB(p.x-.035,p.y-.12,p.z-.035,p.x+.035,p.y+.12,p.z+.035),1,green,.12f,.9f);
++                net.minecraft.client.renderer.ShapeRenderer.renderLineBox(poses.last(),out,new AABB(p.x-.035,p.y-.12,p.z-.035,p.x+.035,p.y+.12,p.z+.035),1,green,.12f,.9f);
              }
              dangerFrames++;
          }
@@ -2130,21 +2646,86 @@
      }
      private static void mark(PoseStack poses,com.mojang.blaze3d.vertex.VertexConsumer out,Vec3 p,float green,float alpha){
 -        LevelRenderer.renderLineBox(poses,out,new AABB(p.x-.045,p.y+.06,p.z-.045,p.x+.045,p.y+.12,p.z+.045),1,green,.1f,alpha);
-+        net.minecraft.client.renderer.ShapeRenderer.renderLineBox(poses,out,new AABB(p.x-.045,p.y+.06,p.z-.045,p.x+.045,p.y+.12,p.z+.045),1,green,.1f,alpha);
++        net.minecraft.client.renderer.ShapeRenderer.renderLineBox(poses.last(),out,new AABB(p.x-.045,p.y+.06,p.z-.045,p.x+.045,p.y+.12,p.z+.045),1,green,.1f,alpha);
      }
      private TrailsWarnings(){}
  }
 --- a/com/matuvent/mineturn/client/TrailsWeaponSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsWeaponSmoke.java
-@@ -31,7 +31,7 @@
+@@ -29,9 +29,9 @@
+         if (mode>=23) { optionsAndWalls();return; }
+         if (ticks == 6) { BattleClient.distance = 17; BattleClient.pitch = 48; BattleClient.yaw = 0; }
          boolean playerMode=mode<6 || mode>=11;
-         if (playerMode && ticks == 10) mc.screen.keyPressed(GLFW.GLFW_KEY_1, 0, 0);
+-        if (playerMode && ticks == 10) mc.screen.keyPressed(GLFW.GLFW_KEY_1, 0, 0);
++        if (playerMode && ticks == 10) mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_1,0,0));
          if (mode==17 && ticks==14) {
 -            mc.player.getInventory().selected=6;
 +            mc.player.getInventory().setSelectedSlot(6);
              TrailsClient.send("select",-1,6,0,0);
          }
          if (playerMode && ticks == 16) {
+@@ -39,14 +39,14 @@
+             var expected = java.util.List.of(net.minecraft.world.item.Items.IRON_SWORD, net.minecraft.world.item.Items.IRON_AXE,
+                     net.minecraft.world.item.Items.BOW, net.minecraft.world.item.Items.CROSSBOW, net.minecraft.world.item.Items.MACE, net.minecraft.world.item.Items.TRIDENT).get(mode<6?mode:mode<17?mode-11:mode-17);
+             if (!mc.player.getMainHandItem().is(mode==17?net.minecraft.world.item.Items.BREAD:expected)) throw new IllegalStateException("QA held wrong weapon for mode " + mode);
+-            mc.screen.keyPressed(mode<6?GLFW.GLFW_KEY_F:mode<17?GLFW.GLFW_KEY_ENTER:GLFW.GLFW_KEY_V, 0, 0);
++            mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(mode<6?GLFW.GLFW_KEY_F:mode<17?GLFW.GLFW_KEY_ENTER:GLFW.GLFW_KEY_V,0,0));
+             if (!((TrailsScreen)mc.screen).preparing().equals(mode<6?"weapon_skill":mode<17?"attack":"burst")) throw new IllegalStateException("Weapon F did not prepare skill");
+             if (mode<6 && !((TrailsScreen)mc.screen).previewShape().equals(com.matuvent.mineturn.battle.TrailsWeaponSkills.shape(mc.player.getMainHandItem())))
+                 throw new IllegalStateException("Weapon preview shape mismatch");
+             MineTurn.LOGGER.info("QA_WEAPON_PREVIEW: {} {}", expected, ((TrailsScreen)mc.screen).previewShape());
+         }
+         if (playerMode && ticks == 22) {
+-            shot("action-" + mode + "-preview"); mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER, 0, 0);
++            shot("action-" + mode + "-preview"); mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));
+         }
+         if (playerMode && ticks == 28 && (!TrailsClient.view.busy() || TrailsPerformances.count() == 0))
+             throw new IllegalStateException("Committed weapon skill has no native windup");
+@@ -59,7 +59,7 @@
+             }
+             if (mode == 6 && mc.player.getY() > -56) { airborne = true; if (ticks == 62) shot("breeze-airborne"); }
+         }
+-        if (mode >= 8 && mode <= 10 && ticks == 16) { mc.screen.keyPressed(GLFW.GLFW_KEY_F, 0, 0); mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER, 0, 0); }
++        if (mode >= 8 && mode <= 10 && ticks == 16) { mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_F,0,0)); mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0)); }
+         if (mode >= 8 && mode <= 10 && ticks == 22) { if (TrailsPerformances.count() == 0) throw new IllegalStateException("Friendly skill animation missing"); shot("friend-" + mode); }
+         if (playerMode && (ticks==34 || ticks==46 || ticks==64)) shot("action-"+mode+"-frame-"+ticks);
+         if (playerMode && ticks>28) {
+@@ -100,7 +100,7 @@
+                 mc.screen.onClose();mode=24;prepare();
+             }
+         } else if(mode==24) {
+-            if(ticks==16){mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER,0,0);mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER,0,0);}
++            if(ticks==16){mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));}
+             if(ticks>90){
+                 if(TrailsCinematics.sampledFrames!=cameraBefore || TrailsEffects.renderedEffects!=effectsBefore || TrailsImpacts.renderedNumbers!=numbersBefore
+                         || TrailsImpacts.received<=impactsBefore || TrailsPerformances.renderedPoses<=posesBefore)throw new IllegalStateException("Disabled presentation affected gameplay or kept drawing");
+@@ -119,7 +119,7 @@
+                 shot("presentation-settings");mc.screen.onClose();mode=26;prepare();
+             }
+         } else if(mode==26) {
+-            if(ticks==16){mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER,0,0);mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER,0,0);}
++            if(ticks==16){mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));}
+             if(ticks>20 && TrailsCinematics.active()) {
+                 var point=mc.gameRenderer.getMainCamera().getPosition();
+                 if(!mc.level.getBlockState(net.minecraft.core.BlockPos.containing(point)).getCollisionShape(mc.level,net.minecraft.core.BlockPos.containing(point)).isEmpty())
+@@ -129,7 +129,7 @@
+         } else if(mode==27 && ticks>25) {
+             frozenBefore=ProjectileAnimations.pausedFrames;mode=28;prepare();
+         } else if(mode==28) {
+-            if(ticks==31){mc.screen.keyPressed(GLFW.GLFW_KEY_V,0,0);mc.screen.keyPressed(GLFW.GLFW_KEY_ENTER,0,0);}
++            if(ticks==31){mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_V,0,0));mc.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));}
+             if(ticks>70 && TrailsClient.active() && !TrailsPerformances.bursting()) {
+                 var actor=mc.level.getEntity(TrailsClient.view.actor());
+                 if(actor instanceof net.minecraft.world.entity.LivingEntity living && living!=mc.player && TrailsPerformances.frame(living)!=null)resumed=true;
+@@ -147,7 +147,7 @@
+     }
+     private static void toggle(String name){
+         Minecraft.getInstance().screen.children().stream().filter(c->c instanceof net.minecraft.client.gui.components.Button b && b.getMessage().getString().startsWith(name))
+-                .map(c->(net.minecraft.client.gui.components.Button)c).findFirst().orElseThrow().onPress();
++                .map(c->(net.minecraft.client.gui.components.Button)c).findFirst().orElseThrow().onPress(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER,0,0));
+     }
+     private static void shot(String name) {
+         if (name.contains("preview") && !name.equals("action-0-preview")) return;
 @@ -157,7 +157,7 @@
              if (name.endsWith("64") && action!=5) return;
          }
@@ -2154,6 +2735,21 @@
      }
      private TrailsWeaponSmoke() {}
  }
+--- a/com/matuvent/mineturn/client/WorldRenderFrame.java
++++ b/com/matuvent/mineturn/client/WorldRenderFrame.java
+@@ -5,10 +5,10 @@
+ import org.joml.Matrix4f;
+ 
+ /** Loader-neutral snapshots of the matrices and camera for the current render stage. */
+-public record WorldRenderFrame(Stage stage,Camera camera,Matrix4f modelView,Matrix4f projection,DeltaTracker partialTick) {
++public record WorldRenderFrame(Stage stage,com.matuvent.mineturn.compat.PortCamera camera,Matrix4f modelView,Matrix4f projection,DeltaTracker partialTick,net.minecraft.client.renderer.SubmitNodeCollector collector,net.minecraft.client.renderer.state.CameraRenderState cameraState) {
+     public enum Stage { AFTER_TRANSLUCENT_BLOCKS, AFTER_PARTICLES }
+     public Stage getStage(){return stage;}
+-    public Camera getCamera(){return camera;}
++    public com.matuvent.mineturn.compat.PortCamera getCamera(){return camera;}
+     public Matrix4f getModelViewMatrix(){return modelView;}
+     public Matrix4f getProjectionMatrix(){return projection;}
+     public DeltaTracker getPartialTick(){return partialTick;}
 --- /dev/null
 +++ b/com/matuvent/mineturn/compat/EntityState.java
 @@ -0,0 +1,6 @@
@@ -2200,8 +2796,16 @@
 +    public static boolean save(net.minecraft.world.entity.Entity entity,CompoundTag tag){var output=net.minecraft.world.level.storage.TagValueOutput.createWithContext(net.minecraft.util.ProblemReporter.DISCARDING,entity.registryAccess());boolean result=entity.save(output);tag.merge(output.buildResult());return result;}
 +    public static boolean hurt(net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon,net.minecraft.world.entity.boss.EnderDragonPart part,net.minecraft.world.damagesource.DamageSource source,float damage){return dragon.hurt((net.minecraft.server.level.ServerLevel)dragon.level(),part,source,damage);}
 +    public static net.minecraft.core.particles.DustParticleOptions dust(org.joml.Vector3f color,float scale){return new net.minecraft.core.particles.DustParticleOptions(0xff000000|((int)(color.x*255)<<16)|((int)(color.y*255)<<8)|(int)(color.z*255),scale);}
-+    public static void inside(net.minecraft.world.level.block.state.BlockState state,net.minecraft.world.level.Level level,net.minecraft.core.BlockPos pos,net.minecraft.world.entity.Entity entity){var effects=new net.minecraft.world.entity.InsideBlockEffectApplier.StepBasedCollector();state.entityInside(level,pos,entity,effects);effects.applyAndClear(entity);}
++    public static void inside(net.minecraft.world.level.block.state.BlockState state,net.minecraft.world.level.Level level,net.minecraft.core.BlockPos pos,net.minecraft.world.entity.Entity entity){var effects=new net.minecraft.world.entity.InsideBlockEffectApplier.StepBasedCollector();state.entityInside(level,pos,entity,effects,true);effects.applyAndClear(entity);}
 +    public static void disableShield(net.minecraft.world.entity.player.Player player){var stack=player.getUseItem();var block=stack.get(net.minecraft.core.component.DataComponents.BLOCKS_ATTACKS);if(block!=null && player.level() instanceof net.minecraft.server.level.ServerLevel level)block.disable(level,player,5,stack);}
++}
+--- /dev/null
++++ b/com/matuvent/mineturn/compat/PortCamera.java
+@@ -0,0 +1,5 @@
++package com.matuvent.mineturn.compat;
++public record PortCamera(net.minecraft.world.phys.Vec3 position,org.joml.Quaternionf rotation) {
++    public net.minecraft.world.phys.Vec3 getPosition(){return position;}
++    public org.joml.Quaternionf getRotation(){return rotation;}
 +}
 --- /dev/null
 +++ b/com/matuvent/mineturn/compat/PortRender.java
@@ -2209,9 +2813,9 @@
 +package com.matuvent.mineturn.compat;
 +public final class PortRender {
 +    @SuppressWarnings({"rawtypes","unchecked"})
-+    public static void projectile(net.minecraft.world.entity.Entity entity,com.mojang.blaze3d.vertex.PoseStack poses,net.minecraft.client.renderer.MultiBufferSource buffers){
++    public static void projectile(net.minecraft.world.entity.Entity entity,com.mojang.blaze3d.vertex.PoseStack poses,net.minecraft.client.renderer.MultiBufferSource buffers,com.matuvent.mineturn.client.WorldRenderFrame frame){
 +        var renderer=(net.minecraft.client.renderer.entity.EntityRenderer)net.minecraft.client.Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity);
-+        var state=renderer.createRenderState(entity,1);renderer.render(state,poses,buffers,net.minecraft.client.renderer.LightTexture.FULL_BRIGHT);
++        var state=renderer.createRenderState(entity,1);renderer.submit(state,poses,frame.collector(),frame.cameraState());
 +    }
 +}
 --- a/com/matuvent/mineturn/data/CombatData.java
@@ -2305,6 +2909,18 @@
              ci.cancel();
          }
      }
+--- a/com/matuvent/mineturn/mixin/BattleRendererMixin.java
++++ b/com/matuvent/mineturn/mixin/BattleRendererMixin.java
+@@ -14,7 +14,7 @@
+     @Inject(method = {"bobView", "bobHurt"}, at = @At("HEAD"), cancellable = true)
+     private void mineturn$stableCamera(CallbackInfo ci) { if (BattleClient.active()) ci.cancel(); }
+     @Inject(method = "getFov", at = @At("HEAD"), cancellable = true)
+-    private void mineturn$fixedProjection(CallbackInfoReturnable<Double> ci) {
+-        if (BattleClient.active()) ci.setReturnValue(Minecraft.getInstance().options.fov().get().doubleValue());
++    private void mineturn$fixedProjection(CallbackInfoReturnable<Float> ci) {
++        if (BattleClient.active()) ci.setReturnValue(Minecraft.getInstance().options.fov().get().floatValue());
+     }
+ }
 --- a/com/matuvent/mineturn/mixin/ChannelingVisualMixin.java
 +++ b/com/matuvent/mineturn/mixin/ChannelingVisualMixin.java
 @@ -13,7 +13,7 @@
@@ -2312,7 +2928,7 @@
      private void mineturn$visualTick(CallbackInfo ci) {
          var bolt=(LightningBolt)(Object)this;
 -        if(!bolt.level().isClientSide && com.matuvent.mineturn.platform.RuntimePlatform.data(bolt).getBoolean(CombatChanneling.VISUAL)) {
-+        if(!bolt.level().isClientSide && com.matuvent.mineturn.platform.RuntimePlatform.data(bolt).getBooleanOr(CombatChanneling.VISUAL,false)) {
++        if(!bolt.level().isClientSide() && com.matuvent.mineturn.platform.RuntimePlatform.data(bolt).getBooleanOr(CombatChanneling.VISUAL,false)) {
              // visualOnly alone still powers rods and cleans copper in vanilla's server tick.
              if(++mineturn$visualAge>=20)bolt.discard();
              ci.cancel();
@@ -2354,7 +2970,7 @@
 +    private void mineturn$load(net.minecraft.world.level.storage.ValueInput tag,CallbackInfo ci){mineturn$state=tag.read("mineturn:state",CompoundTag.CODEC).orElseGet(CompoundTag::new).copy();}
      @Inject(method="load",at=@At("TAIL"))
 -    private void mineturn$orphan(CompoundTag tag,CallbackInfo ci){var entity=(Entity)(Object)this;if(!entity.level().isClientSide && com.matuvent.mineturn.battle.BattleManager.temporarySummon(entity))entity.discard();}
-+    private void mineturn$orphan(net.minecraft.world.level.storage.ValueInput tag,CallbackInfo ci){var entity=(Entity)(Object)this;if(!entity.level().isClientSide && com.matuvent.mineturn.battle.BattleManager.temporarySummon(entity))entity.discard();}
++    private void mineturn$orphan(net.minecraft.world.level.storage.ValueInput tag,CallbackInfo ci){var entity=(Entity)(Object)this;if(!entity.level().isClientSide() && com.matuvent.mineturn.battle.BattleManager.temporarySummon(entity))entity.discard();}
  }
 --- a/com/matuvent/mineturn/mixin/FabricExplosionMixin.java
 +++ b/com/matuvent/mineturn/mixin/FabricExplosionMixin.java
@@ -2385,7 +3001,7 @@
  }
 --- a/com/matuvent/mineturn/mixin/FabricLivingMixin.java
 +++ b/com/matuvent/mineturn/mixin/FabricLivingMixin.java
-@@ -12,19 +12,17 @@
+@@ -12,25 +12,23 @@
  
  @Mixin(LivingEntity.class)
  public abstract class FabricLivingMixin {
@@ -2409,6 +3025,14 @@
      @Inject(method="knockback",at=@At("HEAD"),cancellable=true)
      private void mineturn$knockback(double force,double x,double z,CallbackInfo ci){var e=(Entity)(Object)this;if(BattleManager.locked(e)||BattleManager.ridingCarrier(e))ci.cancel();}
      @Inject(method="addEffect(Lnet/minecraft/world/effect/MobEffectInstance;Lnet/minecraft/world/entity/Entity;)Z",at=@At("HEAD"),cancellable=true)
+-    private void mineturn$externalEffect(MobEffectInstance effect,Entity source,CallbackInfoReturnable<Boolean> cir){var e=(LivingEntity)(Object)this;if(!e.level().isClientSide && !BattleManager.authorized() && source!=null && !BattleManager.allowsRealtimeEffect(source,e))cir.setReturnValue(false);}
++    private void mineturn$externalEffect(MobEffectInstance effect,Entity source,CallbackInfoReturnable<Boolean> cir){var e=(LivingEntity)(Object)this;if(!e.level().isClientSide() && !BattleManager.authorized() && source!=null && !BattleManager.allowsRealtimeEffect(source,e))cir.setReturnValue(false);}
+     @Inject(method="forceAddEffect",at=@At("HEAD"),cancellable=true)
+-    private void mineturn$forceEffect(MobEffectInstance effect,Entity source,CallbackInfo ci){var e=(LivingEntity)(Object)this;if(!e.level().isClientSide && !BattleManager.authorized() && source!=null && !BattleManager.allowsRealtimeEffect(source,e))ci.cancel();}
++    private void mineturn$forceEffect(MobEffectInstance effect,Entity source,CallbackInfo ci){var e=(LivingEntity)(Object)this;if(!e.level().isClientSide() && !BattleManager.authorized() && source!=null && !BattleManager.allowsRealtimeEffect(source,e))ci.cancel();}
+     @Inject(method="dropAllDeathLoot",at=@At("HEAD"),cancellable=true)
+     private void mineturn$drops(CallbackInfo ci){if(BattleManager.temporarySummon((Entity)(Object)this))ci.cancel();}
+     @Inject(method="dropExperience",at=@At("HEAD"),cancellable=true)
 --- a/com/matuvent/mineturn/mixin/FabricPostDamageMixin.java
 +++ b/com/matuvent/mineturn/mixin/FabricPostDamageMixin.java
 @@ -12,9 +12,9 @@
@@ -2439,6 +3063,15 @@
 +public interface FabricReloadResourcesAccess {}
 --- a/com/matuvent/mineturn/mixin/FabricRendererLayersMixin.java
 +++ b/com/matuvent/mineturn/mixin/FabricRendererLayersMixin.java
+@@ -2,7 +2,7 @@
+ 
+ import com.matuvent.mineturn.client.TrailsWarnings;
+ import net.minecraft.client.renderer.entity.*;
+-import net.minecraft.client.resources.PlayerSkin;
++import net.minecraft.world.entity.player.PlayerModelType;
+ import net.minecraft.world.entity.EntityType;
+ import net.minecraft.world.entity.player.Player;
+ import net.minecraft.server.packs.resources.ResourceManager;
 @@ -12,8 +12,8 @@
  
  @Mixin(EntityRenderDispatcher.class)
@@ -2446,9 +3079,25 @@
 -    @Shadow private java.util.Map<EntityType<?>,EntityRenderer<?>> renderers;
 -    @Shadow private java.util.Map<PlayerSkin.Model,EntityRenderer<? extends Player>> playerRenderers;
 +    @Shadow private java.util.Map<EntityType<?>,EntityRenderer<?,?>> renderers;
-+    @Shadow private java.util.Map<PlayerSkin.Model,EntityRenderer<? extends Player,?>> playerRenderers;
++    @Shadow private java.util.Map<PlayerModelType,net.minecraft.client.renderer.entity.player.AvatarRenderer<net.minecraft.client.player.AbstractClientPlayer>> playerRenderers;
      @Inject(method="onResourceManagerReload",at=@At("TAIL"))
      private void mineturn$layers(ResourceManager resources,CallbackInfo ci){TrailsWarnings.layers(renderers.values());TrailsWarnings.layers(playerRenderers.values());}
+ }
+--- a/com/matuvent/mineturn/mixin/FabricSlimeMixin.java
++++ b/com/matuvent/mineturn/mixin/FabricSlimeMixin.java
+@@ -18,9 +18,9 @@
+         mineturn$children=new java.util.ArrayList<>();var parent=(Slime)(Object)this;
+         BattleManager.split(parent,new MobSplit(){public boolean isCanceled(){return false;}public java.util.List<? extends Mob> getChildren(){return mineturn$children;}});
+     }
+-    @WrapOperation(method="remove",at=@At(value="INVOKE",target="Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
+-    private boolean mineturn$children(Level level,Entity entity,Operation<Boolean> original){
+-        if(BattleManager.temporarySummon((Entity)(Object)this))return false;
+-        boolean added=original.call(level,entity);if(added && entity instanceof Mob mob)mineturn$children.add(mob);return added;
++    @WrapOperation(method="remove",at=@At(value="INVOKE",target="Lnet/minecraft/world/entity/monster/Slime;convertTo(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/entity/ConversionParams;Lnet/minecraft/world/entity/EntitySpawnReason;Lnet/minecraft/world/entity/ConversionParams$AfterConversion;)Lnet/minecraft/world/entity/Mob;"))
++    private Mob mineturn$children(Slime parent,EntityType<?> type,ConversionParams params,EntitySpawnReason reason,ConversionParams.AfterConversion<?> finalize,Operation<Mob> original){
++        if(BattleManager.temporarySummon(parent))return null;
++        var child=original.call(parent,type,params,reason,finalize);if(child!=null)mineturn$children.add(child);return child;
+     }
  }
 --- a/com/matuvent/mineturn/mixin/FabricStatusClockMixin.java
 +++ b/com/matuvent/mineturn/mixin/FabricStatusClockMixin.java
@@ -2473,6 +3122,26 @@
 +    @org.spongepowered.asm.mixin.gen.Accessor("exhaustionLevel") void mineturn$exhaustion(float amount);
      @Accessor("tickTimer") int mineturn$getTimer();
      @Accessor("tickTimer") void mineturn$setTimer(int value);
+ }
+--- a/com/matuvent/mineturn/mixin/FoodMixin.java
++++ b/com/matuvent/mineturn/mixin/FoodMixin.java
+@@ -1,7 +1,7 @@
+ package com.matuvent.mineturn.mixin;
+ 
+ import com.matuvent.mineturn.battle.BattleManager;
+-import net.minecraft.world.entity.player.Player;
++import net.minecraft.server.level.ServerPlayer;
+ import net.minecraft.world.food.FoodData;
+ import org.spongepowered.asm.mixin.Mixin;
+ import org.spongepowered.asm.mixin.injection.At;
+@@ -11,7 +11,7 @@
+ @Mixin(FoodData.class)
+ public abstract class FoodMixin {
+     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
+-    private void mineturn$battleFood(Player player, CallbackInfo ci) {
++    private void mineturn$battleFood(ServerPlayer player, CallbackInfo ci) {
+         if (BattleManager.locked(player)) ci.cancel();
+     }
  }
 --- a/com/matuvent/mineturn/mixin/InfiniteEffectClockMixin.java
 +++ b/com/matuvent/mineturn/mixin/InfiniteEffectClockMixin.java
@@ -2549,6 +3218,18 @@
 +@org.spongepowered.asm.mixin.Mixin(net.minecraft.client.player.ClientInput.class)
 +public interface PortInputAccess {
 +    @org.spongepowered.asm.mixin.gen.Accessor("moveVector") void mineturn$movement(net.minecraft.world.phys.Vec2 movement);
++}
+--- /dev/null
++++ b/com/matuvent/mineturn/mixin/PortKeyboardAccess.java
+@@ -0,0 +1,9 @@
++package com.matuvent.mineturn.mixin;
++import net.minecraft.client.KeyboardHandler;
++import net.minecraft.client.input.KeyEvent;
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.gen.Invoker;
++@Mixin(KeyboardHandler.class)
++public interface PortKeyboardAccess {
++    @Invoker("keyPress") void mineturn$keyPress(long window,int action,KeyEvent event);
 +}
 --- /dev/null
 +++ b/com/matuvent/mineturn/mixin/PortRendererStateMixin.java
@@ -2650,6 +3331,26 @@
      private void mineturn$shield(LivingEntity target,CallbackInfo ci){
          var self=(Ravager)(Object)this;
          if(BattleManager.locked(self)){BattleManager.ravagerShield(self);ci.cancel();}
+@@ -38,7 +38,7 @@
+             // Zero still means AV-owned, not stunned. Keep the client superclass update:
+             // LivingEntity.aiStep consumes position/head interpolation sent by the server.
+             // Only Ravager's native timer/roar logic must be skipped on the client.
+-            if(self.level().isClientSide){
++            if(self.level().isClientSide()){
+                 stunnedTick=self.getEntityData().get(MINETURN_STUN);
+                 roarTick=Math.max(0,self.getEntityData().get(MINETURN_ROAR));
+                 super.aiStep();
+--- a/com/matuvent/mineturn/mixin/RoseClockMixin.java
++++ b/com/matuvent/mineturn/mixin/RoseClockMixin.java
+@@ -15,7 +15,7 @@
+ @Mixin(WitherRoseBlock.class)
+ public abstract class RoseClockMixin {
+     @Inject(method="entityInside",at=@At("HEAD"),cancellable=true)
+-    private void mineturn$clock(BlockState state,Level level,BlockPos pos,Entity entity,CallbackInfo ci){
++    private void mineturn$clock(BlockState state,Level level,BlockPos pos,Entity entity,net.minecraft.world.entity.InsideBlockEffectApplier effects,boolean causedByMovement,CallbackInfo ci){
+         if(BattleManager.locked(entity) && !BattleStatus.running())ci.cancel();
+     }
+ }
 --- a/com/matuvent/mineturn/mixin/ServerPacketMixin.java
 +++ b/com/matuvent/mineturn/mixin/ServerPacketMixin.java
 @@ -21,7 +21,7 @@
@@ -2689,22 +3390,24 @@
  
 --- a/com/matuvent/mineturn/mixin/TrailsDragonGlowMixin.java
 +++ b/com/matuvent/mineturn/mixin/TrailsDragonGlowMixin.java
-@@ -13,11 +13,11 @@
+@@ -13,12 +13,12 @@
  /** Dragon has a special renderer rather than LivingEntityRenderer; reuse its already posed native model. */
  @Mixin(EnderDragonRenderer.class)
  public abstract class TrailsDragonGlowMixin {
 -    @Shadow @Final private EnderDragonRenderer.DragonModel model;
 -    @Inject(method="render(Lnet/minecraft/world/entity/boss/enderdragon/EnderDragon;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
 +    @Shadow @Final private net.minecraft.client.model.dragon.EnderDragonModel model;
-+    @Inject(method="render(Lnet/minecraft/client/renderer/entity/state/EnderDragonRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
++    @Inject(method="submit(Lnet/minecraft/client/renderer/entity/state/EnderDragonRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/CameraRenderState;)V",
              at=@At(value="INVOKE",target="Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V",ordinal=1))
 -    private void mineturn$gold(EnderDragon dragon,float yaw,float partial,PoseStack poses,MultiBufferSource buffers,int light,CallbackInfo ci){
 -        if(!TrailsWarnings.gold(dragon))return;
-+    private void mineturn$gold(net.minecraft.client.renderer.entity.state.EnderDragonRenderState state,PoseStack poses,MultiBufferSource buffers,int light,CallbackInfo ci){
+-        model.renderToBuffer(poses,buffers.getBuffer(TrailsWarnings.glow(dragon.tickCount+partial)),LightTexture.FULL_BRIGHT,OverlayTexture.NO_OVERLAY,TrailsWarnings.color(dragon.tickCount+partial));
++    private void mineturn$gold(net.minecraft.client.renderer.entity.state.EnderDragonRenderState state,PoseStack poses,net.minecraft.client.renderer.SubmitNodeCollector collector,net.minecraft.client.renderer.state.CameraRenderState camera,CallbackInfo ci){
 +        var entity=com.matuvent.mineturn.compat.EntityState.living(state);if(!(entity instanceof EnderDragon dragon) || !TrailsWarnings.gold(dragon))return;float partial=state.ageInTicks-dragon.tickCount;
-         model.renderToBuffer(poses,buffers.getBuffer(TrailsWarnings.glow(dragon.tickCount+partial)),LightTexture.FULL_BRIGHT,OverlayTexture.NO_OVERLAY,TrailsWarnings.color(dragon.tickCount+partial));
++        collector.order(1).submitModel(model,state,poses,TrailsWarnings.glow(state.ageInTicks),LightTexture.FULL_BRIGHT,OverlayTexture.NO_OVERLAY,TrailsWarnings.color(state.ageInTicks),null,0,null);
          TrailsWarnings.goldenModels++;
      }
+ }
 --- a/com/matuvent/mineturn/mixin/TrailsHeldItemMixin.java
 +++ b/com/matuvent/mineturn/mixin/TrailsHeldItemMixin.java
 @@ -1,19 +1,11 @@
@@ -2779,6 +3482,19 @@
 +    private static void mineturn$skillTint(net.minecraft.client.renderer.entity.state.LivingEntityRenderState state, float white, CallbackInfoReturnable<Integer> result) {
 +        var entity=com.matuvent.mineturn.compat.EntityState.living(state);
 +        if (entity!=null && TrailsPerformances.red(entity)) result.setReturnValue(OverlayTexture.pack(OverlayTexture.u(0), OverlayTexture.v(true)));
+     }
+ }
+--- a/com/matuvent/mineturn/mixin/TrailsSwitchInputMixin.java
++++ b/com/matuvent/mineturn/mixin/TrailsSwitchInputMixin.java
+@@ -10,7 +10,8 @@
+ @Mixin(KeyboardHandler.class)
+ public abstract class TrailsSwitchInputMixin {
+     @Inject(method="keyPress", at=@At("HEAD"))
+-    private void mineturn$release(long window, int key, int scan, int action, int modifiers, CallbackInfo ci) {
+-        if (action == GLFW.GLFW_RELEASE && TrailsClient.SWITCH.matches(key, scan)) TrailsClient.switchReleased();
++    private void mineturn$release(long window,int action,net.minecraft.client.input.KeyEvent event,CallbackInfo ci) {
++        int key=event.key(),scan=event.scancode();
++        if (action == GLFW.GLFW_RELEASE && TrailsClient.SWITCH.matches(new net.minecraft.client.input.KeyEvent(key,scan,0))) TrailsClient.switchReleased();
      }
  }
 --- a/com/matuvent/mineturn/platform/RuntimePlatform.java

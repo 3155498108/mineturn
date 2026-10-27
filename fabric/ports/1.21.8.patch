@@ -2051,8 +2051,11 @@
  }
 --- a/com/matuvent/mineturn/client/TrailsSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsSmoke.java
-@@ -70,7 +70,7 @@
+@@ -68,9 +68,10 @@
+         if (stage == 1 && mc.screen != null) return;
+         elapsed++;
          if (stage == 1) {
++            if (elapsed == 1) mc.player.getInventory().setSelectedSlot(0);
              TrailsClient.preview = true;
              if (elapsed == 16) screenshot("at-qa-01-circle.png");
 -            if (elapsed > 24) { mc.getToasts().clear(); TrailsClient.preview = false; TrailsClient.send("toggle", -1, 0, 0, 0); stage = 2; elapsed = 0; }
@@ -2060,7 +2063,7 @@
          } else if (stage == 2 && TrailsClient.active()) {
              if (elapsed == 16) screenshot("at-qa-02-cut-in.png");
              if (elapsed > 42) {
-@@ -175,7 +175,7 @@
+@@ -175,7 +176,7 @@
      private static void screenshot(String file) {
          var mc = Minecraft.getInstance();
          String versioned = file.replace(".png", "-" + System.getProperty("mineturn.qaTag", "v1") + ".png");
@@ -2069,7 +2072,7 @@
      }
      private static void setup(MinecraftServer server) {
          var level = server.overworld();
-@@ -192,21 +192,21 @@
+@@ -192,21 +193,21 @@
          inv.setItem(4, new ItemStack(Items.ARROW, 32)); inv.setItem(5, new ItemStack(Items.WIND_CHARGE, 16));
          inv.setItem(6, new ItemStack(Items.BREAD, 8));
          var potion = new ItemStack(Items.POTION); potion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SWIFTNESS));
@@ -2464,6 +2467,22 @@
      @Inject(method="onResourceManagerReload",at=@At("TAIL"))
      private void mineturn$layers(ResourceManager resources,CallbackInfo ci){TrailsWarnings.layers(renderers.values());TrailsWarnings.layers(playerRenderers.values());}
  }
+--- a/com/matuvent/mineturn/mixin/FabricSlimeMixin.java
++++ b/com/matuvent/mineturn/mixin/FabricSlimeMixin.java
+@@ -18,9 +18,9 @@
+         mineturn$children=new java.util.ArrayList<>();var parent=(Slime)(Object)this;
+         BattleManager.split(parent,new MobSplit(){public boolean isCanceled(){return false;}public java.util.List<? extends Mob> getChildren(){return mineturn$children;}});
+     }
+-    @WrapOperation(method="remove",at=@At(value="INVOKE",target="Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
+-    private boolean mineturn$children(Level level,Entity entity,Operation<Boolean> original){
+-        if(BattleManager.temporarySummon((Entity)(Object)this))return false;
+-        boolean added=original.call(level,entity);if(added && entity instanceof Mob mob)mineturn$children.add(mob);return added;
++    @WrapOperation(method="remove",at=@At(value="INVOKE",target="Lnet/minecraft/world/entity/monster/Slime;convertTo(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/entity/ConversionParams;Lnet/minecraft/world/entity/EntitySpawnReason;Lnet/minecraft/world/entity/ConversionParams$AfterConversion;)Lnet/minecraft/world/entity/Mob;"))
++    private Mob mineturn$children(Slime parent,EntityType<?> type,ConversionParams params,EntitySpawnReason reason,ConversionParams.AfterConversion<?> finalize,Operation<Mob> original){
++        if(BattleManager.temporarySummon(parent))return null;
++        var child=original.call(parent,type,params,reason,finalize);if(child!=null)mineturn$children.add(child);return child;
+     }
+ }
 --- a/com/matuvent/mineturn/mixin/FabricStatusClockMixin.java
 +++ b/com/matuvent/mineturn/mixin/FabricStatusClockMixin.java
 @@ -13,8 +13,8 @@
@@ -2487,6 +2506,26 @@
 +    @org.spongepowered.asm.mixin.gen.Accessor("exhaustionLevel") void mineturn$exhaustion(float amount);
      @Accessor("tickTimer") int mineturn$getTimer();
      @Accessor("tickTimer") void mineturn$setTimer(int value);
+ }
+--- a/com/matuvent/mineturn/mixin/FoodMixin.java
++++ b/com/matuvent/mineturn/mixin/FoodMixin.java
+@@ -1,7 +1,7 @@
+ package com.matuvent.mineturn.mixin;
+ 
+ import com.matuvent.mineturn.battle.BattleManager;
+-import net.minecraft.world.entity.player.Player;
++import net.minecraft.server.level.ServerPlayer;
+ import net.minecraft.world.food.FoodData;
+ import org.spongepowered.asm.mixin.Mixin;
+ import org.spongepowered.asm.mixin.injection.At;
+@@ -11,7 +11,7 @@
+ @Mixin(FoodData.class)
+ public abstract class FoodMixin {
+     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
+-    private void mineturn$battleFood(Player player, CallbackInfo ci) {
++    private void mineturn$battleFood(ServerPlayer player, CallbackInfo ci) {
+         if (BattleManager.locked(player)) ci.cancel();
+     }
  }
 --- a/com/matuvent/mineturn/mixin/InfiniteEffectClockMixin.java
 +++ b/com/matuvent/mineturn/mixin/InfiniteEffectClockMixin.java

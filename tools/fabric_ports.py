@@ -119,6 +119,11 @@ def resources(version: str) -> None:
         model = target / "assets/mineturn/items/companion_token.json"
         model.parent.mkdir(parents=True, exist_ok=True)
         model.write_text('{"model":{"type":"minecraft:model","model":"mineturn:item/companion_token"}}\n', encoding="utf-8")
+    if version == "1.21.10":
+        for path in (target / "assets/mineturn/lang").glob("*.json"):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["key.category.mineturn.combat"] = data.get("key.categories.mineturn", "MineTurn")
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"Prepared native resources for Minecraft {version}")
 
 

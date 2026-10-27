@@ -1,1 +1,13 @@
-{"mixins": ["PortSplashBoundaryMixin", "PortBlockingItemMixin", "PortShieldBlockMixin"], "client": ["PortInputAccess", "PortEntityStateMixin", "PortRendererStateMixin"]}
+{
+  "mixins": [
+    "PortSplashBoundaryMixin",
+    "PortBlockingItemMixin",
+    "PortShieldBlockMixin"
+  ],
+  "client": [
+    "PortInputAccess",
+    "PortEntityStateMixin",
+    "PortRendererStateMixin",
+    "PortKeyboardAccess"
+  ]
+}

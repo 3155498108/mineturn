@@ -51,7 +51,6 @@ if (port != null) {
 }
 
 loom {
-    if (providers.gradleProperty('portClientJar').isPresent()) clientOnlyMinecraftJar()
     runs {
         client {
             client()

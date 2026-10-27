@@ -1,5 +1,7 @@
 # Fabric 与 NeoForge
 
+其他 Minecraft 版本的 Fabric 适配、Java 与 API 依赖见 [FABRIC_PORTS.md](FABRIC_PORTS.md)；下表保留 1.21.1 / trails.10 的安装组合。
+
 `trails.10` 使用共同的 AT 规则、数据包、网络消息和客户端界面，加载器分别提供注册、事件和原版注入。Fabric 不是通过兼容层运行 NeoForge JAR。
 
 ## 安装
