@@ -8,6 +8,9 @@
 - 1.21.8：服务端启动/重载/保存通过（`build/port-1.21.8-server-v4.log`，59 动作 / 41 生物配置 / 1416 物品）；友军/R 通过（`build/port-1.21.8-client-v3.log`），完整入战流程通过（`build/port-1.21.8-combat-client-v3.log`）。首次完整流程失败由 QA 存档遗留选择弩引起；测试明确初始化快捷栏后通过，不修改实际武器规则。
 - 1.21.10：服务端启动/重载/保存通过（`build/port-1.21.10-server-v2.log`）；友军/R 原生交互通过（`build/port-1.21.10-client-v1.log`）。完整入战及 18 种武器动作、反击抢 S、固定镜头、原版姿态/粒子、跳字、物种动作、墙体机位和设置持久化通过（`build/port-1.21.10-weapons-client-v1.log`）。旧 trails.10 / 1.21.1 Fabric QA 存档升级后，原收纳牌从磁盘放出同 UUID/名字/5 HP 的友军、实际跟随及收回通过（`build/port-1.21.10-migration-client.log`）。
 - 1.21.8 与 1.21.10 的独立生物演出检查通过（`build/port-1.21.8-bestiary-client.log`、`build/port-1.21.10-bestiary-client-v2.log`）：凋灵/末影龙/监守者持续金光、下次行动 S 技、关闭装饰特效后仍有危险预警，以及怨灵/幻翼/唤魔者/潜影贝/青蛙/河豚/犰狳/悦灵/羊动作与退出清理。已核对 Boss 小预览。1.21.10 的首轮金光计数虽通过，截图显示偏白；已改用模型提交完整重载传入 ARGB，重跑后再核对金色。
+- 四个端口的正式 `build`、JAR 结构、全部 JSON、Mixin 类存在性、Java 字节码目标和 SHA256 检查通过（归档内 `build/port-*-build-final.log`、`build/port-release-structure.log`）。发行包不含 GameTests 入口/测试类或 NeoForge 类引用；源码静态入口/空白及 14 个示例包检查通过。
+- 发行文件位于本地 `dist/MineTurn-Fabric-1.0.0-trails.11/`，下载见 [GitHub trails.11](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.11)。1.21.1 旧包保留，不混用加载器或游戏版本。
+- 本轮日志、客户端截图/小预览、QA 世界及诊断脚本已归档于 `dist/verification-ports-trails11-20261027.zip`，1980 个成员逐文件 SHA256 和 ZIP CRC 通过。约 993 MiB 临时下载与 QA 材料已移入 Windows 回收站，**未清空回收站**；不能把目录缩小说成磁盘空间已经释放。清单为 `dist/cleanup-ports-trails11-20261027.json`。源码、普通存档、素材、旧发行包、最终 JAR 和可复用依赖缓存保留。
 - 各版本验证分别记账，没有将原 1.21.1 的 80 / 86 / 389 项或多人实测数字沿用到全部端口；多人尚未逐个端口重新跑双客户端验收。截图均以小预览检查。
 
 > **2026-10-26 工作区清理**：构建中间文件、多轮 QA 副本与根目录临时日志已移入 Windows 回收站，项目从约 11.85 GiB 缩至 490 MiB；回收站尚未清空，不把目录缩小冒充磁盘释放。源码、普通 `run/` 存档/截图、`output/` 素材和全部 `dist/` 发行包保留，trails.10 发行文件哈希核对通过。
