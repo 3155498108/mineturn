@@ -1,5 +1,12 @@
 # MineTurn 开发任务表
 
+## Fabric 多版本适配进行中（2026-10-27）
+
+- 用户确认先做 Fabric：Minecraft 1.20.1、1.21（即所称 1.21.0）、1.21.8、1.21.10。构建及版本差异见 [FABRIC_PORTS.md](FABRIC_PORTS.md)。工作分支 `codex/multi-version-ports`；当前还未发布这些版本。
+- 1.21：86 项服务器测试通过（`build/port-1.21-tests.log`）。真实客户端命名牌收纳、物品模型、放出/5 HP/名字、跟随、蹲下回收、长按及快速 R 退场和下一次入战通过（`build/port-1.21-client.log`，`TRAILS_COMPANION_CLIENT_PASSED`）。
+- 1.20.1：Java 17 目标的正式编译通过，服务端加载 56 个动作 / 39 个生物配置 / 1255 个物品，启动、RCON 重载及正常保存关闭通过（`build/port-1.20.1-server-v6.log`）。真实客户端同样的友军/R 原生交互通过（`build/port-1.20.1-client-v2.log`）。尚未把这些结果当作全部武器、多人或 Java 17 实际运行验证。
+- 1.21.8 的 Java 与 JAR 构建已经通过，正在依目标版本修复并验证运行时 Mixin；1.21.10 正在复用共同适配并补接口差异。两者尚未达到可交付状态，不声称能玩。
+
 > **2026-10-26 工作区清理**：构建中间文件、多轮 QA 副本与根目录临时日志已移入 Windows 回收站，项目从约 11.85 GiB 缩至 490 MiB；回收站尚未清空，不把目录缩小冒充磁盘释放。源码、普通 `run/` 存档/截图、`output/` 素材和全部 `dist/` 发行包保留，trails.10 发行文件哈希核对通过。
 >
 > 历史日志、关键截图/预览、测试报告和投稿回执按原相对路径归档于 `dist/verification-archive-20261026.zip`；最新两个 QA 世界位于 `dist/qa-worlds-trails10-20261026.zip`，CRC 及逐文件 SHA256 已核验。需要验证时按需恢复，避免常驻多份世界。范围清单见 `dist/cleanup-manifest-20261026.json`，恢复说明见 `dist/CLEANUP_README_20261026.txt`；本机离线 Fabric 镜像和 bootstrap 辅助文件保留。此次仅整理材料，未重跑或改写下方功能验收结论。

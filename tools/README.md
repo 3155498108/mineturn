@@ -1,5 +1,9 @@
 # 开发工具
 
+## Fabric 多版本补丁（`fabric_ports.py`）
+
+使用目标版本的共同源码严格生成、捕获补丁与处理生成资源；会写入明确的 `fabric/build/ports/<版本>/` 或 `fabric/ports/<版本>.patch`，不会操作普通游戏存档。命令和版本验证边界见 [Fabric 多版本适配](../docs/FABRIC_PORTS.md)。
+
 ## 按改动选择工作资料（`workspace_context.py`）
 
 ```powershell

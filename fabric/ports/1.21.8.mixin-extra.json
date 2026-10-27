@@ -1,0 +1,1 @@
+{"mixins": ["PortSplashBoundaryMixin", "PortBlockingItemMixin", "PortShieldBlockMixin"], "client": ["PortInputAccess", "PortEntityStateMixin", "PortRendererStateMixin"]}

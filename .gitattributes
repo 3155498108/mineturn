@@ -16,3 +16,6 @@ gradlew text eol=lf
 *.md text eol=lf
 *.json text eol=lf
 *.py text eol=lf
+
+# Unified patches include a single space on empty context lines by definition.
+fabric/ports/*.patch -text whitespace=-blank-at-eol

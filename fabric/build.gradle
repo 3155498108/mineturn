@@ -3,7 +3,20 @@ plugins {
     id 'maven-publish'
 }
 
-version = project.mod_version
+def port = providers.gradleProperty('mcPort').orNull
+def portMatrix = [
+    '1.20.1': [api: '0.92.12+1.20.1', java: 17],
+    '1.21': [api: '0.102.0+1.21', java: 21],
+    '1.21.8': [api: '0.136.1+1.21.8', java: 21],
+    '1.21.10': [api: '0.138.4+1.21.10', java: 21]
+]
+if (port != null && !portMatrix.containsKey(port)) throw new GradleException("Unsupported mcPort: ${port}")
+def targetMc = port ?: project.minecraft_version
+def targetApi = port == null ? project.fabric_api_version : portMatrix[port].api
+def targetLoader = port == null ? project.loader_version : '0.18.4'
+def targetJava = port == null ? 21 : portMatrix[port].java
+if (port != null) layout.buildDirectory = file("build/ports/${port}")
+version = port == null ? project.mod_version : "1.0.0-trails.11+mc${port}"
 group = 'com.matuvent.mineturn'
 base { archivesName = 'mineturn-fabric' }
 
@@ -22,10 +35,27 @@ sourceSets.main {
     resources.exclude 'mineturn.mixins.json'
 }
 
+if (port != null) {
+    def portSources = layout.buildDirectory.dir('generated/java')
+    def preparePort = tasks.register('preparePortSources', Exec) {
+        inputs.files(fileTree('../src/main/java'), fileTree('src/main/java'), fileTree('ports'))
+        inputs.file('../tools/fabric_ports.py')
+        inputs.property('mcPort', port)
+        outputs.dir(portSources)
+        workingDir '..'
+        commandLine 'python', '-B', 'tools/fabric_ports.py', 'prepare', port
+    }
+    sourceSets.main.java.setSrcDirs([portSources])
+    tasks.named('compileJava') { dependsOn preparePort }
+    tasks.matching { it.name == 'sourcesJar' }.configureEach { dependsOn preparePort }
+}
+
 loom {
+    if (providers.gradleProperty('portClientJar').isPresent()) clientOnlyMinecraftJar()
     runs {
         client {
             client()
+            if (port != null) runDir "../build/run-fabric-${port}"
             if (providers.gradleProperty('encounterSmoke').isPresent()) {
                 runDir providers.gradleProperty('qaRunDir').getOrElse('../build/qa-fabric-single')
                 vmArg '-Dmineturn.encounterSmoke=true'
@@ -36,7 +66,7 @@ loom {
                 programArgs '--quickPlaySingleplayer',providers.gradleProperty('qaWorld').getOrElse('AT-QA-Fabric-20261026')
             }
         }
-        server { server();runDir '../build/qa-fabric-server' }
+        server { server();runDir port == null ? '../build/qa-fabric-server' : "../build/qa-port-${port}-server" }
         if (providers.gradleProperty('multiplayerSmoke').isPresent()) {
             multiHost {
                 client();runDir '../build/qa-fabric-multi-host'
@@ -60,15 +90,40 @@ loom {
     }
 }
 dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    minecraft "com.mojang:minecraft:${targetMc}"
     mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    modImplementation "net.fabricmc:fabric-loader:${targetLoader}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${targetApi}"
 }
 
 java { toolchain.languageVersion = JavaLanguageVersion.of(21); withSourcesJar() }
-tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = targetJava; options.compilerArgs += ['-Xmaxerrs', '1000'] }
 tasks.named('processResources') { inputs.property 'version', project.version;inputs.property 'fabricQa',providers.gradleProperty('fabricQa').isPresent();filesMatching('fabric.mod.json') { expand version: project.version } }
+if (port != null) tasks.named('processResources') {
+    inputs.property('mcPort', port)
+    inputs.file('../tools/fabric_ports.py')
+    inputs.files(fileTree('ports'))
+    doLast {
+        def metadata = new File(destinationDir, 'fabric.mod.json')
+        def json = new groovy.json.JsonSlurper().parse(metadata)
+        json.depends.minecraft = targetMc
+        json.depends.fabricloader = ">=${targetLoader}"
+        json.depends.java = ">=${targetJava}"
+        json.depends['fabric-api'] = ">=${targetApi.split('\\+')[0]}"
+        metadata.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)), 'UTF-8')
+        def mixins = new File(destinationDir, 'mineturn.fabric.mixins.json')
+        def config = new groovy.json.JsonSlurper().parse(mixins)
+        config.compatibilityLevel = "JAVA_${targetJava}"
+        def extras = file("ports/${port}.mixin-extra.json")
+        if (extras.exists()) new groovy.json.JsonSlurper().parse(extras).each { side, names -> config[side].addAll(names) }
+        mixins.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(config)), 'UTF-8')
+        logger.lifecycle(providers.exec {
+            workingDir '..'
+            commandLine 'python', '-B', 'tools/fabric_ports.py', 'resources', port
+        }.standardOutput.asText.get().trim())
+    }
+}
+
 tasks.named('jar') { from('../LICENSE'); from('../NOTICE'); from('../TEMPLATE_LICENSE.txt');exclude '**/*GameTests*' }
 
 if (providers.gradleProperty('fabricQa').isPresent()) {
