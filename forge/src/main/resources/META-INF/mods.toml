@@ -1,0 +1,25 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="LGPL-2.1-only"
+issueTrackerURL="https://github.com/3155498108/mineturn/issues"
+
+[[mods]]
+modId="mineturn"
+version="1.0.0-trails.11-cn-dev.1"
+displayName="MineTurn AT Prototype"
+authors="3155498108, Matuvent (original MineTurn)"
+description='''In-place tactical AT combat with personally owned allies.'''
+
+[[dependencies.mineturn]]
+modId="forge"
+mandatory=true
+versionRange="[47.3.0,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.mineturn]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.20.2)"
+ordering="NONE"
+side="BOTH"

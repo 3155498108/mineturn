@@ -1,5 +1,12 @@
 # MineTurn 开发任务表
 
+## 中国版 Java 经典版移植（2026-10-27，进行中）
+
+- 官方资料确认 Java 1.20.1 的平台基线为 Forge 47.3.0，工作台支持导入 Java 作品测试；文档依据、构建结构和验收边界见 [中国版移植](CHINA_JAVA_PORT.md)。
+- 独立 Forge 端口已复用既有 1.20.1 共同源码并完成构建。候选 JAR 通过 JSON、67 个 Mixin 类、65 个 refmap 条目、内嵌 MixinExtras、Java 17 字节码及许可文件检查；SHA-256 为 `db638bec05bc223381ab77395777f329c4f77eab6858ac9065dd09e10999d993`。
+- 本机 Forge 47.3.0：候选 JAR 在独立专服启动、重载并正常保存关闭（`build/china-port/forge-production-server.log`）；开发客户端完整入战流程通过（`build/china-port/forge-client-dev.log`），友军收纳、跟随与 R 键通过（`build/china-port/forge-companions-final.log`），重启后同 UUID / 名字 / 生命值的友军放出、跟随、回收通过（`build/china-port/forge-companions-final-restart.log`）。验收脚本已同步测试用快捷栏并避免失焦暂停；这些结果不能替代国服实测。
+- 候选 JAR 与按官方结构生成的 7z 位于 `dist/MineTurn-China-Java-1.20.1-candidate/`，归档测试和提取后哈希一致。尚未完成网易工作台、中国版客户端及多人验证，也未上传开发者平台；原有 Fabric / NeoForge 发行结果不自动适用于此端口。
+
 ## Fabric 多版本适配（2026-10-27）
 
 - 用户确认先做 Fabric：Minecraft 1.20.1、1.21（即所称 1.21.0）、1.21.8、1.21.10。依赖及构建见 [FABRIC_PORTS.md](FABRIC_PORTS.md)，端口版本为 `1.0.0-trails.11+mc<游戏版本>`；1.21.1 Fabric / NeoForge 仍为 trails.10。

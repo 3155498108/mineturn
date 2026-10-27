@@ -78,8 +78,11 @@ def capture(version: str) -> None:
     print(f"Captured {version}: {len(chunks)} diff lines")
 
 
-def resources(version: str) -> None:
-    target = ROOT / "fabric/build/ports" / version / "resources/main"
+def resources(version: str, target: Path | None = None) -> None:
+    if target is None:
+        target = ROOT / "fabric/build/ports" / version / "resources/main"
+    elif version != "1.20.1" or target != ROOT / "forge/build/resources/main":
+        raise ValueError(f"Unsupported resource destination: {target}")
     if not target.is_dir() or target.resolve() != target.absolute():
         raise ValueError(f"Unsafe generated resource directory: {target}")
     if version == "1.20.1":

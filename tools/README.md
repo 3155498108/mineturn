@@ -4,6 +4,8 @@
 
 使用目标版本的共同源码严格生成、捕获补丁与处理生成资源；会写入明确的 `fabric/build/ports/<版本>/` 或 `fabric/ports/<版本>.patch`，不会操作普通游戏存档。命令和版本验证边界见 [Fabric 多版本适配](../docs/FABRIC_PORTS.md)。
 
+`forge_port.py` 使用同一补丁在 `forge/build/generated/java` 生成中国版 Forge 1.20.1 的共同源码，并在 Forge 构建的资源目录应用版本转换。该端口和验收状态见 [中国版移植](../docs/CHINA_JAVA_PORT.md)。
+
 ## 按改动选择工作资料（`workspace_context.py`）
 
 ```powershell

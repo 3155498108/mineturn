@@ -1,0 +1,107 @@
+buildscript {
+    repositories {
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+        mavenCentral()
+    }
+    dependencies { classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT' }
+}
+
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle' version '6.0.54'
+}
+apply plugin: 'org.spongepowered.mixin'
+
+version = '1.0.0-trails.11-cn-dev.1'
+group = 'com.matuvent.mineturn'
+base { archivesName = 'mineturn-forge-1.20.1' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+    copyIdeResources = true
+    runs {
+        configureEach {
+            workingDirectory project.file('../build/china-port/run-forge')
+            property 'forge.logging.console.level', 'info'
+            mods { mineturn { source sourceSets.main } }
+        }
+        client {
+            if (providers.gradleProperty('encounterSmoke').isPresent()) {
+                def qaWorld = providers.gradleProperty('qaWorld').getOrElse('AT-QA-Forge-20261027')
+                workingDirectory project.file('../build/china-port/run-forge-client-qa')
+                property 'mineturn.encounterSmoke', 'true'
+                property 'mineturn.qaWorld', qaWorld
+                property 'mineturn.qaTag', providers.gradleProperty('qaTag').getOrElse('forge')
+                jvmArg '-Xmx1536m'
+                def qaUser = providers.gradleProperty('qaUsername').getOrElse('AT_QA')
+                def qaUuid = java.util.UUID.nameUUIDFromBytes("OfflinePlayer:${qaUser}".getBytes('UTF-8')).toString()
+                args '--username', qaUser, '--uuid', qaUuid, '--quickPlaySingleplayer', qaWorld
+            }
+        }
+        server { args '--nogui' }
+        gameTestServer { property 'forge.enabledGameTestNamespaces', 'trails' }
+    }
+}
+
+// An optional, independently prepared asset tree avoids duplicating game assets.
+gradle.projectsEvaluated {
+    if (providers.gradleProperty('qaAssets').isPresent()) {
+        def assetDir = file(providers.gradleProperty('qaAssets').get())
+        if (!new File(assetDir, 'indexes/5.json').isFile()) throw new GradleException('QA asset index is missing')
+        minecraft.runs.client.token('assets_root', assetDir.absolutePath)
+    }
+}
+tasks.matching { it.name == 'runServer' }.configureEach { standardInput = System.in }
+
+sourceSets.main {
+    java.srcDir layout.buildDirectory.dir('generated/java')
+    resources.srcDir '../src/main/resources'
+    resources.exclude 'mineturn.mixins.json'
+}
+
+def preparePortSources = tasks.register('preparePortSources', Exec) {
+    inputs.files(fileTree('../src/main/java'), fileTree('../fabric/src/main/java'), fileTree('../fabric/ports'))
+    inputs.files('../tools/fabric_ports.py', '../tools/forge_port.py')
+    outputs.dir layout.buildDirectory.dir('generated/java')
+    workingDir '..'
+    commandLine 'python', '-B', 'tools/forge_port.py', 'prepare'
+}
+tasks.named('compileJava') { dependsOn preparePortSources }
+
+mixin {
+    add sourceSets.main, 'mineturn.forge.refmap.json'
+    config 'mineturn.forge.mixins.json'
+}
+
+repositories { mavenCentral() }
+jarJar.enable()
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.3.0'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    compileOnly(annotationProcessor('io.github.llamalad7:mixinextras-common:0.4.1'))
+    implementation(jarJar('io.github.llamalad7:mixinextras-forge:0.4.1')) { jarJar.ranged(it, '[0.4.1,)') }
+}
+
+tasks.named('processResources') {
+    inputs.files('../tools/fabric_ports.py', '../tools/forge_port.py', '../fabric/src/main/resources/mineturn.fabric.mixins.json', '../fabric/ports/1.20.1.mixin-extra.json')
+    doLast {
+        exec { workingDir '..'; commandLine 'python', '-B', 'tools/forge_port.py', 'resources' }
+    }
+}
+tasks.named('jar') {
+    archiveClassifier = 'slim'
+    from('../LICENSE')
+    from('../NOTICE')
+    from('../TEMPLATE_LICENSE.txt')
+    finalizedBy 'reobfJar'
+}
+tasks.named('jarJar') {
+    archiveClassifier = ''
+    from('../LICENSE')
+    from('../NOTICE')
+    from('../TEMPLATE_LICENSE.txt')
+    finalizedBy 'reobfJarJar'
+}
+tasks.named('assemble') { dependsOn 'jarJar' }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 17; options.compilerArgs += ['-Xmaxerrs', '1000'] }
