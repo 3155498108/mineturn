@@ -11,6 +11,7 @@
 - 真实客户端：NeoForge 1.21.1、Fabric 1.21.1、1.20.1、1.21、1.21.8、1.21.10 均通过 CP 范围预览、100→20 鸡战技、主人仍为 137、20 CP 不足确认保护、原生命名牌收纳，以及正常保存重启后同 UUID 的 **20 CP / 3 HP** 放出。日志位于 `build/cp-work/*cp-client*.log`、`*cp-restart.log` 与 `port-*-client-*.log`；1.20.1 使用实际 Java 17。已核对 Fabric 与 1.21.10 的 CP 条及不足提示小预览。
 - 六个 NeoForge/Fabric 正式 JAR 构建、JSON/Mixin/许可/字节码目标/CP 目录/名单版本/无测试类检查通过。文件位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.12/`，下载为 [GitHub trails.12](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)。1.20.1 Forge CP 候选另放 `dist/MineTurn-China-Java-1.20.1-candidate-cp12/`，仅完成本轮编译和结构检查，不能当作本轮国服/联机验收通过。
 - 本轮未重新做逐版本双客户端、全武器演出或网易工作台验收，不沿用历史测试结果冒充新验收。开工前检索了 [Apoli](https://github.com/apace100/apoli) 等实体资源方案，实现继续复用现有 `RuntimePlatform` 和 `CompanionStorage`，没有添加外部资源框架依赖。
+- 本轮 QA、日志、截图和开发诊断已归档至 `dist/verification-cp-trails12-20261028.zip`：1642 个成员的 ZIP CRC 与逐文件 SHA256 通过。约 1.09 GiB 临时副本移入 Windows 回收站，未清空回收站，不将工作目录缩小冒充磁盘空间释放。清单为 `dist/cleanup-cp-trails12-20261028.json`；普通存档、旧发行包、素材、已有国服 QA 材料、依赖缓存和最终 JAR 保留。
 
 ## 中国版 Java 经典版移植（2026-10-27，进行中）
 
