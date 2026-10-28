@@ -1,8 +1,10 @@
 # MineTurn
 
+**trails.12** adds per-entity CP, technique costs and companion CP/HP persistence. Chicken costs 80 CP; new companions start at 100, capped at 200. [Download](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12). Update both client and server.
+
 > This is a customized AT prototype with single-player and multiplayer rules based on Matuvent/mineturn, not an official upstream release.
 > Manual encounters, controlled animal allies, backstab advantage and S-Break rules supersede the upstream gameplay below.
-> See [branch rules and validation](docs/TRAILS_PROTOTYPE.md). Runtime protocol: `31-trails` plus `trails-10`.
+> See [branch rules and validation](docs/TRAILS_PROTOTYPE.md). Runtime protocol: `31-trails` plus `trails-12`.
 > [82-species AT catalog](docs/TRAILS_BESTIARY.md): native model animations, distinct boss S skills and persistent golden next-turn warnings.
 
 [Multiplayer rules](docs/TRAILS_MULTIPLAYER.md): separate player factions, name-tag pet ownership, invite/accept teams and private control/CP/S-Break.
@@ -11,9 +13,9 @@ Name tags now store friendly mobs as portable companion tokens. Use a token on a
 
 White normal damage, larger red critical numbers, numeric HP bars and configurable critical chance (10%) / multiplier (1.5) in the AT settings.
 
-Version `1.0.0-trails.10` provides separate **Fabric and NeoForge** artifacts. Fabric requires Fabric API; install one loader's artifact on both the client and server. See [installation, architecture and validation](docs/FABRIC.md). Current trails.10 download: [GitHub Release](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.10). The [Modrinth project](https://modrinth.com/mod/mineturn-at-prototype) has earlier builds; this update has not been synced there yet.
+Version `1.0.0-trails.12` provides separate **Fabric and NeoForge** artifacts. Fabric requires Fabric API; install one loader's artifact on both the client and server. See [installation, architecture and validation](docs/FABRIC.md). Download: [GitHub Release](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12). The [Modrinth project](https://modrinth.com/mod/mineturn-at-prototype) has earlier builds; this update has not been synced there yet.
 
-Fabric ports for **1.20.1, 1.21, 1.21.8 and 1.21.10** are built separately as `trails.11`. See [version dependencies, build commands and limitations](docs/FABRIC_PORTS.md). The 1.21.1 Fabric / NeoForge artifacts remain on trails.10.
+Fabric ports for **1.20.1, 1.21, 1.21.8 and 1.21.10** are built separately as `trails.12`. See [version dependencies, build commands and limitations](docs/FABRIC_PORTS.md). The 1.21.1 Fabric / NeoForge artifacts also include the CP update.
 
 **English** | [中文](README.zh_cn.md)
 

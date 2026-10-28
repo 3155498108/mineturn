@@ -95,7 +95,6 @@ public final class TrailsCombat {
     Vec3 movementOrigin = Vec3.ZERO, direction = Vec3.ZERO;
     double movementRadius;
     int inputTicks;
-    private static final String CP = "mineturn.trails.cp";
     private static final String PRIMARY = "mineturn.trails.primary";
     private static final String AMBUSH = "mineturn.trails.ambushUntil";
     private static final String OWNER = "mineturn.trails.ambushOwner";
@@ -282,9 +281,9 @@ public final class TrailsCombat {
         return battle;
     }
 
-    int cp() { return Math.clamp(com.matuvent.mineturn.platform.RuntimePlatform.data(player).getInt(CP), 0, 200); }
+    int cp() { return TrailsCp.get(player); }
     void addCp(int amount){addCp(player,amount);}
-    void addCp(LivingEntity source,int amount){var owner=controller(source);if(owner!=null)com.matuvent.mineturn.platform.RuntimePlatform.data(owner).putInt(CP,Math.clamp(com.matuvent.mineturn.platform.RuntimePlatform.data(owner).getInt(CP)+amount,0,200));}
+    void addCp(LivingEntity source,int amount){TrailsCp.add(source,amount);}
     String primary() { return com.matuvent.mineturn.platform.RuntimePlatform.data(player).getString(PRIMARY); }
     static void setPrimary(ServerPlayer p) {
         var stack = p.getMainHandItem();
@@ -342,7 +341,7 @@ public final class TrailsCombat {
                                 .map(m -> (plans.get(m.entity.getUUID()).warning().golden()?"[金光 S] ":"[红光] ")+m.entity.getName().getString()+" · "+plans.get(m.entity.getUUID()).move().name()).reduce((a, c) -> a + "、" + c).orElse("") + " · 下次自身回合发动，可移动、防御或抢 S！", queue));
         var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity)+(multiplayer && !(m.entity instanceof ServerPlayer) && controller(m.entity)!=null?" ["+controller(m.entity).getScoreboardName()+"]":""),
                 !allied(m.entity), m.entity.getHealth(), m.entity.getMaxHealth(), speed(m.entity),
-                b.clock.until(m.entity, this::speed), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.name(p.getMainHandItem()) : skillName(m.entity), m.entity.getActiveEffects().stream().limit(64)
+                b.clock.until(m.entity, this::speed), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.name(p.getMainHandItem()) : skillName(m.entity), TrailsCp.get(m.entity), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.cpCost(p.getMainHandItem()) : TrailsBestiary.get(m.entity)==null?0:TrailsBestiary.get(m.entity).skill().cpCost(), m.entity.getActiveEffects().stream().limit(64)
                         .map(e -> new TrailsNetwork.Status(BuiltInRegistries.MOB_EFFECT.getKey(e.getEffect().value()).toString(), e.getAmplifier() + 1, e.getDuration())).toList(), plans.containsKey(m.entity.getUUID())?plans.get(m.entity.getUUID()).warning():null)).toList();
         for (int from = 0, page = 0; from < roster.size(); from += 48, page++)
             BattleNetwork.send(recipient, new TrailsNetwork.Roster(b.id, b.revision, page, from + 48 >= roster.size(),
@@ -551,6 +550,7 @@ public final class TrailsCombat {
         boolean charged = wind || skill && mace;
         int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.WIND_CHARGE) : -2;
         if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "背包内需要 1 支普通箭。" : "背包内需要 1 个风弹。");
+        TrailsCp.spend(player, skill || wind ? TrailsWeaponSkills.cpCost(stack) : 0);
         player.getInventory().selected = slot;
         ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
         double base = baseDamage(player);
@@ -593,7 +593,7 @@ public final class TrailsCombat {
                     player.playSound(SoundEvents.MACE_SMASH_GROUND_HEAVY, .9f, charged ? .8f : 1.1f);
                 }
                 if (stack.isDamageableItem()) stack.hurtAndBreak(skill ? 2 : 1, player, EquipmentSlot.MAINHAND);
-                b.message(title); addCp(player,cfg().cpPerAction); recover(player, delay);
+                b.message(title); if(!skill && !wind)addCp(player,cfg().cpPerAction); recover(player, delay);
             }, false);
         });
     }

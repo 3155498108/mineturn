@@ -23,7 +23,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 /** One versioned Forge channel carries the existing, direction-specific payload schemas. */
 public final class ForgePayloads implements PayloadRegistrar {
-    private static final String PROTOCOL = "trails-11-cn-1";
+    private static final String PROTOCOL = "trails-12-cn-1";
     private static final int MAX_PACKET_BYTES = 2 * 1024 * 1024;
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MineTurn.MODID, "combat"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);

@@ -121,7 +121,7 @@ public final class TrailsMultiplayerGameTests {
             for(var e:List.of(a.p,b.p,sheep,zombie))e.setHealth(2);
             session.actor=sheep;c.onTurn();c.companionSkill(-1);TrailsGameTests.resolve(c);
             h.assertTrue(a.p.getHealth()>2 && b.p.getHealth()>2 && zombie.getHealth()==2,"Team heal missed teammate or healed wild enemy");
-            h.assertTrue(com.matuvent.mineturn.platform.RuntimePlatform.data(a.p).getInt("mineturn.trails.cp")==10 && com.matuvent.mineturn.platform.RuntimePlatform.data(b.p).getInt("mineturn.trails.cp")==0,"Pet credited another owner's CP");
+            h.assertTrue(TrailsCp.get(a.p)==0 && TrailsCp.get(b.p)==0 && TrailsCp.get(sheep)==60,"Pet used another member's CP");
             session.close("test");TrailsTeams.leave(b.p);TrailsTeams.leave(a.p);
         }h.succeed();
     }

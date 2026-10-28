@@ -1,5 +1,17 @@
 # MineTurn 开发任务表
 
+## 战技 CP、独立角色资源与收纳状态（2026-10-28）
+
+- trails.12：所有普通战技消耗对应角色自己的 CP。鸡的「振翅号令」80；猪 25、羊 40、狼/牛 30、鹦鹉 35、悦灵 60。六类武器为剑 25、斧 30、弓 35、三叉戟 40、弩 45、风弹重锤 60。82 种生物费用写在 `trails_bestiary.json` 的 `skill.cpCost`，完整表见[技能目录](TRAILS_BESTIARY.md)。
+- `TrailsCp` 复用现有实体持久数据。新友军默认 100，上限 200；已有 0 CP 不会重新初始化。友军普攻/受伤所得 CP 不再记到主人身上；付费战技不返还普攻 CP。普通敌人也使用自身 CP，不够时回退普攻；旋风人的普攻击飞同样获得普攻 CP。玩家 S 技与 Boss 金光预告规则见[分支规则](TRAILS_PROTOTYPE.md)。
+- 预览与取消不扣 CP；服务器在有效提交时扣一次。CP 不足不会扣箭、风弹、耐久或推进回合，重复/过期请求不能重复扣费。收纳前和放出后均初始化/约束实体 CP，快照保留当前 CP、当前生命与 UUID；反复收放不会补满。旧快照缺少 CP 字段时初始化 100，已存 0 / 20 / 200 分别保留。
+- 名单新增 CP / 200 条及战技费用，当前行动者自动翻到对应名单页；范围预览显示费用与不足提示，确认按钮不足时禁用。S-Break 显示的是玩家本人的 CP，不能借用友军。CP/费用或行动者变化会刷新按钮，不只依赖旧修订号。
+- 协议为 `31-trails` / `trails-12`，名单类型改为 `trails_roster_v12`；Forge 候选通道为 `trails-12-cn-1`。客户端和服务器一起更新，不能混用旧版。
+- 最终服务器回归：NeoForge 1.21.1 **87 项**（`build/cp-work/neoforge-final.log`）、Fabric 1.21.1 **93 项**（`build/cp-work/fabric-tests-final.log`）通过。新增 7 项 `TrailsCpGameTests` 覆盖鸡扣 80/重放/不足、武器费用与普攻回 CP、弹药/耐久/回合保护、独立资源与上限/0 值、敌方不足回退、收纳 0/20/200 CP 与生命、名单编解码；既有用例同步真实新费用，并增加旋风人 CP 回归。
+- 真实客户端：NeoForge 1.21.1、Fabric 1.21.1、1.20.1、1.21、1.21.8、1.21.10 均通过 CP 范围预览、100→20 鸡战技、主人仍为 137、20 CP 不足确认保护、原生命名牌收纳，以及正常保存重启后同 UUID 的 **20 CP / 3 HP** 放出。日志位于 `build/cp-work/*cp-client*.log`、`*cp-restart.log` 与 `port-*-client-*.log`；1.20.1 使用实际 Java 17。已核对 Fabric 与 1.21.10 的 CP 条及不足提示小预览。
+- 六个 NeoForge/Fabric 正式 JAR 构建、JSON/Mixin/许可/字节码目标/CP 目录/名单版本/无测试类检查通过。文件位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.12/`，下载为 [GitHub trails.12](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)。1.20.1 Forge CP 候选另放 `dist/MineTurn-China-Java-1.20.1-candidate-cp12/`，仅完成本轮编译和结构检查，不能当作本轮国服/联机验收通过。
+- 本轮未重新做逐版本双客户端、全武器演出或网易工作台验收，不沿用历史测试结果冒充新验收。开工前检索了 [Apoli](https://github.com/apace100/apoli) 等实体资源方案，实现继续复用现有 `RuntimePlatform` 和 `CompanionStorage`，没有添加外部资源框架依赖。
+
 ## 中国版 Java 经典版移植（2026-10-27，进行中）
 
 - 官方资料确认 Java 1.20.1 的平台基线为 Forge 47.3.0，工作台支持导入 Java 作品测试；文档依据、构建结构和验收边界见 [中国版移植](CHINA_JAVA_PORT.md)。

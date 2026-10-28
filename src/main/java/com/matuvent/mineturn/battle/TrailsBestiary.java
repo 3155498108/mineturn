@@ -10,7 +10,7 @@ import net.minecraft.world.phys.Vec3;
 /** Explicit species catalog for the AT branch, separate from the upstream datapack AI. */
 public final class TrailsBestiary {
     public record Move(String name,String kind,String animation,String shape,double range,double radius,double width,
-                       double power,String buff,int amplifier,int ticks,String projectile,boolean ignoreSight) {
+                       double power,String buff,int amplifier,int ticks,String projectile,boolean ignoreSight,int cpCost) {
         public TrailsArea area() {
             return switch(shape) {
                 case "self" -> new TrailsArea(TrailsArea.Kind.DISK,0,radius,0);
@@ -36,6 +36,7 @@ public final class TrailsBestiary {
             var result=new LinkedHashMap<String,Profile>();
             for(var p:entries){
                 if(result.put(p.id,p)!=null || p.basic==null || p.skill==null)throw new IllegalStateException("Invalid bestiary entry: "+p.id);
+                if(p.basic.cpCost!=0 || p.skill.cpCost<1 || p.skill.cpCost>TrailsCp.MAX)throw new IllegalStateException("Invalid CP cost: "+p.id);
                 for(var move:List.of(p.basic,p.skill)){if(move.name==null || move.name.isBlank() || move.animation==null || move.range<0 || move.range>32 || move.radius<0 || move.radius>12)throw new IllegalStateException("Invalid move: "+p.id);}
             }
             return Collections.unmodifiableMap(result);

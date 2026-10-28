@@ -19,14 +19,16 @@ final class TrailsBestiaryActions {
         var profile=TrailsBestiary.get(actor);
         if(profile==null){c.finish(1);return;}
         var plan=c.plans.remove(actor.getUUID());
-        if(plan!=null){c.charging.remove(actor.getUUID());cast(c,actor,target,plan.move,plan.warning.aim(),plan.warning.golden(),plan.warning.origin());return;}
+        if(plan!=null){c.charging.remove(actor.getUUID());if(plan.warning.golden() || TrailsCp.get(actor)>=plan.move.cpCost()){cast(c,actor,target,plan.move,plan.warning.aim(),plan.warning.golden(),plan.warning.origin());return;}}
         int count=c.turns.getOrDefault(actor.getUUID(),1);
         if(profile.ultimate()!=null && count%3==0){prepare(c,actor,target,profile.ultimate(),true);return;}
         if(profile.basic().kind().equals("CHARGE")){
             if(TrailsCombat.gap(actor,target)>4){approach(c,actor,target);return;}
+            if(TrailsCp.get(actor)<profile.skill().cpCost()){c.addCp(actor,com.matuvent.mineturn.TrailsConfig.current.cpPerAction);c.finish(1);return;}
             prepare(c,actor,target,profile.skill(),false);return;
         }
         var move=count%(profile.ultimate()!=null?2:3)==0?profile.skill():profile.basic();
+        if(TrailsCp.get(actor)<move.cpCost())move=profile.basic();
         if(!move.friendly() && TrailsCombat.gap(actor,target)>move.range() && !move.shape().equals("self")
                 || !move.ignoreSight() && !move.friendly() && !actor.hasLineOfSight(target)) {approach(c,actor,target);return;}
         cast(c,actor,target,move,move.aim(actor,target),false,actor.position());
@@ -49,6 +51,8 @@ final class TrailsBestiaryActions {
     }
     static void cast(TrailsCombat c,LivingEntity source,LivingEntity target,TrailsBestiary.Move move,Vec3 aim,boolean ultimate,Vec3 origin) {
         if(c.busy())throw new IllegalArgumentException("请等待当前动作完成。");
+        int cpCost=ultimate?0:move.cpCost();
+        TrailsCp.require(source,cpCost);
         if(!move.area().validAim(aim))throw new IllegalArgumentException("技能落点超出施放范围。");
         if(move.area().kind()==TrailsArea.Kind.SINGLE){
             if(target==null || !target.isAlive() || !c.enemy(source,target) || !c.b.members.containsKey(target.getUUID()))throw new IllegalArgumentException("请选择存活的敌人。");
@@ -65,6 +69,7 @@ final class TrailsBestiaryActions {
             }
             c.b.message("突袭路线受阻。");c.finish(1.2);return;
         }
+        TrailsCp.spend(source,cpCost);
         String style=(ultimate?"boss_":"")+move.animation();
         c.performances.put(source.getUUID(),new String[]{style,move.name()});
         Vec3 point=move.shape().equals("circle")?origin.add(aim).add(0,1,0):target==null?source.getEyePosition():target.getEyePosition();
@@ -89,9 +94,9 @@ final class TrailsBestiaryActions {
                 if(c.b.closed)return;
                 boolean canLaunch=target!=null && target.isAlive() && c.b.members.containsKey(target.getUUID()) && c.enemy(source,target)
                         && TrailsCombat.gap(source,target)<=move.range() && source.hasLineOfSight(target);
+                if(!ultimate && cpCost==0)c.addCp(source,com.matuvent.mineturn.TrailsConfig.current.cpPerAction);
                 if(move.kind().equals("WIND") && canLaunch && c.knockUp(source,target,move.power()>1?1.04:.92))return;
                 if(move.kind().equals("LEVITATE") && canLaunch && c.knockUp(source,target,.65))return;
-                if(c.controller(source)!=null)c.addCp(source,move.friendly()?10:com.matuvent.mineturn.TrailsConfig.current.cpPerAction);
                 if(move.kind().equals("READY")){c.pending=new TrailsCombat.Pending(source,c.turn,8,()->c.b.next(),false);return;}
                 c.recover(source,ultimate?2.2:move.friendly()?1.3:1.25);
             },red);

@@ -64,14 +64,14 @@ public final class TrailsNetwork {
         void write(FriendlyByteBuf b) { b.writeUtf(effect, 128); b.writeVarInt(level); b.writeVarInt(ticks); }
         static Status read(FriendlyByteBuf b) { return new Status(b.readUtf(128), b.readVarInt(), b.readVarInt()); }
     }
-    public record Fighter(int id, String name, boolean enemy, float hp, float maxHp, double spd, double at, String skill, List<Status> effects, Threat threat) {
+    public record Fighter(int id, String name, boolean enemy, float hp, float maxHp, double spd, double at, String skill, int cp, int skillCost, List<Status> effects, Threat threat) {
         void write(FriendlyByteBuf b) {
             b.writeVarInt(id); b.writeUtf(name, 256); b.writeBoolean(enemy); b.writeFloat(hp); b.writeFloat(maxHp);
-            b.writeDouble(spd); b.writeDouble(at); b.writeUtf(skill, 64);
+            b.writeDouble(spd); b.writeDouble(at); b.writeUtf(skill, 64);b.writeVarInt(cp);b.writeVarInt(skillCost);
             b.writeCollection(effects, (out, s) -> s.write(out)); b.writeBoolean(threat!=null);if(threat!=null)threat.write(b);
         }
         static Fighter read(FriendlyByteBuf b) {
-            return new Fighter(b.readVarInt(), b.readUtf(256), b.readBoolean(), b.readFloat(), b.readFloat(), b.readDouble(), b.readDouble(), b.readUtf(64),
+            return new Fighter(b.readVarInt(), b.readUtf(256), b.readBoolean(), b.readFloat(), b.readFloat(), b.readDouble(), b.readDouble(), b.readUtf(64),b.readVarInt(),b.readVarInt(),
                     b.readCollection(FriendlyByteBuf.limitValue(java.util.ArrayList::new, 64), Status::read),b.readBoolean()?Threat.read(b):null);
         }
     }
@@ -126,7 +126,7 @@ public final class TrailsNetwork {
     }
 
     public record Roster(UUID battle, long revision, int page, boolean last, List<Fighter> fighters) implements CustomPacketPayload {
-        public static final Type<Roster> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_roster"));
+        public static final Type<Roster> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_roster_v12"));
         public static final StreamCodec<FriendlyByteBuf, Roster> CODEC = StreamCodec.of((b, p) -> {
             b.writeUUID(p.battle); b.writeVarLong(p.revision); b.writeVarInt(p.page); b.writeBoolean(p.last);
             b.writeCollection(p.fighters, (out, f) -> f.write(out));

@@ -29,7 +29,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -62,7 +63,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -95,7 +97,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -128,7 +131,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "trident",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -161,7 +165,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -194,7 +199,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "arrow",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -227,7 +233,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "arrow",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -260,7 +267,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "arrow",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -293,7 +301,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -326,7 +335,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -359,7 +369,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -392,7 +403,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -425,7 +437,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -458,7 +471,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -491,7 +505,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -524,7 +539,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -557,7 +573,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "arrow",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -590,7 +607,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -623,7 +641,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -656,7 +675,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "splash_potion",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -689,7 +709,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     },
     "ultimate": {
       "name": "灭阵咆哮",
@@ -737,7 +758,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "arrow",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -770,7 +792,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "fire_charge",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -803,7 +826,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "fire_charge",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -836,7 +860,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -869,7 +894,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -902,7 +928,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -935,7 +962,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -968,7 +996,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1001,7 +1030,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "shulker_shell",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 45
     }
   },
   {
@@ -1034,7 +1064,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": true
+      "ignoreSight": true,
+      "cpCost": 35
     }
   },
   {
@@ -1067,7 +1098,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1100,7 +1132,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1133,7 +1166,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     },
     "ultimate": {
       "name": "深海裁决",
@@ -1181,7 +1215,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "wind_charge",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 45
     }
   },
   {
@@ -1214,7 +1249,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": true
+      "ignoreSight": true,
+      "cpCost": 60
     },
     "ultimate": {
       "name": "寂灭音爆",
@@ -1262,7 +1298,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "wither_skeleton_skull",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 55
     },
     "ultimate": {
       "name": "万骸终焉",
@@ -1310,7 +1347,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "dragon_breath",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 55
     },
     "ultimate": {
       "name": "终末·龙息天幕",
@@ -1358,7 +1396,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -1391,7 +1430,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 50
     }
   },
   {
@@ -1424,7 +1464,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "snowball",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -1457,7 +1498,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1490,7 +1532,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1523,7 +1566,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 45
     }
   },
   {
@@ -1556,7 +1600,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1589,7 +1634,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "slime_ball",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -1622,7 +1668,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "slime_ball",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1655,7 +1702,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1688,7 +1736,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 45
     }
   },
   {
@@ -1721,7 +1770,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -1754,7 +1804,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 60
     }
   },
   {
@@ -1787,7 +1838,8 @@
       "amplifier": 1,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1820,7 +1872,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -1853,7 +1906,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1886,7 +1940,8 @@
       "amplifier": 1,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -1919,7 +1974,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 80
     }
   },
   {
@@ -1952,7 +2008,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -1985,7 +2042,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2018,7 +2076,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2051,7 +2110,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 40
     }
   },
   {
@@ -2084,7 +2144,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2117,7 +2178,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2150,7 +2212,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2183,7 +2246,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2216,7 +2280,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2249,7 +2314,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 25
     }
   },
   {
@@ -2282,7 +2348,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2315,7 +2382,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 40
     }
   },
   {
@@ -2348,7 +2416,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 45
     }
   },
   {
@@ -2381,7 +2450,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2414,7 +2484,8 @@
       "amplifier": 1,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2447,7 +2518,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2480,7 +2552,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 45
     }
   },
   {
@@ -2513,7 +2586,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2546,7 +2620,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2579,7 +2654,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2612,7 +2688,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 30
     }
   },
   {
@@ -2645,7 +2722,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 45
     }
   },
   {
@@ -2678,7 +2756,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 45
     }
   },
   {
@@ -2711,7 +2790,8 @@
       "amplifier": 0,
       "ticks": 120,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     },
     "ultimate": {
       "name": "荒原踏破",
@@ -2759,7 +2839,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   },
   {
@@ -2792,7 +2873,8 @@
       "amplifier": 0,
       "ticks": 240,
       "projectile": "",
-      "ignoreSight": false
+      "ignoreSight": false,
+      "cpCost": 35
     }
   }
 ]

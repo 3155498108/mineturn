@@ -15,6 +15,15 @@ public final class TrailsWeaponSkills {
         return "请装备武器";
     }
     public static boolean supported(ItemStack s) { return TrailsCombat.weapon(s); }
+    public static int cpCost(ItemStack s) {
+        if (s.is(ItemTags.SWORDS)) return 25;
+        if (s.is(ItemTags.AXES)) return 30;
+        if (s.getItem() instanceof BowItem) return 35;
+        if (s.getItem() instanceof CrossbowItem) return 45;
+        if (s.getItem() instanceof MaceItem) return 60;
+        if (s.getItem() instanceof TridentItem) return 40;
+        return 0;
+    }
     public static TrailsArea shape(ItemStack s) {
         if (s.is(ItemTags.SWORDS)) return new TrailsArea(TrailsArea.Kind.SECTOR, 0, 4, 140);
         if (s.getItem() instanceof CrossbowItem) return new TrailsArea(TrailsArea.Kind.RECTANGLE, 0, 24, 7);

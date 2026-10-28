@@ -16,7 +16,7 @@ def targetApi = port == null ? project.fabric_api_version : portMatrix[port].api
 def targetLoader = port == null ? project.loader_version : '0.18.4'
 def targetJava = port == null ? 21 : portMatrix[port].java
 if (port != null) layout.buildDirectory = file("build/ports/${port}")
-version = port == null ? project.mod_version : "1.0.0-trails.11+mc${port}"
+version = port == null ? project.mod_version : "${project.mod_version}+mc${port}"
 group = 'com.matuvent.mineturn'
 base { archivesName = 'mineturn-fabric' }
 
@@ -150,7 +150,7 @@ if (providers.gradleProperty('fabricQa').isPresent()) {
         doLast {
             def metadata = destinationDir.toPath().resolve('fabric.mod.json').toFile()
             def json = new groovy.json.JsonSlurper().parse(metadata)
-            json.entrypoints['fabric-gametest'] = ['TrailsGameTests','TrailsCriticalGameTests','TrailsBestiaryGameTests','TrailsMultiplayerGameTests','TrailsCompanionGameTests'].collect { "com.matuvent.mineturn.battle.${it}" }
+            json.entrypoints['fabric-gametest'] = ['TrailsGameTests','TrailsCriticalGameTests','TrailsBestiaryGameTests','TrailsMultiplayerGameTests','TrailsCompanionGameTests','TrailsCpGameTests'].collect { "com.matuvent.mineturn.battle.${it}" }
             json.entrypoints['fabric-gametest'].add('com.matuvent.mineturn.battle.FabricBoundaryGameTests')
             metadata.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)),'UTF-8')
         }

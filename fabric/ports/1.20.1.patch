@@ -1562,7 +1562,7 @@
      public static TrailsArea skill(String entity) {
 --- a/com/matuvent/mineturn/battle/TrailsBestiaryActions.java
 +++ b/com/matuvent/mineturn/battle/TrailsBestiaryActions.java
-@@ -79,7 +79,7 @@
+@@ -84,7 +84,7 @@
              int flight=move.animation().equals("sonic")?18:move.projectile().isBlank()?5:TrailsChoreography.flight(source.getEyePosition().distanceTo(impactPoint));
              c.perform(source,move.friendly()?"support":"strike",flight,red,impactPoint,style,move.name());
              if(!move.projectile().isBlank()){
@@ -1571,7 +1571,7 @@
                  c.projectile(source,impactPoint,item);
                  if(ultimate || move.name().contains("齐射") || move.name().contains("三"))for(int lane:new int[]{-1,1})c.projectile(source,impactPoint.add(lane*.7,0,0),item);
              }
-@@ -116,7 +116,7 @@
+@@ -121,7 +121,7 @@
                  case "BUFF" -> buff(e,move);
                  case "HEAL" -> e.heal((float)move.power());
                  case "REGEN" -> {e.heal((float)move.power());c.regrowth.put(e.getUUID(),3);}
@@ -1580,7 +1580,7 @@
                  case "ADVANCE" -> c.b.clock.recovery(e,Math.max(0,c.b.clock.remaining(e)-20*c.speed(e)));
                  case "READY" -> {}
                  default -> {
-@@ -126,7 +126,7 @@
+@@ -131,7 +131,7 @@
                      double power=Math.max(0,move.power()+(strength==null?0:3*(strength.getAmplifier()+1))-(weakness==null?0:4*(weakness.getAmplifier()+1)));
                      if(move.animation().equals("sonic"))c.damage(source,e,move.power(),source.damageSources().sonicBoom(source));else c.hit(source,e,power);
                      if(e.isAlive() && !move.buff().isBlank())buff(e,move);
@@ -1589,7 +1589,7 @@
                      if(move.kind().equals("STAGGER") && c.b.members.containsKey(e.getUUID()))c.b.clock.recovery(e,c.b.clock.remaining(e)+30*c.speed(e));
                      if(move.kind().equals("DRAIN"))source.heal((float)move.power()*.3f);
                  }
-@@ -138,7 +138,7 @@
+@@ -143,7 +143,7 @@
      }
      static void buff(LivingEntity e,TrailsBestiary.Move move){
          if(move.buff().isBlank())return;
@@ -1632,7 +1632,7 @@
  import net.minecraft.core.particles.ParticleTypes;
  import net.minecraft.core.registries.BuiltInRegistries;
  import net.minecraft.network.chat.Component;
-@@ -106,7 +106,7 @@
+@@ -105,7 +105,7 @@
      boolean controls(ServerPlayer p,LivingEntity e){return p!=null && controller(e)==p;}
      ServerPlayer turnPlayer(){var p=controller(b.actor);return p!=null?p:b.players().stream().filter(LivingEntity::isAlive).findFirst().orElse(host);}
      void runAs(ServerPlayer p,Runnable work){player=p;try{work.run();}finally{player=turnPlayer();}}
@@ -1641,7 +1641,7 @@
      void withdraw(ServerPlayer p){
          for(var m:List.copyOf(b.members.values()))if(m.entity!=p && controls(p,m.entity))b.remove(m.entity,"友军随主人退出。");
          b.leave(p,"已退出 AT 战斗，恢复即时战斗。");
-@@ -180,7 +180,7 @@
+@@ -179,7 +179,7 @@
          Vec3 facing = victim.getLookAngle().multiply(1, 0, 1).normalize();
          Vec3 towardPlayer = p.position().subtract(victim.position()).multiply(1, 0, 1).normalize();
          if (facing.dot(towardPlayer) > -.5) return;
@@ -1650,19 +1650,7 @@
          com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putLong(AMBUSH, now + ticks);
          com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putLong("mineturn.trails.ambushCooldown", now + 1200);
          com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putUUID(OWNER, p.getUUID());
-@@ -282,9 +282,9 @@
-         return battle;
-     }
- 
--    int cp() { return Math.clamp(com.matuvent.mineturn.platform.RuntimePlatform.data(player).getInt(CP), 0, 200); }
-+    int cp() { return com.matuvent.mineturn.compat.Legacy.clamp(com.matuvent.mineturn.platform.RuntimePlatform.data(player).getInt(CP), 0, 200); }
-     void addCp(int amount){addCp(player,amount);}
--    void addCp(LivingEntity source,int amount){var owner=controller(source);if(owner!=null)com.matuvent.mineturn.platform.RuntimePlatform.data(owner).putInt(CP,Math.clamp(com.matuvent.mineturn.platform.RuntimePlatform.data(owner).getInt(CP)+amount,0,200));}
-+    void addCp(LivingEntity source,int amount){var owner=controller(source);if(owner!=null)com.matuvent.mineturn.platform.RuntimePlatform.data(owner).putInt(CP,com.matuvent.mineturn.compat.Legacy.clamp(com.matuvent.mineturn.platform.RuntimePlatform.data(owner).getInt(CP)+amount,0,200));}
-     String primary() { return com.matuvent.mineturn.platform.RuntimePlatform.data(player).getString(PRIMARY); }
-     static void setPrimary(ServerPlayer p) {
-         var stack = p.getMainHandItem();
-@@ -294,12 +294,12 @@
+@@ -293,12 +293,12 @@
      }
      static boolean weapon(ItemStack stack) {
          return stack.is(ItemTags.SWORDS) || stack.is(ItemTags.AXES) || stack.getItem() instanceof BowItem
@@ -1677,7 +1665,7 @@
          if (s.is(ItemTags.AXES)) return "裂甲断空";
          if (s.getItem() instanceof TridentItem) return "苍潮奔流";
          return "终式 · 万刃风暴";
-@@ -324,7 +324,7 @@
+@@ -323,7 +323,7 @@
          var slow = e.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
          if (fast != null) base *= 1 + cfg().speedPotionPerLevel * (fast.getAmplifier() + 1);
          if (slow != null) base *= Math.max(.1, 1 - .15 * (slow.getAmplifier() + 1));
@@ -1686,16 +1674,16 @@
      }
  
      void sync(ServerPlayer recipient){var previous=player;player=recipient;try{syncView(recipient);}finally{player=previous;}}
-@@ -343,7 +343,7 @@
+@@ -342,7 +342,7 @@
          var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity)+(multiplayer && !(m.entity instanceof ServerPlayer) && controller(m.entity)!=null?" ["+controller(m.entity).getScoreboardName()+"]":""),
                  !allied(m.entity), m.entity.getHealth(), m.entity.getMaxHealth(), speed(m.entity),
-                 b.clock.until(m.entity, this::speed), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.name(p.getMainHandItem()) : skillName(m.entity), m.entity.getActiveEffects().stream().limit(64)
+                 b.clock.until(m.entity, this::speed), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.name(p.getMainHandItem()) : skillName(m.entity), TrailsCp.get(m.entity), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.cpCost(p.getMainHandItem()) : TrailsBestiary.get(m.entity)==null?0:TrailsBestiary.get(m.entity).skill().cpCost(), m.entity.getActiveEffects().stream().limit(64)
 -                        .map(e -> new TrailsNetwork.Status(BuiltInRegistries.MOB_EFFECT.getKey(e.getEffect().value()).toString(), e.getAmplifier() + 1, e.getDuration())).toList(), plans.containsKey(m.entity.getUUID())?plans.get(m.entity.getUUID()).warning():null)).toList();
 +                        .map(e -> new TrailsNetwork.Status(BuiltInRegistries.MOB_EFFECT.getKey(e.getEffect()).toString(), e.getAmplifier() + 1, e.getDuration())).toList(), plans.containsKey(m.entity.getUUID())?plans.get(m.entity.getUUID()).warning():null)).toList();
          for (int from = 0, page = 0; from < roster.size(); from += 48, page++)
              BattleNetwork.send(recipient, new TrailsNetwork.Roster(b.id, b.revision, page, from + 48 >= roster.size(),
                      roster.subList(from, Math.min(from + 48, roster.size()))));
-@@ -483,7 +483,7 @@
+@@ -482,7 +482,7 @@
          perform(source, "strike", 12, !allied(source), victim.position());
          source.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
          var animation = new BattleNetwork.ActionAnimation(b.id, ++b.actionSequence,
@@ -1704,7 +1692,7 @@
                  source.getId(), victim.getId(), victim.position(), true);
          broadcast(animation);
      }
-@@ -491,7 +491,7 @@
+@@ -490,7 +490,7 @@
      void attack(int targetId, int slot, boolean wind) {
          var victim = b.level.getEntity(targetId);
          Vec3 aim = victim == null ? b.actor.getLookAngle().multiply(1, 0, 1) : victim.position().subtract(b.actor.position()).multiply(1, 0, 1);
@@ -1713,7 +1701,7 @@
          if (shape.kind() == TrailsArea.Kind.DISK && aim.length() > shape.cast()) aim = aim.normalize().scale(shape.cast());
          attack(targetId, slot, wind, aim);
      }
-@@ -541,15 +541,15 @@
+@@ -540,15 +540,15 @@
          if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
          var stack = player.getInventory().getItem(slot);
          if (skill && !weapon(stack)) throw new IllegalArgumentException("请先装备武器。");
@@ -1730,8 +1718,8 @@
 -        int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.WIND_CHARGE) : -2;
 +        int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.AIR) : -2;
          if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "背包内需要 1 支普通箭。" : "背包内需要 1 个风弹。");
+         TrailsCp.spend(player, skill || wind ? TrailsWeaponSkills.cpCost(stack) : 0);
          player.getInventory().selected = slot;
-         ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
 @@ -570,7 +570,7 @@
                      var forward = shape.direction(aim); var across = new Vec3(forward.z, 0, -forward.x);
                      for (int lane : new int[]{-1, 1}) projectile(player, end.add(across.scale(lane * 3)), Items.ARROW);
@@ -1750,7 +1738,7 @@
                  }
 -                if (stack.isDamageableItem()) stack.hurtAndBreak(skill ? 2 : 1, player, EquipmentSlot.MAINHAND);
 +                if (stack.isDamageableItem()) stack.hurtAndBreak(skill ? 2 : 1,player,e->e.broadcastBreakEvent(EquipmentSlot.MAINHAND));
-                 b.message(title); addCp(player,cfg().cpPerAction); recover(player, delay);
+                 b.message(title); if(!skill && !wind)addCp(player,cfg().cpPerAction); recover(player, delay);
              }, false);
          });
 @@ -600,7 +600,7 @@
@@ -1901,8 +1889,8 @@
          return tag.hasUUID(TICKET) ? tag.getUUID(TICKET) : null;
      }
      public static boolean capture(ServerPlayer player, Mob mob) {
-@@ -41,11 +41,12 @@
-         if (slot < 0) { message(player, "背包已满，请先腾出一个格子。"); return false; }
+@@ -42,11 +42,12 @@
+         TrailsCp.initialize(mob);
          var entity = new CompoundTag();
          if (!mob.save(entity)) return false;
 +        entity.putInt("DataVersion",3465);
@@ -1916,6 +1904,35 @@
          var storage = CompanionStorage.get(player.server);
          storage.put(ticket, player.getUUID(), entity);
          player.getInventory().setItem(slot, item);
+--- a/com/matuvent/mineturn/battle/TrailsCpScenario.java
++++ b/com/matuvent/mineturn/battle/TrailsCpScenario.java
+@@ -3,7 +3,7 @@
+ import com.matuvent.mineturn.MineTurn;
+ import java.util.*;
+ import net.minecraft.core.BlockPos;
+-import net.minecraft.core.component.DataComponents;
++import com.matuvent.mineturn.compat.DataComponents;
+ import net.minecraft.network.chat.Component;
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.level.ServerPlayer;
+@@ -21,7 +21,7 @@
+         if(com.matuvent.mineturn.platform.RuntimePlatform.production() || !Boolean.getBoolean("mineturn.encounterSmoke") || !System.getProperty("mineturn.qaTag","").startsWith("cp"))throw new IllegalStateException("CP QA disabled");
+         String name=System.getProperty("mineturn.qaWorld","");
+         if(!name.matches("AT-QA-[A-Za-z0-9-]+") || !server.getWorldPath(LevelResource.ROOT).normalize().getFileName().toString().equals(name))throw new IllegalStateException("Wrong CP QA world");
+-        return server.getPlayerList().getPlayers().getFirst();
++        return server.getPlayerList().getPlayers().get(0);
+     }
+     public static void setup(MinecraftServer server,boolean reload) {
+         var p=player(server);var level=p.serverLevel();ready=false;verified=false;
+@@ -34,7 +34,7 @@
+         level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(false,server);
+         p.setGameMode(GameType.SURVIVAL);p.teleportTo(.5,-59,.5);p.getInventory().clearContent();p.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(20);p.setHealth(20);TrailsCp.set(p,137);
+         p.getInventory().setItem(0,new ItemStack(Items.IRON_SWORD));
+-        var tag=new ItemStack(Items.NAME_TAG);tag.set(DataComponents.CUSTOM_NAME,Component.literal("CP伙伴"));p.getInventory().setItem(1,tag);p.getInventory().selected=0;
++        var tag=new ItemStack(Items.NAME_TAG);com.matuvent.mineturn.compat.Components.set(tag,DataComponents.CUSTOM_NAME,Component.literal("CP伙伴"));p.getInventory().setItem(1,tag);p.getInventory().selected=0;
+         var chicken=EntityType.CHICKEN.create(level);chicken.moveTo(2.5,-59,.5);chicken.setNoAi(true);chicken.setHealth(3);level.addFreshEntity(chicken);bird=chicken.getUUID();TrailsParties.named(p,chicken);
+         if(TrailsCp.get(chicken)!=100)throw new IllegalStateException("New chicken CP is not 100");
+         var zombie=EntityType.ZOMBIE.create(level);zombie.moveTo(6,-59,3);zombie.setNoAi(true);zombie.setItemSlot(EquipmentSlot.HEAD,new ItemStack(Items.IRON_HELMET));level.addFreshEntity(zombie);
 --- a/com/matuvent/mineturn/battle/TrailsMultiplayerScenario.java
 +++ b/com/matuvent/mineturn/battle/TrailsMultiplayerScenario.java
 @@ -5,7 +5,7 @@
@@ -2015,7 +2032,15 @@
          if (s.getItem() instanceof TridentItem) return "贯穿投掷";
          return "请装备武器";
      }
-@@ -18,7 +18,7 @@
+@@ -20,14 +20,14 @@
+         if (s.is(ItemTags.AXES)) return 30;
+         if (s.getItem() instanceof BowItem) return 35;
+         if (s.getItem() instanceof CrossbowItem) return 45;
+-        if (s.getItem() instanceof MaceItem) return 60;
++        if (s.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return 60;
+         if (s.getItem() instanceof TridentItem) return 40;
+         return 0;
+     }
      public static TrailsArea shape(ItemStack s) {
          if (s.is(ItemTags.SWORDS)) return new TrailsArea(TrailsArea.Kind.SECTOR, 0, 4, 140);
          if (s.getItem() instanceof CrossbowItem) return new TrailsArea(TrailsArea.Kind.RECTANGLE, 0, 24, 7);
@@ -2024,7 +2049,7 @@
          if (s.getItem() instanceof TridentItem) return new TrailsArea(TrailsArea.Kind.RECTANGLE, 0, 20, 2);
          return new TrailsArea(TrailsArea.Kind.SINGLE, s.getItem() instanceof BowItem ? 28 : 3, 0, 0);
      }
-@@ -27,7 +27,7 @@
+@@ -36,7 +36,7 @@
          if (s.is(ItemTags.AXES)) return "单体 1.8 倍伤害，目标 AT 增加 30；AT ×1.7。";
          if (s.getItem() instanceof BowItem) return "蓄力拉弓，单体 14 点基础伤害；消耗 1 支箭；AT ×1.6。";
          if (s.getItem() instanceof CrossbowItem) return "三箭齐射，24×7 格长方形，每个敌人最多受伤一次；消耗 1 支箭；AT ×1.8。";
@@ -2493,7 +2518,7 @@
  }
 --- a/com/matuvent/mineturn/client/TrailsScreen.java
 +++ b/com/matuvent/mineturn/client/TrailsScreen.java
-@@ -47,7 +47,7 @@
+@@ -57,7 +57,7 @@
      public net.minecraft.world.phys.Vec3 aimVector() {
          var shape = previewShape(); double yaw = Math.toRadians(BattleClient.yaw);
          var vector = new net.minecraft.world.phys.Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
@@ -2502,7 +2527,7 @@
          return vector;
      }
      private void prepare(String op) {
-@@ -69,7 +69,7 @@
+@@ -81,7 +81,7 @@
      public int selectedTarget() { return target; }
      @Override public boolean isPauseScreen() { return false; }
      @Override public boolean shouldCloseOnEsc() { return false; }
@@ -2511,7 +2536,7 @@
      @Override protected void init() { rebuild(); }
      private List<TrailsNetwork.Fighter> side(boolean enemy) { return TrailsClient.fighters.stream().filter(f -> f.enemy() == enemy).toList(); }
      private void command(String op) { TrailsClient.send(op, target, minecraft.player.getInventory().selected, 0, 0); }
-@@ -87,7 +87,7 @@
+@@ -105,7 +105,7 @@
          if (!own || !playerTurn) items = false;
          if (items) { inventory(); return; }
          var enemies = side(true);
@@ -2520,7 +2545,7 @@
          int column = Math.min(154, width / 3 - 8);
          roster(false, 8, 69, column);
          roster(true, width - column - 8, 69, column);
-@@ -111,10 +111,10 @@
+@@ -131,10 +131,10 @@
          var slots = new java.util.ArrayList<Integer>();
          for (int i = 0; i < 36; i++) {
              var stack = minecraft.player.getInventory().getItem(i);
@@ -2533,7 +2558,7 @@
          int start = inventoryPage * 6;
          for (int i = start; i < Math.min(slots.size(), start + 6); i++) {
              final int slot = slots.get(i); var stack = minecraft.player.getInventory().getItem(slot);
-@@ -132,18 +132,18 @@
+@@ -152,18 +152,18 @@
      private void roster(boolean enemy, int x, int y, int column) {
          var fighters = side(enemy);
          int count = rows(), pages = Math.max(1, (fighters.size() + count - 1) / count);
@@ -2542,21 +2567,21 @@
          if (enemy) enemyPage = page; else allyPage = page;
          for (int i = page * count; i < Math.min(fighters.size(), (page + 1) * count); i++) {
              var f = fighters.get(i); int row = i - page * count;
-             var rowButton = button("", x, y + row * 44, column,
+             var rowButton = button("", x, y + row * 56, column,
                      () -> { if (enemy) target = f.id(); }, true);
--            rowButton.setHeight(42);
-+            ((com.matuvent.mineturn.mixin.WidgetSizeAccess)rowButton).mineturn$height(42);
+-            rowButton.setHeight(54);
++            ((com.matuvent.mineturn.mixin.WidgetSizeAccess)rowButton).mineturn$height(54);
          }
          if (pages > 1) {
--            button("‹", x, y + count * 44, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true).setHeight(16);
-+            button("‹", x, y + count * 44, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true);
-             button((page + 1) + "/" + pages + " ›", x + 26, y + count * 44, column - 26,
+-            button("‹", x, y + count * 56, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true).setHeight(16);
++            button("‹", x, y + count * 56, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true);
+             button((page + 1) + "/" + pages + " ›", x + 26, y + count * 56, column - 26,
 -                    () -> { if (enemy) enemyPage = (page + 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true).setHeight(16);
 +                    () -> { if (enemy) enemyPage = (page + 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true);
          }
      }
      private boolean playerTurn() {
-@@ -262,7 +262,7 @@
+@@ -287,14 +287,14 @@
              g.drawString(font, font.plainSubstrByWidth((f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name(), column - 30), x + 28, y + 3, -1);
              TrailsPortraits.effects(g, f, x + 28, y + 15, Math.max(1, (column - 45) / 15), mouseX, mouseY);
              g.fill(x + 3, y + 29, x + column - 3, y + 41, 0xff211f2c);
@@ -2565,7 +2590,15 @@
                      f.id()==target?0xffb57d28:enemy?0xffa72545:0xff157a61);
              String hp=TrailsImpacts.format(f.hp())+" / "+TrailsImpacts.format(f.maxHp());
              float scale=Math.min(1,(column-10f)/Math.max(1,font.width(hp)));
-@@ -309,12 +309,12 @@
+             g.pose().pushPose();g.pose().translate(x+column/2f,y+31,0);g.pose().scale(scale,scale,1);
+             g.drawCenteredString(font,hp,0,0,0xffffffff);g.pose().popPose();renderedHealthNumbers++;
+             g.fill(x+3,y+43,x+column-3,y+53,0xff171e35);
+-            g.fill(x+3,y+43,x+3+(int)((column-6)*Math.clamp(f.cp()/200.,0,1)),y+53,0xff3858a5);
++            g.fill(x+3,y+43,x+3+(int)((column-6)*com.matuvent.mineturn.compat.Legacy.clamp(f.cp()/200.,0,1)),y+53,0xff3858a5);
+             String cp="CP "+f.cp()+" / 200 · 技 "+f.skillCost();
+             float cpScale=Math.min(.85f,(column-10f)/Math.max(1,font.width(cp)));
+             g.pose().pushPose();g.pose().translate(x+column/2f,y+44,0);g.pose().scale(cpScale,cpScale,1);
+@@ -341,12 +341,12 @@
      }
      @Override public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
          if (TrailsClient.view.busy() && TrailsPresentationOptions.camera) return true;
@@ -2602,7 +2635,7 @@
  import net.minecraft.world.item.alchemy.Potions;
  import net.minecraft.world.level.GameType;
  import net.minecraft.world.level.block.Blocks;
-@@ -68,6 +68,7 @@
+@@ -69,6 +69,7 @@
          if (stage == 1 && mc.screen != null) return;
          elapsed++;
          if (stage == 1) {
@@ -2610,7 +2643,7 @@
              TrailsClient.preview = true;
              if (elapsed == 16) screenshot("at-qa-01-circle.png");
              if (elapsed > 24) { mc.getToasts().clear(); TrailsClient.preview = false; TrailsClient.send("toggle", -1, 0, 0, 0); stage = 2; elapsed = 0; }
-@@ -179,7 +180,7 @@
+@@ -180,7 +181,7 @@
      }
      private static void setup(MinecraftServer server) {
          var level = server.overworld();
@@ -2619,7 +2652,7 @@
          p.setGameMode(GameType.SURVIVAL);
          for (int x = -16; x <= 16; x++) for (int z = -16; z <= 16; z++) {
              level.setBlock(new BlockPos(x, -60, z), Blocks.GRASS_BLOCK.defaultBlockState(), 3);
-@@ -188,10 +189,10 @@
+@@ -189,10 +190,10 @@
          p.teleportTo(.5, -59, .5); p.setYRot(0); p.setHealth(20);
          var inv = p.getInventory();
          inv.setItem(0, new ItemStack(Items.IRON_SWORD)); inv.setItem(1, new ItemStack(Items.BOW));
@@ -3599,8 +3632,8 @@
      }
  
      public record Roster(UUID battle, long revision, int page, boolean last, List<Fighter> fighters) implements CustomPacketPayload {
--        public static final Type<Roster> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_roster"));
-+        public static final Type<Roster> TYPE = new Type<>(new ResourceLocation("mineturn:trails_roster"));
+-        public static final Type<Roster> TYPE = new Type<>(ResourceLocation.parse("mineturn:trails_roster_v12"));
++        public static final Type<Roster> TYPE = new Type<>(new ResourceLocation("mineturn:trails_roster_v12"));
          public static final StreamCodec<FriendlyByteBuf, Roster> CODEC = StreamCodec.of((b, p) -> {
              b.writeUUID(p.battle); b.writeVarLong(p.revision); b.writeVarInt(p.page); b.writeBoolean(p.last);
              b.writeCollection(p.fighters, (out, f) -> f.write(out));

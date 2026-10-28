@@ -83,6 +83,8 @@ neoForge {
                 systemProperty 'mineturn.encounterSmoke', 'true'
                 systemProperty 'mineturn.qaWorld', providers.gradleProperty('qaWorld').getOrElse('AT-QA-20261023')
                 systemProperty 'mineturn.qaTag', providers.gradleProperty('qaTag').getOrElse('v1')
+                def qaUser = providers.gradleProperty('qaUsername').getOrElse('AT_QA')
+                programArguments.addAll '--username', qaUser, '--uuid', java.util.UUID.nameUUIDFromBytes("OfflinePlayer:${qaUser}".getBytes('UTF-8')).toString()
                 programArguments.addAll '--quickPlaySingleplayer', providers.gradleProperty('qaWorld').getOrElse('AT-QA-20261023')
             }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.

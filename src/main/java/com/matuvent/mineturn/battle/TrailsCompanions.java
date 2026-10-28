@@ -39,6 +39,7 @@ public final class TrailsCompanions {
         if (!canStore(player, mob) || !player.getUUID().equals(TrailsParties.owner(mob))) return false;
         int slot = player.getInventory().getFreeSlot();
         if (slot < 0) { message(player, "背包已满，请先腾出一个格子。"); return false; }
+        TrailsCp.initialize(mob);
         var entity = new CompoundTag();
         if (!mob.save(entity)) return false;
         var ticket = UUID.randomUUID();
@@ -75,6 +76,7 @@ public final class TrailsCompanions {
             message(player, "这里放不下友军，请选择空旷的位置。"); return null;
         }
         RuntimePlatform.data(mob).putUUID(TrailsParties.OWNER, player.getUUID());
+        TrailsCp.initialize(mob);
         RuntimePlatform.data(mob).putBoolean(FOLLOW, true);
         mob.setPersistenceRequired(); mob.setDeltaMovement(Vec3.ZERO); mob.fallDistance = 0;
         if (mob instanceof TamableAnimal pet) { pet.setOrderedToSit(false); pet.setInSittingPose(false); }

@@ -1,6 +1,8 @@
 # MineTurn：AT 战术切换原型分支
 
-新增 **1.20.1、1.21（1.21.0）、1.21.8、1.21.10 的 Fabric 适配包**，版本为 `trails.11`。依赖和构建见[多版本说明](docs/FABRIC_PORTS.md)；1.21.1 Fabric / NeoForge 继续使用 trails.10。
+**trails.12：战技消耗独立 CP，鸡的拉条 80；新友军 100、上限 200。收回、放出和保存重启保留当前 CP 与血量。** [下载](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)，客户端与服务器一起更新。
+
+Fabric 支持 **1.20.1、1.21（1.21.0）、1.21.1、1.21.8、1.21.10**，NeoForge 支持 **1.21.1**；此次统一更新为 `trails.12`。依赖和构建见[多版本说明](docs/FABRIC_PORTS.md)。
 
 本分支基于 Matuvent/mineturn，加入按键圈选参战、友军手动控制、速度 AT、背袭先制与主武器抢 S。请先阅读 [本分支玩法、默认数值和验收状态](docs/TRAILS_PROTOTYPE.md)；以下为保留的上游说明，其中攻击自动开战等旧规则不适用于本分支正常运行。许可证和上游版权声明保留。
 
@@ -10,9 +12,9 @@
 
 新增白色伤害跳字、红色大字暴击和数字血条；默认暴击率 10%、倍率 1.5，O 页可调整。
 
-当前分支版本 `1.0.0-trails.10`，提供 **Fabric 与 NeoForge 两个独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。NeoForge 协议为 `31-trails` / `trails-10`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
+当前分支版本 `1.0.0-trails.12`，提供 **Fabric 与 NeoForge 独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。NeoForge 协议为 `31-trails` / `trails-12`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
 
-当前 trails.10 下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.10)（Modrinth 新版尚待同步） · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
+当前 trails.12 下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)（Modrinth 新版尚待同步） · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。此前 MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
 
 [English](README.md) | **中文**
 

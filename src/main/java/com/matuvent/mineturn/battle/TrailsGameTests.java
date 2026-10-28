@@ -202,7 +202,7 @@ public final class TrailsGameTests {
         try (var f = new Fixture(h)) {
             var a = f.mob(EntityType.ZOMBIE, 7, 5); var c = f.mob(EntityType.ZOMBIE, 9, 5);
             f.p.getInventory().setItem(1, new ItemStack(Items.MACE)); f.p.getInventory().setItem(2, new ItemStack(Items.WIND_CHARGE, 2));
-            f.start(false); float hp = c.getHealth(); f.b.trails.attack(a.getId(), 1, true); resolve(f.b.trails);
+            f.start(false); TrailsCp.set(f.p,100); float hp = c.getHealth(); f.b.trails.attack(a.getId(), 1, true); resolve(f.b.trails);
             h.assertTrue(c.getHealth() < hp && f.p.getInventory().getItem(2).getCount() == 1, "Wind combo area/resource");
             h.assertTrue(f.b.clock.until(f.p, f.b::agility) > 100, "Heavy combo did not lengthen recovery");
         }
@@ -481,7 +481,7 @@ public final class TrailsGameTests {
     public static void swordAndAxeSkillsUseTheirOwnGeometryAndAt(GameTestHelper h) {
         try (var f = new Fixture(h)) {
             var front = f.mob(EntityType.ZOMBIE, 5, 8); var rear = f.mob(EntityType.ZOMBIE, 5, 2); f.start(true);
-            float hp = front.getHealth(), rearHp = rear.getHealth(); double time = f.b.clock.time();
+            TrailsCp.set(f.p,200); float hp = front.getHealth(), rearHp = rear.getHealth(); double time = f.b.clock.time();
             TrailsCombat.request(f.p, new TrailsNetwork.Command(f.b.id, f.b.revision, "weapon_skill", rear.getId(), 0, 0, 1));
             h.assertTrue(f.b.trails.busy() && front.getHealth() == hp && f.b.clock.time() == time, "Sword skill skipped windup or advanced AT while animating");
             h.assertTrue(!TrailsCombat.inventoryAllowed(f.p), "Inventory remained mutable during committed skill");
@@ -491,7 +491,7 @@ public final class TrailsGameTests {
         try (var f = new Fixture(h)) {
             var enemy = f.mob(EntityType.ZOMBIE, 7, 5); f.p.getInventory().setItem(1, new ItemStack(Items.WOODEN_AXE)); f.start(true);
             enemy.setHealth(20); f.b.clock.recovery(enemy, 1000);
-            f.b.trails.weaponSkill(enemy.getId(), 1, new net.minecraft.world.phys.Vec3(1, 0, 0)); resolve(f.b.trails);
+            TrailsCp.set(f.p,200); f.b.trails.weaponSkill(enemy.getId(), 1, new net.minecraft.world.phys.Vec3(1, 0, 0)); resolve(f.b.trails);
             h.assertTrue(enemy.getHealth() < 20 && !f.b.closed && f.b.clock.remaining(enemy) > 0, "Axe did not damage and delay the near-ready target");
         }
         h.succeed();
@@ -503,7 +503,7 @@ public final class TrailsGameTests {
                 var a = f.mob(EntityType.ZOMBIE, 5, 9); var other = f.mob(EntityType.ZOMBIE, 5, 12); var rear = f.mob(EntityType.ZOMBIE, 5, 2);
                 f.p.getInventory().setItem(1, new ItemStack(weapon)); f.p.getInventory().setItem(2, new ItemStack(Items.ARROW, 4)); f.start(true);
                 float ah = a.getHealth(), oh = other.getHealth(), rh = rear.getHealth();
-                f.b.trails.weaponSkill(a.getId(), 1, new net.minecraft.world.phys.Vec3(0, 0, 1)); resolve(f.b.trails);
+                TrailsCp.set(f.p,200); f.b.trails.weaponSkill(a.getId(), 1, new net.minecraft.world.phys.Vec3(0, 0, 1)); resolve(f.b.trails);
                 h.assertTrue(a.getHealth() < ah && rear.getHealth() == rh, "Ranged weapon skill failed primary geometry: " + weapon);
                 h.assertTrue(weapon == Items.BOW ? other.getHealth() == oh : other.getHealth() < oh, "Single/strip distinction lost: " + weapon);
                 h.assertTrue(f.p.getInventory().getItem(2).getCount() == (weapon == Items.TRIDENT ? 4 : 3), "Skill consumed ammo per target/consumed trident");
@@ -551,6 +551,7 @@ public final class TrailsGameTests {
             h.assertTrue(highest > ground + 3.5 && Math.abs(f.p.getY() - ground) < .05, "Breeze failed to launch or land");
             h.assertTrue(f.p.getHealth() < hp - 1 && breeze.position().equals(origin), "Wind/fall failure: hp=" + f.p.getHealth() + "/" + hp + " height=" + (highest-ground) + " moved=" + breeze.position().distanceTo(origin));
             h.assertTrue(!f.b.trails.busy(), "Wind landing stranded the battle");
+            h.assertTrue(TrailsCp.get(breeze)==115,"Wind basic attack skipped CP recovery when launching its target");
         }
         h.succeed();
     }
@@ -581,7 +582,7 @@ public final class TrailsGameTests {
             h.assertTrue(f.p.getInventory().getItem(2).getCount() == 2 && f.b.trails.pending != null, "Mace skill failed single charge reservation");
             TrailsCombat.request(f.p, f.cmd("guard", -1, 1)); TrailsCombat.request(f.p, f.cmd("toggle", -1, 1)); TrailsCombat.request(f.p, f.cmd("burst", enemy.getId(), 1));
             TrailsCombat.input(f.p, new TrailsNetwork.MoveInput(f.b.id, f.b.trails.turn, 100, 1, 0));
-            h.assertTrue(f.b.actor == f.p && f.b.trails.pending != null && f.b.trails.cp() == 200 && f.b.trails.inputTicks == 0, "Committed skill admitted exit/extra action/movement");
+            h.assertTrue(f.b.actor == f.p && f.b.trails.pending != null && f.b.trails.cp() == 140 && f.b.trails.inputTicks == 0, "Committed skill admitted exit/extra action/movement");
             resolve(f.b.trails);
             h.assertTrue(enemy.getHealth() < eh && ally.getHealth() == ah && f.p.getInventory().getItem(2).getCount() == 2, "Mace skill damaged an ally or repeated charge consumption");
         }

@@ -47,7 +47,7 @@ public final class MineTurn {
         ATTRIBUTES.register(bus);
         COMPONENTS.register(bus);
         bus.addListener((net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event)->com.matuvent.mineturn.network.BattleNetwork.register(new com.matuvent.mineturn.platform.NeoForgePayloads(event,"31-trails")));
-        bus.addListener((net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event)->com.matuvent.mineturn.network.TrailsNetwork.register(new com.matuvent.mineturn.platform.NeoForgePayloads(event,"trails-10")));
+        bus.addListener((net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event)->com.matuvent.mineturn.network.TrailsNetwork.register(new com.matuvent.mineturn.platform.NeoForgePayloads(event,"trails-12")));
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.server.ServerStartingEvent event) -> TrailsConfig.load());
         bus.addListener((EntityAttributeModificationEvent event) -> event.getTypes().forEach(type -> {event.add(type, AGILITY);event.add(type,MAIN_ACTIONS);event.add(type,BONUS_ACTIONS);}));
         NeoForge.EVENT_BUS.addListener((AddReloadListenerEvent event) -> event.addListener(new CombatData(event.getServerResources())));

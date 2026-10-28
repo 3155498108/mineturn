@@ -15,7 +15,8 @@ import org.lwjgl.glfw.GLFW;
 public final class TrailsScreen extends Screen {
     private int target = -1, allyPage, enemyPage, inventoryPage;
     private boolean items;
-    private long revision = -1;
+    private long revision = -1, rosterTurn = -1, uiTurn = -1;
+    private int uiCp = -1, uiCost = -1;
     private boolean orbit;
     private final java.util.Set<Integer> movementKeys = new java.util.HashSet<>();
     private long movementTurn = -1;
@@ -25,6 +26,15 @@ public final class TrailsScreen extends Screen {
     private long prepareTurn = -1;
     private double aimDistance;
     public String preparing() { return preparing; }
+    private int actorCp() {
+        return TrailsClient.fighters.stream().filter(f->f.id()==TrailsClient.view.actor()).mapToInt(TrailsNetwork.Fighter::cp).findFirst().orElse(0);
+    }
+    private int actionCp(String op) {
+        if(op.equals("burst"))return TrailsClient.view.burstCost();
+        if(op.equals("weapon_skill") || op.equals("wind"))return TrailsWeaponSkills.cpCost(minecraft.player.getMainHandItem());
+        if(op.equals("skill"))return TrailsClient.fighters.stream().filter(f->f.id()==TrailsClient.view.actor()).mapToInt(TrailsNetwork.Fighter::skillCost).findFirst().orElse(0);
+        return 0;
+    }
     public TrailsArea previewShape() {
         if (preparing.isEmpty() || !TrailsClient.active()) return null;
         if (preparing.equals("skill")) {
@@ -61,6 +71,8 @@ public final class TrailsScreen extends Screen {
     }
     private void confirm() {
         if (preparing.isEmpty()) return;
+        int cost=actionCp(preparing),available=preparing.equals("burst")?TrailsClient.view.cp():actorCp();
+        if(available<cost){minecraft.player.displayClientMessage(Component.literal("CP 不足：需要 "+cost+"，当前 "+available+"。"),true);return;}
         var aim = aimVector();
         TrailsClient.send(preparing, target, minecraft.player.getInventory().selected, aim.x, aim.z);
         preparing = ""; rebuild();
@@ -82,6 +94,12 @@ public final class TrailsScreen extends Screen {
         clearWidgets();
         if (!TrailsClient.active() || minecraft == null || minecraft.player == null) return;
         var view = TrailsClient.view;
+        if(rosterTurn!=view.turn()){
+            var actors=side(!view.alliedTurn());
+            for(int i=0;i<actors.size();i++)if(actors.get(i).id()==view.actor()){
+                if(view.alliedTurn())allyPage=i/rows();else enemyPage=i/rows();rosterTurn=view.turn();break;
+            }
+        }
         boolean own = view.controllable() && !view.busy();
         boolean playerTurn = view.actor() == minecraft.player.getId();
         if (!own || !playerTurn) items = false;
@@ -96,10 +114,12 @@ public final class TrailsScreen extends Screen {
         button(preparing.equals("attack") ? "确认攻击" : "普通攻击", left, y, cell - 3, () -> prepare("attack"), own);
         var actor = TrailsClient.fighters.stream().filter(f -> f.id() == view.actor()).findFirst();
         var held = minecraft.player.getMainHandItem();
-        var skill = button(preparing.equals("weapon_skill") || preparing.equals("skill") ? "确认战技" : playerTurn ? TrailsWeaponSkills.name(held) : "战技", left + cell, y, cell - 3,
-                () -> prepare(playerTurn ? "weapon_skill" : "skill"), own && (!playerTurn || TrailsWeaponSkills.supported(held)));
-        skill.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(playerTurn ? TrailsWeaponSkills.description(held)
-                : actor.map(TrailsNetwork.Fighter::skill).orElse("友军战技"))));
+        String skillOp=playerTurn?"weapon_skill":"skill";
+        int skillCost=actionCp(skillOp);
+        var skill = button((preparing.equals(skillOp)?"确认战技":playerTurn?TrailsWeaponSkills.name(held):"战技")+" ["+skillCost+"]", left + cell, y, cell - 3,
+                () -> prepare(skillOp), own && (!playerTurn || TrailsWeaponSkills.supported(held)) && (!preparing.equals(skillOp) || actorCp()>=skillCost));
+        skill.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal((playerTurn ? TrailsWeaponSkills.description(held)
+                : actor.map(TrailsNetwork.Fighter::skill).orElse("友军战技"))+" 消耗 "+skillCost+" CP；当前 "+actorCp()+" / 200。")));
         button("道具", left + cell * 2, y, cell - 3, () -> { preparing = ""; items = !items; rebuild(); }, own && playerTurn);
         button("防御", left + cell * 3, y, cell - 3, () -> command("guard"), own);
         button("待机", left + cell * 4, y, cell - 3, () -> command("end"), own);
@@ -128,7 +148,7 @@ public final class TrailsScreen extends Screen {
         button("返回战斗 [Esc]", width / 2 - 70, height - 66, 140, () -> { items = false; rebuild(); }, true);
     }
     public static long renderedHealthNumbers;
-    private int rows() { return Math.max(1, Math.min(6, (height - 194) / 44)); }
+    private int rows() { return Math.max(1, Math.min(6, (height - 194) / 56)); }
     private void roster(boolean enemy, int x, int y, int column) {
         var fighters = side(enemy);
         int count = rows(), pages = Math.max(1, (fighters.size() + count - 1) / count);
@@ -136,13 +156,13 @@ public final class TrailsScreen extends Screen {
         if (enemy) enemyPage = page; else allyPage = page;
         for (int i = page * count; i < Math.min(fighters.size(), (page + 1) * count); i++) {
             var f = fighters.get(i); int row = i - page * count;
-            var rowButton = button("", x, y + row * 44, column,
+            var rowButton = button("", x, y + row * 56, column,
                     () -> { if (enemy) target = f.id(); }, true);
-            rowButton.setHeight(42);
+            rowButton.setHeight(54);
         }
         if (pages > 1) {
-            button("‹", x, y + count * 44, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true).setHeight(16);
-            button((page + 1) + "/" + pages + " ›", x + 26, y + count * 44, column - 26,
+            button("‹", x, y + count * 56, 23, () -> { if (enemy) enemyPage = (page + pages - 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true).setHeight(16);
+            button((page + 1) + "/" + pages + " ›", x + 26, y + count * 56, column - 26,
                     () -> { if (enemy) enemyPage = (page + 1) % pages; else allyPage = (page + 1) % pages; rebuild(); }, true).setHeight(16);
         }
     }
@@ -180,7 +200,10 @@ public final class TrailsScreen extends Screen {
         if (!TrailsClient.active()) return;
         if (!minecraft.isWindowActive()) movementKeys.clear();
         if (!preparing.isEmpty() && prepareTurn != TrailsClient.view.turn()) preparing = "";
-        if (revision != TrailsClient.view.revision()) { revision = TrailsClient.view.revision(); rebuild(); }
+        int cp=actorCp(),cost=actionCp(TrailsClient.view.actor()==minecraft.player.getId()?"weapon_skill":"skill");
+        if (revision != TrailsClient.view.revision() || uiTurn!=TrailsClient.view.turn() || uiCp!=cp || uiCost!=cost) {
+            revision=TrailsClient.view.revision();uiTurn=TrailsClient.view.turn();uiCp=cp;uiCost=cost;rebuild();
+        }
         movement(false);
     }
     @Override public void removed() {
@@ -231,10 +254,12 @@ public final class TrailsScreen extends Screen {
                 g.drawString(font, Integer.toString(i + 1), x + 10, y + 9, 0xffeeeeee);
             }
             g.drawCenteredString(font, "移动半径 " + String.format(Locale.ROOT, "%.1f", view.movement()) + " 格 · 圈内自由移动", width / 2, height - 123, 0xffffffff);
+            g.drawCenteredString(font,"行动者 CP "+actorCp()+" / 200",width/2,height-136,0xffa8c8ff);
             var shape = previewShape();
             if (shape != null) {
                 String label = switch (preparing) { case "skill" -> "战技"; case "wind" -> "风弹重锤"; case "weapon_skill" -> TrailsWeaponSkills.name(minecraft.player.getMainHandItem()); case "burst" -> "S 技"; default -> "攻击"; };
-                g.drawCenteredString(font, label + "预览 · Enter确认", width / 2, 73, 0xffffda80);
+                int cost=actionCp(preparing),available=preparing.equals("burst")?view.cp():actorCp();
+                g.drawCenteredString(font, label + (cost>0?" · "+cost+" CP":"预览") + (available<cost?" · CP不足":" · Enter确认"), width / 2, 73, available<cost?0xffff647c:0xffffda80);
                 String reach = switch (shape.kind()) {
                     case RECTANGLE -> String.format(Locale.ROOT, "长 %.0f × 宽 %.0f", shape.radius(), shape.width());
                     case SECTOR -> String.format(Locale.ROOT, "半径 %.1f / %.0f°", shape.radius(), shape.width());
@@ -251,13 +276,13 @@ public final class TrailsScreen extends Screen {
     private void stats(GuiGraphics g, boolean enemy, int x, int column, int mouseX, int mouseY) {
         var list = side(enemy); int page = enemy ? enemyPage : allyPage;
         for (int i = page * rows(); i < Math.min(list.size(), (page + 1) * rows()); i++) {
-            var f = list.get(i); int y = 69 + (i - page * rows()) * 44;
+            var f = list.get(i); int y = 69 + (i - page * rows()) * 56;
             TrailsPortraits.draw(g, f.id(), x + 3, y + 3, 21, enemy);
             if(f.threat()!=null){
                 int color=f.threat().golden()?0xffffd23c:0xffff3458;
-                g.renderOutline(x,y,column,42,color);
+                g.renderOutline(x,y,column,54,color);
                 g.drawString(font,"!",x+column-10,y+3,color);
-                if(mouseX>=x && mouseX<x+column && mouseY>=y && mouseY<y+42)g.renderTooltip(font,Component.literal((f.threat().golden()?"S 技金色蓄力：":"危险蓄力：")+f.threat().name()+" · 下次自身回合发动，危险范围已锁定"),mouseX,mouseY);
+                if(mouseX>=x && mouseX<x+column && mouseY>=y && mouseY<y+54)g.renderTooltip(font,Component.literal((f.threat().golden()?"S 技金色蓄力：":"危险蓄力：")+f.threat().name()+" · 下次自身回合发动，危险范围已锁定"),mouseX,mouseY);
             }
             g.drawString(font, font.plainSubstrByWidth((f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name(), column - 30), x + 28, y + 3, -1);
             TrailsPortraits.effects(g, f, x + 28, y + 15, Math.max(1, (column - 45) / 15), mouseX, mouseY);
@@ -268,8 +293,15 @@ public final class TrailsScreen extends Screen {
             float scale=Math.min(1,(column-10f)/Math.max(1,font.width(hp)));
             g.pose().pushPose();g.pose().translate(x+column/2f,y+31,0);g.pose().scale(scale,scale,1);
             g.drawCenteredString(font,hp,0,0,0xffffffff);g.pose().popPose();renderedHealthNumbers++;
+            g.fill(x+3,y+43,x+column-3,y+53,0xff171e35);
+            g.fill(x+3,y+43,x+3+(int)((column-6)*Math.clamp(f.cp()/200.,0,1)),y+53,0xff3858a5);
+            String cp="CP "+f.cp()+" / 200 · 技 "+f.skillCost();
+            float cpScale=Math.min(.85f,(column-10f)/Math.max(1,font.width(cp)));
+            g.pose().pushPose();g.pose().translate(x+column/2f,y+44,0);g.pose().scale(cpScale,cpScale,1);
+            g.drawCenteredString(font,cp,0,0,f.cp()<f.skillCost()?0xffff8d9e:0xffdce8ff);g.pose().popPose();renderedCpNumbers++;
         }
     }
+    public static long renderedCpNumbers;
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
         if (movementKey(key)) { movementKeys.add(key); return true; }
         if (TrailsClient.SWITCH.matches(key, scan)) { TrailsClient.exitSwitchPressed(); return true; }

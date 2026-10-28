@@ -1,7 +1,7 @@
 --- a/com/matuvent/mineturn/battle/TrailsCompanions.java
 +++ b/com/matuvent/mineturn/battle/TrailsCompanions.java
-@@ -41,6 +41,7 @@
-         if (slot < 0) { message(player, "背包已满，请先腾出一个格子。"); return false; }
+@@ -42,6 +42,7 @@
+         TrailsCp.initialize(mob);
          var entity = new CompoundTag();
          if (!mob.save(entity)) return false;
 +        entity.putInt("DataVersion",3953);
@@ -10,7 +10,7 @@
          var item = new ItemStack(MineTurn.COMPANION_TOKEN.get());
 --- a/com/matuvent/mineturn/client/TrailsSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsSmoke.java
-@@ -68,6 +68,7 @@
+@@ -69,6 +69,7 @@
          if (stage == 1 && mc.screen != null) return;
          elapsed++;
          if (stage == 1) {

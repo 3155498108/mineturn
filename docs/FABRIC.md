@@ -1,16 +1,16 @@
 # Fabric 与 NeoForge
 
-其他 Minecraft 版本的 Fabric 适配、Java 与 API 依赖见 [FABRIC_PORTS.md](FABRIC_PORTS.md)；下表保留 1.21.1 / trails.10 的安装组合。
+其他 Minecraft 版本的 Fabric 适配、Java 与 API 依赖见 [FABRIC_PORTS.md](FABRIC_PORTS.md)；下表为 1.21.1 / trails.12 的安装组合。
 
-`trails.10` 使用共同的 AT 规则、数据包、网络消息和客户端界面，加载器分别提供注册、事件和原版注入。Fabric 不是通过兼容层运行 NeoForge JAR。
+`trails.12` 使用共同的 AT 规则、数据包、网络消息和客户端界面，加载器分别提供注册、事件和原版注入。Fabric 不是通过兼容层运行 NeoForge JAR。
 
 ## 安装
 
 | 环境 | 版本 | 安装文件 |
 | --- | --- | --- |
 | Minecraft Java | 1.21.1 | Java 21 |
-| Fabric | Loader 0.16.14，Fabric API 0.116.6+1.21.1 为验证组合 | `mineturn-fabric-1.0.0-trails.10.jar`，另装 Fabric API |
-| NeoForge | 21.1.251 | `mineturn-1.0.0-trails.10.jar` |
+| Fabric | Loader 0.16.14，Fabric API 0.116.6+1.21.1 为验证组合 | `mineturn-fabric-1.0.0-trails.12.jar`，另装 Fabric API |
+| NeoForge | 21.1.251 | `mineturn-1.0.0-trails.12.jar` |
 
 从 [GitHub Releases](https://github.com/3155498108/mineturn/releases) 选择对应加载器的 JAR，放入实例的 `mods` 文件夹。Fabric API 的官方下载在 [Modrinth](https://modrinth.com/mod/fabric-api)。同一实例只安装一个 MineTurn JAR；多人服务器与客户端使用同一加载器、相同版本及依赖。
 
@@ -43,6 +43,8 @@ Fabric QA 从现有四个 `Trails*GameTests` 源文件生成加载器无关注�
 82 种技能配置不代表每种生物每帧动画已验收；原版 Boss 完整阶段、复杂公网延迟、长期平衡和大队伍性能仍有原型限制。
 
 ## 投稿
+
+trails.12 增加独立 CP、战技费用与收纳 CP/HP 持久化，下载见 [GitHub trails.12](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)。下方保留旧版本的投稿记录。
 
 trails.10 的两个 JAR 和源码已发布在 [GitHub](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.10)；本轮 Modrinth 连接中断，尚未同步。
 

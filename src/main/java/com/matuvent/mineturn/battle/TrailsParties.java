@@ -21,6 +21,7 @@ public final class TrailsParties {
     public static void named(ServerPlayer player,LivingEntity target){
         if(target instanceof Mob && !(target instanceof Enemy) && !TrailsCombat.hostile(target,player) && owner(target)==null){
             com.matuvent.mineturn.platform.RuntimePlatform.data(target).putUUID(OWNER,player.getUUID());
+            TrailsCp.initialize(target);
             player.displayClientMessage(Component.literal(target.getName().getString()+" 已加入你的队伍；多人时仅由你操控。"),true);
         }
     }
