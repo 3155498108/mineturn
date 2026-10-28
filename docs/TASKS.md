@@ -9,16 +9,19 @@
 - 协议为 `31-trails` / `trails-12`，名单类型改为 `trails_roster_v12`；Forge 候选通道为 `trails-12-cn-1`。客户端和服务器一起更新，不能混用旧版。
 - 最终服务器回归：NeoForge 1.21.1 **87 项**（`build/cp-work/neoforge-final.log`）、Fabric 1.21.1 **93 项**（`build/cp-work/fabric-tests-final.log`）通过。新增 7 项 `TrailsCpGameTests` 覆盖鸡扣 80/重放/不足、武器费用与普攻回 CP、弹药/耐久/回合保护、独立资源与上限/0 值、敌方不足回退、收纳 0/20/200 CP 与生命、名单编解码；既有用例同步真实新费用，并增加旋风人 CP 回归。
 - 真实客户端：NeoForge 1.21.1、Fabric 1.21.1、1.20.1、1.21、1.21.8、1.21.10 均通过 CP 范围预览、100→20 鸡战技、主人仍为 137、20 CP 不足确认保护、原生命名牌收纳，以及正常保存重启后同 UUID 的 **20 CP / 3 HP** 放出。日志位于 `build/cp-work/*cp-client*.log`、`*cp-restart.log` 与 `port-*-client-*.log`；1.20.1 使用实际 Java 17。已核对 Fabric 与 1.21.10 的 CP 条及不足提示小预览。
-- 六个 NeoForge/Fabric 正式 JAR 构建、JSON/Mixin/许可/字节码目标/CP 目录/名单版本/无测试类检查通过。文件位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.12/`，下载为 [GitHub trails.12](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)。1.20.1 Forge CP 候选另放 `dist/MineTurn-China-Java-1.20.1-candidate-cp12/`，仅完成本轮编译和结构检查，不能当作本轮国服/联机验收通过。
+- 六个 NeoForge/Fabric 正式 JAR 构建、JSON/Mixin/许可/字节码目标/CP 目录/名单版本/无测试类检查通过。文件位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.12/`，下载为 [GitHub trails.12](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)。1.20.1 Forge CP 候选另放 `dist/MineTurn-China-Java-1.20.1-candidate-cp12/`；后续本机 Forge 客户端与服务器验证见下方中国版条目，不能当作国服/联机验收通过。
 - 本轮未重新做逐版本双客户端、全武器演出或网易工作台验收，不沿用历史测试结果冒充新验收。开工前检索了 [Apoli](https://github.com/apace100/apoli) 等实体资源方案，实现继续复用现有 `RuntimePlatform` 和 `CompanionStorage`，没有添加外部资源框架依赖。
 - 本轮 QA、日志、截图和开发诊断已归档至 `dist/verification-cp-trails12-20261028.zip`：1642 个成员的 ZIP CRC 与逐文件 SHA256 通过。约 1.09 GiB 临时副本移入 Windows 回收站，未清空回收站，不将工作目录缩小冒充磁盘空间释放。清单为 `dist/cleanup-cp-trails12-20261028.json`；普通存档、旧发行包、素材、已有国服 QA 材料、依赖缓存和最终 JAR 保留。
 
-## 中国版 Java 经典版移植（2026-10-27，进行中）
+## 中国版 Java 经典版移植（2026-10-28，进行中）
 
 - 官方资料确认 Java 1.20.1 的平台基线为 Forge 47.3.0，工作台支持导入 Java 作品测试；文档依据、构建结构和验收边界见 [中国版移植](CHINA_JAVA_PORT.md)。
 - 独立 Forge 端口已复用既有 1.20.1 共同源码并完成构建。候选 JAR 通过 JSON、67 个 Mixin 类、65 个 refmap 条目、内嵌 MixinExtras、Java 17 字节码及许可文件检查；SHA-256 为 `db638bec05bc223381ab77395777f329c4f77eab6858ac9065dd09e10999d993`。
 - 本机 Forge 47.3.0：候选 JAR 在独立专服启动、重载并正常保存关闭（`build/china-port/forge-production-server.log`）；开发客户端完整入战流程通过（`build/china-port/forge-client-dev.log`），友军收纳、跟随与 R 键通过（`build/china-port/forge-companions-final.log`），重启后同 UUID / 名字 / 生命值的友军放出、跟随、回收通过（`build/china-port/forge-companions-final-restart.log`）。验收脚本已同步测试用快捷栏并避免失焦暂停；这些结果不能替代国服实测。
-- 候选 JAR 与按官方结构生成的 7z 位于 `dist/MineTurn-China-Java-1.20.1-candidate/`，归档测试和提取后哈希一致。尚未完成网易工作台、中国版客户端及多人验证，也未上传开发者平台；原有 Fabric / NeoForge 发行结果不自动适用于此端口。
+- 上述 trails.11 候选 JAR 与 7z 保留在 `dist/MineTurn-China-Java-1.20.1-candidate/`。后续 trails.12 的 Forge JAR SHA-256 为 `862b1d0f59cd8f44a77c87d17e87492104ae01b77279175f5073c9d16eb5bea9`；开发客户端通过 CP 预览、独立扣费与不足保护、伙伴收纳和正常重启后同 UUID / 20 CP / 3 HP 放出，独立正式 JAR 专服通过启动、重载和保存关闭。日志与截图归档于 `dist/verification-china-cp12-20261028.zip`，CRC 与逐文件 SHA-256 均已核对。这些结果不能替代网易工作台或国服测试。
+- trails.12 组件已按用户要求提交网易开发者平台，类型为功能组件、冒险类，目标 Java 1.20.1 / Java 17；2026-10-28 平台显示“审核中”，不代表审核通过或已上架。早先玩法组件分类下两次被退回，意见为缺少 `saves,mods,resourcepacks`；改为功能组件后曾返回审核服数据错误，按平台提示重试后进入审核。当前 7z 在 `dist/MineTurn-China-Java-1.20.1-candidate-cp12/MineTurn-China-Java-1.20.1-trails12-mods-v2.7z`，含 `mods/` 内的 JAR，压缩完整性及平台上传 MD5 已核对。
+- 网易工作台、中国版客户端及多人验证尚未完成，原有 Fabric / NeoForge 发行结果不自动适用于此端口。公开许可证截图已提交，网易对非原创作品的商业授权要求及是否接受该证明仍以平台审核为准。
+- 本轮独立服务器副本和打包副本约 172 MiB 已移入 Windows 回收站；日志、测试截图、候选 JAR、7z 与工作台所需资料保留，清单见 `dist/cleanup-china-review-20261028.json`。
 
 ## Fabric 多版本适配（2026-10-27）
 
