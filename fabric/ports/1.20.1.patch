@@ -1560,6 +1560,17 @@
          return new TrailsArea(Kind.SINGLE, stack.getItem() instanceof BowItem ? 24 : stack.getItem() instanceof TridentItem ? 3.5 : 3, 0, 0);
      }
      public static TrailsArea skill(String entity) {
+--- a/com/matuvent/mineturn/battle/TrailsBestiary.java
++++ b/com/matuvent/mineturn/battle/TrailsBestiary.java
+@@ -47,7 +47,7 @@
+     public static Profile get(LivingEntity e){return get(TrailsCombat.id(e));}
+     public static Collection<Profile> all(){
+         var profiles=new ArrayList<>(PROFILES.values());
+-        for(var profile:TWILIGHT.values())if(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.containsKey(net.minecraft.resources.ResourceLocation.parse(profile.id())))profiles.add(profile);
++        for(var profile:TWILIGHT.values())if(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.containsKey(new net.minecraft.resources.ResourceLocation(profile.id())))profiles.add(profile);
+         return List.copyOf(profiles);
+     }
+     private TrailsBestiary(){}
 --- a/com/matuvent/mineturn/battle/TrailsBestiaryActions.java
 +++ b/com/matuvent/mineturn/battle/TrailsBestiaryActions.java
 @@ -84,7 +84,7 @@
@@ -1683,7 +1694,7 @@
          for (int from = 0, page = 0; from < roster.size(); from += 48, page++)
              BattleNetwork.send(recipient, new TrailsNetwork.Roster(b.id, b.revision, page, from + 48 >= roster.size(),
                      roster.subList(from, Math.min(from + 48, roster.size()))));
-@@ -482,7 +482,7 @@
+@@ -484,7 +484,7 @@
          perform(source, "strike", 12, !allied(source), victim.position());
          source.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
          var animation = new BattleNetwork.ActionAnimation(b.id, ++b.actionSequence,
@@ -1692,7 +1703,7 @@
                  source.getId(), victim.getId(), victim.position(), true);
          broadcast(animation);
      }
-@@ -490,7 +490,7 @@
+@@ -492,7 +492,7 @@
      void attack(int targetId, int slot, boolean wind) {
          var victim = b.level.getEntity(targetId);
          Vec3 aim = victim == null ? b.actor.getLookAngle().multiply(1, 0, 1) : victim.position().subtract(b.actor.position()).multiply(1, 0, 1);
@@ -1701,7 +1712,7 @@
          if (shape.kind() == TrailsArea.Kind.DISK && aim.length() > shape.cast()) aim = aim.normalize().scale(shape.cast());
          attack(targetId, slot, wind, aim);
      }
-@@ -540,15 +540,15 @@
+@@ -542,15 +542,15 @@
          if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
          var stack = player.getInventory().getItem(slot);
          if (skill && !weapon(stack)) throw new IllegalArgumentException("请先装备武器。");
@@ -1720,7 +1731,7 @@
          if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "背包内需要 1 支普通箭。" : "背包内需要 1 个风弹。");
          TrailsCp.spend(player, skill || wind ? TrailsWeaponSkills.cpCost(stack) : 0);
          player.getInventory().selected = slot;
-@@ -570,7 +570,7 @@
+@@ -572,7 +572,7 @@
                      var forward = shape.direction(aim); var across = new Vec3(forward.z, 0, -forward.x);
                      for (int lane : new int[]{-1, 1}) projectile(player, end.add(across.scale(lane * 3)), Items.ARROW);
                  }
@@ -1729,7 +1740,7 @@
              }
              pending = new Pending(player, turn, bow || crossbow || skill && trident ? TrailsChoreography.flight(player.getEyePosition().distanceTo(end)) : 4, () -> {
                  if (victim != null && (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || gap(player, victim) > shape.cast() || !player.hasLineOfSight(victim))) {
-@@ -590,9 +590,9 @@
+@@ -592,9 +592,9 @@
                  }
                  if (mace) {
                      shockwave(shape.center(player.position(), aim), shape.radius(), charged);
@@ -1741,7 +1752,7 @@
                  b.message(title); if(!skill && !wind)addCp(player,cfg().cpPerAction); recover(player, delay);
              }, false);
          });
-@@ -600,7 +600,7 @@
+@@ -602,7 +602,7 @@
      void shockwave(Vec3 center, double radius, boolean wind) {
          for (int i = 0; i < 24; i++) {
              double angle = i * Math.PI / 12;
@@ -1750,7 +1761,7 @@
                      center.z + Math.sin(angle) * radius, 1, 0, .05, 0, .02);
          }
      }
-@@ -616,9 +616,9 @@
+@@ -618,9 +618,9 @@
          if (b.actor != player) throw new IllegalArgumentException("友军不能使用道具。");
          if (slot < 0 || slot >= 36) throw new IllegalArgumentException("无效物品槽。");
          var stack = player.getInventory().getItem(slot);
@@ -1763,7 +1774,7 @@
          for (var e : player.getActiveEffects()) beforeEffects.put(e.getEffect(), new MobEffectInstance(e));
          if (food == null && !stack.is(Items.POTION)) throw new IllegalArgumentException("请选择食物或可饮用药水。");
          if (stack.isEmpty()) throw new IllegalArgumentException("物品已用完。");
-@@ -631,16 +631,16 @@
+@@ -633,16 +633,16 @@
              player.getInventory().setItem(slot, remaining);
              if (potion != null) for (var e : potion.getAllEffects()) {
                  var previous = beforeEffects.get(e.getEffect());
@@ -1784,7 +1795,7 @@
              }
          });
          player.containerMenu.broadcastChanges(); addCp(5); finish(.6);
-@@ -689,10 +689,10 @@
+@@ -691,10 +691,10 @@
          else if(b.level.getEntity(targetId) instanceof LivingEntity living && enemy(source,living))victim=living;
          TrailsBestiaryActions.cast(this,source,victim,move,aim,false,source.position());
      }
@@ -1798,7 +1809,7 @@
              ticks = Math.max(ticks, previous.getDuration());
          }
          var effect = new MobEffectInstance(type, ticks, amplifier);
-@@ -720,12 +720,12 @@
+@@ -722,12 +722,12 @@
          int before = cp(); addCp(-cfg().burstCost);
          double multiplier = before == 200 ? 1.5 : 1;
          double weaponDamage = 1, baseMultiplier = 0, totalMultiplier = 1;
@@ -1816,7 +1827,7 @@
              }
          }
          weaponDamage = (weaponDamage + baseMultiplier) * totalMultiplier;
-@@ -748,11 +748,11 @@
+@@ -750,11 +750,11 @@
              burstAction = new Pending(player, turn, projectile ? TrailsChoreography.flight(player.getEyePosition().distanceTo(end)) : 6, () -> {
                  if (victim != null) {
                      if (victim.isAlive() && b.members.containsKey(victim.getUUID()) && player.hasLineOfSight(victim) && gap(player, victim) <= shape.cast()) hit(player, victim, damage * 1.8);
@@ -2021,6 +2032,26 @@
      public static void stop(MinecraftServer server){INVITES.remove(server);}
      private TrailsTeams(){}
  }
+--- a/com/matuvent/mineturn/battle/TrailsUpdateScenario.java
++++ b/com/matuvent/mineturn/battle/TrailsUpdateScenario.java
+@@ -28,7 +28,7 @@
+                 || !System.getProperty("mineturn.qaTag", "").startsWith("update") || !world.matches("AT-QA-[A-Za-z0-9-]+")
+                 || !server.getWorldPath(LevelResource.ROOT).normalize().getFileName().toString().equals(world))
+             throw new IllegalStateException("Update QA requires its isolated world");
+-        return server.getPlayerList().getPlayers().getFirst();
++        return server.getPlayerList().getPlayers().get(0);
+     }
+ 
+     public static void setup(MinecraftServer server) {
+@@ -74,7 +74,7 @@
+         var old = BattleManager.ACTIVE.get(player.getUUID());
+         if (old != null) old.close("next QA boss");
+         for (var mob : player.serverLevel().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(80))) mob.discard();
+-        var type = BuiltInRegistries.ENTITY_TYPE.get(ResourceLocation.fromNamespaceAndPath("twilightforest", BOSSES[index]));
++        var type = BuiltInRegistries.ENTITY_TYPE.get(new ResourceLocation("twilightforest", BOSSES[index]));
+         if (!(type.create(player.serverLevel()) instanceof Mob boss)) throw new IllegalStateException("Missing Twilight boss " + BOSSES[index]);
+         boss.moveTo(10, -59, .5);
+         boss.setNoAi(true);
 --- a/com/matuvent/mineturn/battle/TrailsWeaponSkills.java
 +++ b/com/matuvent/mineturn/battle/TrailsWeaponSkills.java
 @@ -10,7 +10,7 @@
@@ -2210,7 +2241,7 @@
              return true;
 --- a/com/matuvent/mineturn/client/FabricClient.java
 +++ b/com/matuvent/mineturn/client/FabricClient.java
-@@ -22,7 +22,7 @@
+@@ -23,7 +23,7 @@
          EntityRendererRegistry.register(MineTurn.BATTLE_DEVICE.get(),BattleDeviceRenderer::new);
          ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new IdentifiableResourceReloadListener(){
              private final ActionAnimationData animations=new ActionAnimationData();
@@ -2219,7 +2250,7 @@
              public CompletableFuture<Void> reload(PreparableReloadListener.PreparationBarrier barrier,ResourceManager resources,ProfilerFiller preparation,ProfilerFiller application,Executor background,Executor game){return animations.reload(barrier,resources,preparation,application,background,game);}
          });
          ClientTickEvents.END_CLIENT_TICK.register(client->{ProjectileAnimations.tick();TrailsEffects.tick();TrailsPerformances.tick();TrailsClient.tick();BattleClient.tick();});
-@@ -30,7 +30,7 @@
+@@ -31,7 +31,7 @@
          WorldRenderEvents.LAST.register(context->render(context,WorldRenderFrame.Stage.AFTER_PARTICLES));
      }
      private static void render(WorldRenderContext context,WorldRenderFrame.Stage stage){
@@ -2320,7 +2351,7 @@
          if (mc.player != null) point = clear(point, focus, mc.player);
 --- a/com/matuvent/mineturn/client/TrailsClient.java
 +++ b/com/matuvent/mineturn/client/TrailsClient.java
-@@ -69,7 +69,7 @@
+@@ -72,7 +72,7 @@
          };
      }
      public static boolean active() { return view != null && BattleClient.active() && view.battle().equals(BattleClient.state.battle()); }
@@ -2329,7 +2360,7 @@
      public static void reset() {
          TrailsCinematics.reset(); TrailsImpacts.reset(); TrailsEffects.reset(); ProjectileAnimations.clear();
          TrailsPerformances.reset();
-@@ -174,20 +174,20 @@
+@@ -182,20 +182,20 @@
          if (active() && mc.screen instanceof TrailsScreen screen && screen.previewShape() != null) {
              var actor = mc.level.getEntity(screen.preparing().equals("burst") ? mc.player.getId() : view.actor());
              if (actor != null) {
@@ -2374,8 +2405,8 @@
 -    @Override public void renderBackground(GuiGraphics g, int x, int y, float partial) {}
 +    @Override public void renderBackground(GuiGraphics g) {}
      @Override protected void init() {
-         addRenderableWidget(Button.builder(Component.literal("队伍"),b->minecraft.setScreen(new TrailsPartyScreen(this))).bounds(width-48,3,44,20).build());
-         var settings = values != null ? values : TrailsClient.settings;
+         addRenderableWidget(Button.builder(Component.literal("说明"), b -> minecraft.setScreen(new TrailsGuideScreen(this))).bounds(4, 3, 44, 20).build());
+         addRenderableWidget(Button.builder(Component.literal("音乐"), b -> minecraft.setScreen(new TrailsMusicScreen(this))).bounds(52, 3, 44, 20).build());
 --- a/com/matuvent/mineturn/client/TrailsCriticalSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsCriticalSmoke.java
 @@ -10,7 +10,7 @@
@@ -2416,6 +2447,53 @@
      }
      private TrailsEffects(){}
  }
+--- a/com/matuvent/mineturn/client/TrailsGuideScreen.java
++++ b/com/matuvent/mineturn/client/TrailsGuideScreen.java
+@@ -36,7 +36,7 @@
+     private int rows() { return Math.max(1, (height - 126) / 22); }
+     private int visibleLines() { return Math.max(1, (height - 146) / 12); }
+     @Override public boolean isPauseScreen() { return false; }
+-    @Override public void renderBackground(GuiGraphics graphics, int x, int y, float partial) {}
++    @Override public void renderBackground(GuiGraphics graphics) {}
+ 
+     @Override protected void init() {
+         int cell = (width - 20) / CATEGORIES.length;
+@@ -94,7 +94,7 @@
+             int cursor = search.getCursorPosition();
+             boolean focused = search.isFocused();
+             rebuildWidgets();
+-            search.moveCursorTo(cursor, false);
++            search.moveCursorTo(cursor);
+             if (focused) setFocused(search);
+         }
+     }
+@@ -127,7 +127,7 @@
+                 entries.add(new Article("队伍与归属", "多人默认互为对手，可在设置的队伍页创建队伍并邀请玩家加入。每人控制自己与自己用命名牌登记的友军。\n\n多人只有已登记的友军会参战，敌对怪物可直接入战。同队玩家的生物仍由其主人控制。"));
+             }
+             case 2 -> {
+-                for (var item : List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.TRIDENT, Items.MACE)) {
++                for (var item : List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.TRIDENT)) {
+                     var stack = item.getDefaultInstance();
+                     if (!BuiltInRegistries.ITEM.containsKey(BuiltInRegistries.ITEM.getKey(item))) continue;
+                     entries.add(new Article(stack.getHoverName().getString(), "战技「" + TrailsWeaponSkills.name(stack) + "」\n消耗 " + TrailsWeaponSkills.cpCost(stack) + " CP\n\n" + TrailsWeaponSkills.description(stack) + "\n\n剑普通攻击为扇形，弩为长方形，弓和斧选择单体，重锤为圆形。方向范围按镜头瞄准。\n\n玩家自己回合可切换武器并更新主武器，抢 S 使用已设定的主武器。"));
+@@ -135,7 +135,7 @@
+             }
+             default -> {
+                 for (var profile : TrailsBestiary.all()) {
+-                    var id = ResourceLocation.parse(profile.id());
++                    var id = new ResourceLocation(profile.id());
+                     if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id)) continue;
+                     var type = BuiltInRegistries.ENTITY_TYPE.get(id);
+                     boolean boss = profile.ultimate() != null;
+@@ -195,7 +195,7 @@
+         super.render(graphics, x, y, partial);
+     }
+ 
+-    @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
++    @Override public boolean mouseScrolled(double x, double y, double vertical) {
+         if (x > listWidth() + 18) scroll = Math.max(0, Math.min(scroll - (int) Math.signum(vertical) * 3, Math.max(0, lines.size() - visibleLines())));
+         else {
+             listPage = Math.max(0, Math.min(listPage - (int) Math.signum(vertical), Math.max(0, (articles.size() - 1) / rows())));
 --- a/com/matuvent/mineturn/client/TrailsImpacts.java
 +++ b/com/matuvent/mineturn/client/TrailsImpacts.java
 @@ -57,7 +57,7 @@
@@ -2427,6 +2505,28 @@
              float scale=size(critical)*(float)(1+.25*Math.sin(Math.PI*Math.min(1,t/.22)));
              int rgba=((int)(255*Math.min(1,(1-t)*4))<<24)|(color(critical)&0xffffff);
              String text=n.packet.amount()<=.001?"BLOCK":format(n.packet.amount());
+--- a/com/matuvent/mineturn/client/TrailsMusic.java
++++ b/com/matuvent/mineturn/client/TrailsMusic.java
+@@ -154,7 +154,7 @@
+         });
+         String situation = boss ? "boss" : advantage ? "advantage" : "normal";
+         for (String candidate : List.of(situation, "normal")) {
+-            var id = ResourceLocation.fromNamespaceAndPath("mineturnmusic", library + "." + candidate);
++            var id = new ResourceLocation("mineturnmusic", library + "." + candidate);
+             var event = minecraft.getSoundManager().getSoundEvent(id);
+             if (event != null && event.getWeight() > 0) return id;
+         }
+--- a/com/matuvent/mineturn/client/TrailsMusicScreen.java
++++ b/com/matuvent/mineturn/client/TrailsMusicScreen.java
+@@ -9,7 +9,7 @@
+     private final Screen parent;
+     public TrailsMusicScreen(Screen parent) { super(Component.literal("战斗音乐")); this.parent = parent; }
+     @Override public boolean isPauseScreen() { return false; }
+-    @Override public void renderBackground(GuiGraphics graphics, int x, int y, float partial) {}
++    @Override public void renderBackground(GuiGraphics graphics) {}
+     @Override protected void init() {
+         int left = width / 2 - 110;
+         addRenderableWidget(Button.builder(Component.literal("战斗 BGM " + (TrailsMusic.enabled ? "开" : "关")), ignored -> {
 --- a/com/matuvent/mineturn/client/TrailsPartyScreen.java
 +++ b/com/matuvent/mineturn/client/TrailsPartyScreen.java
 @@ -18,7 +18,7 @@
@@ -2480,16 +2580,27 @@
          if (e instanceof Chicken c) { c.oFlap = c.flap; c.flap += 1.2f; c.oFlapSpeed = c.flapSpeed; c.flapSpeed = 1; }
 --- a/com/matuvent/mineturn/client/TrailsPortraits.java
 +++ b/com/matuvent/mineturn/client/TrailsPortraits.java
-@@ -15,7 +15,7 @@
+@@ -18,15 +18,16 @@
          var mc = Minecraft.getInstance(); var entity = mc.level == null ? null : mc.level.getEntity(entityId);
          g.fill(x - 1, y - 1, x + size + 1, y + size + 1, enemy ? 0xffe83f62 : 0xff43dcb5);
          g.fill(x, y, x + size, y + size, 0xff151725);
 -        if (entity instanceof AbstractClientPlayer p) { PlayerFaceRenderer.draw(g, p.getSkin(), x, y, size); return; }
 +        if (entity instanceof AbstractClientPlayer p) { PlayerFaceRenderer.draw(g, p.getSkinTextureLocation(), x, y, size); return; }
          if (!(entity instanceof LivingEntity living)) { g.drawCenteredString(mc.font, "?", x + size / 2, y + size / 2 - 4, -1); return; }
+         var id = BuiltInRegistries.ENTITY_TYPE.getKey(living.getType());
+         Face face = id.getNamespace().equals("minecraft") ? face(id.getPath()) : null;
+         if (face == null) {
+             // Modded and non-cuboid heads use their real renderer, fitted to the square.
+             int scale = Math.max(1, (int) ((size - 3) / Math.max(living.getBbHeight(), living.getBbWidth() * 1.3)));
+-            InventoryScreen.renderEntityInInventoryFollowsMouse(g, x, y, x + size, y + size, scale,
+-                    0, x + size / 2f, y + size / 2f, living);
++            g.enableScissor(x, y, x + size, y + size);
++            InventoryScreen.renderEntityInInventoryFollowsMouse(g, x + size / 2, y + size - 1, scale, 0, 0, living);
++            g.disableScissor();
+             return;
+         }
          var texture = mc.getEntityRenderDispatcher().getRenderer(living).getTextureLocation(living);
-         String type = BuiltInRegistries.ENTITY_TYPE.getKey(living.getType()).getPath();
-@@ -39,14 +39,14 @@
+@@ -74,14 +75,14 @@
          var mc = Minecraft.getInstance(); int i = 0;
          for (var status : fighter.effects()) {
              if (i >= max) break;
@@ -2545,7 +2656,7 @@
          int column = Math.min(154, width / 3 - 8);
          roster(false, 8, 69, column);
          roster(true, width - column - 8, 69, column);
-@@ -131,10 +131,10 @@
+@@ -132,10 +132,10 @@
          var slots = new java.util.ArrayList<Integer>();
          for (int i = 0; i < 36; i++) {
              var stack = minecraft.player.getInventory().getItem(i);
@@ -2558,7 +2669,7 @@
          int start = inventoryPage * 6;
          for (int i = start; i < Math.min(slots.size(), start + 6); i++) {
              final int slot = slots.get(i); var stack = minecraft.player.getInventory().getItem(slot);
-@@ -152,18 +152,18 @@
+@@ -153,18 +153,18 @@
      private void roster(boolean enemy, int x, int y, int column) {
          var fighters = side(enemy);
          int count = rows(), pages = Math.max(1, (fighters.size() + count - 1) / count);
@@ -2581,7 +2692,7 @@
          }
      }
      private boolean playerTurn() {
-@@ -287,14 +287,14 @@
+@@ -288,14 +288,14 @@
              g.drawString(font, font.plainSubstrByWidth((f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name(), column - 30), x + 28, y + 3, -1);
              TrailsPortraits.effects(g, f, x + 28, y + 15, Math.max(1, (column - 45) / 15), mouseX, mouseY);
              g.fill(x + 3, y + 29, x + column - 3, y + 41, 0xff211f2c);
@@ -2598,7 +2709,7 @@
              String cp="CP "+f.cp()+" / 200 · 技 "+f.skillCost();
              float cpScale=Math.min(.85f,(column-10f)/Math.max(1,font.width(cp)));
              g.pose().pushPose();g.pose().translate(x+column/2f,y+44,0);g.pose().scale(cpScale,cpScale,1);
-@@ -341,12 +341,12 @@
+@@ -343,12 +343,12 @@
      }
      @Override public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
          if (TrailsClient.view.busy() && TrailsPresentationOptions.camera) return true;
@@ -2635,7 +2746,7 @@
  import net.minecraft.world.item.alchemy.Potions;
  import net.minecraft.world.level.GameType;
  import net.minecraft.world.level.block.Blocks;
-@@ -69,6 +69,7 @@
+@@ -70,6 +70,7 @@
          if (stage == 1 && mc.screen != null) return;
          elapsed++;
          if (stage == 1) {
@@ -2643,7 +2754,7 @@
              TrailsClient.preview = true;
              if (elapsed == 16) screenshot("at-qa-01-circle.png");
              if (elapsed > 24) { mc.getToasts().clear(); TrailsClient.preview = false; TrailsClient.send("toggle", -1, 0, 0, 0); stage = 2; elapsed = 0; }
-@@ -180,7 +181,7 @@
+@@ -181,7 +182,7 @@
      }
      private static void setup(MinecraftServer server) {
          var level = server.overworld();
@@ -2652,7 +2763,7 @@
          p.setGameMode(GameType.SURVIVAL);
          for (int x = -16; x <= 16; x++) for (int z = -16; z <= 16; z++) {
              level.setBlock(new BlockPos(x, -60, z), Blocks.GRASS_BLOCK.defaultBlockState(), 3);
-@@ -189,10 +190,10 @@
+@@ -190,10 +191,10 @@
          p.teleportTo(.5, -59, .5); p.setYRot(0); p.setHealth(20);
          var inv = p.getInventory();
          inv.setItem(0, new ItemStack(Items.IRON_SWORD)); inv.setItem(1, new ItemStack(Items.BOW));
@@ -2676,6 +2787,17 @@
          if(e instanceof Goat goat)restores.add(()->goat.handleEntityEvent((byte)59));
          if(e instanceof Frog frog){var target=frog.getTongueTarget();restores.add(()->{frog.eraseTongueTarget();target.ifPresent(frog::setTongueTarget);});}
          if(e instanceof WitherBoss wither){int[] targets={wither.getAlternativeTarget(0),wither.getAlternativeTarget(1),wither.getAlternativeTarget(2)};restores.add(()->{for(int i=0;i<3;i++)wither.setAlternativeTarget(i,targets[i]);});}
+--- a/com/matuvent/mineturn/client/TrailsUpdateSmoke.java
++++ b/com/matuvent/mineturn/client/TrailsUpdateSmoke.java
+@@ -122,7 +122,7 @@
+     private static final class PortraitSheet extends Screen {
+         PortraitSheet() { super(Component.literal("Portrait regression")); }
+         @Override public boolean isPauseScreen() { return false; }
+-        @Override public void renderBackground(GuiGraphics graphics, int x, int y, float partial) {}
++        @Override public void renderBackground(GuiGraphics graphics) {}
+         @Override public void render(GuiGraphics graphics, int x, int y, float partial) {
+             graphics.fill(0, 0, width, height, 0xff121725);
+             graphics.drawCenteredString(font, title, width / 2, 12, -1);
 --- a/com/matuvent/mineturn/client/TrailsWarnings.java
 +++ b/com/matuvent/mineturn/client/TrailsWarnings.java
 @@ -17,7 +17,7 @@

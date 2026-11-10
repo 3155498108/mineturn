@@ -28,9 +28,10 @@ public final class TrailsBestiary {
         }
     }
     public record Profile(String id,Move basic,Move skill,Move ultimate) {}
-    private static final Map<String,Profile> PROFILES=load();
-    private static Map<String,Profile> load() {
-        try(var stream=TrailsBestiary.class.getResourceAsStream("/data/mineturn/trails_bestiary.json")) {
+    private static final Map<String,Profile> PROFILES=load("trails_bestiary.json");
+    private static final Map<String,Profile> TWILIGHT=load("trails_twilight_bestiary.json");
+    private static Map<String,Profile> load(String file) {
+        try(var stream=TrailsBestiary.class.getResourceAsStream("/data/mineturn/" + file)) {
             if(stream==null)throw new IllegalStateException("Missing AT bestiary");
             var entries=new Gson().fromJson(new InputStreamReader(stream,StandardCharsets.UTF_8),Profile[].class);
             var result=new LinkedHashMap<String,Profile>();
@@ -42,8 +43,12 @@ public final class TrailsBestiary {
             return Collections.unmodifiableMap(result);
         }catch(IOException e){throw new UncheckedIOException(e);}
     }
-    public static Profile get(String id){return PROFILES.get(id);}
+    public static Profile get(String id){return PROFILES.containsKey(id)?PROFILES.get(id):TWILIGHT.get(id);}
     public static Profile get(LivingEntity e){return get(TrailsCombat.id(e));}
-    public static Collection<Profile> all(){return PROFILES.values();}
+    public static Collection<Profile> all(){
+        var profiles=new ArrayList<>(PROFILES.values());
+        for(var profile:TWILIGHT.values())if(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.containsKey(net.minecraft.resources.ResourceLocation.parse(profile.id())))profiles.add(profile);
+        return List.copyOf(profiles);
+    }
     private TrailsBestiary(){}
 }

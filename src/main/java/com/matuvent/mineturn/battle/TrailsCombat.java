@@ -114,7 +114,7 @@ public final class TrailsCombat {
     static String id(Entity e) { return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString(); }
     static String itemId(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }
     static boolean hostile(LivingEntity e, ServerPlayer p) {
-        return e instanceof Enemy || e instanceof Mob m && m.getTarget() == p;
+        return e instanceof Enemy || TrailsTwilight.hostile(e) || e instanceof Mob m && m.getTarget() == p;
     }
     static boolean friendly(LivingEntity e, ServerPlayer p) {
         return e != p && !hostile(e,p) && e instanceof Mob;
@@ -262,7 +262,7 @@ public final class TrailsCombat {
         var candidates=new ArrayList<LivingEntity>();
         for(var e:nearby){
             if(e instanceof ServerPlayer other){if(multi && players.contains(other))candidates.add(e);continue;}
-            if(!(e instanceof Mob))continue;
+            if(!(e instanceof Mob) || !TrailsTwilight.canJoin(e))continue;
             UUID owner=TrailsParties.owner(e);
             if(multi){if(owner!=null?players.stream().anyMatch(q->q.getUUID().equals(owner)):players.stream().anyMatch(q->hostile(e,q)))candidates.add(e);}
             else if(hostile(e,p) || friendly(e,p))candidates.add(e);
@@ -390,6 +390,7 @@ public final class TrailsCombat {
         recovery = 1;
         var actor = b.actor;
         if (actor == null) return;
+        TrailsTwilight.onTurn(actor);
         movementOrigin = actor.position(); movementRadius = cfg().movementRadius;
         guarding.remove(actor.getUUID());
         int left = regrowth.getOrDefault(actor.getUUID(), 0);
@@ -460,7 +461,8 @@ public final class TrailsCombat {
         BattleManager.authorized(() -> {
             target.invulnerableTime = 0;
             if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, controller(source)!=null?source.damageSources().playerAttack(controller(source)):damageSource, applied);
-            else target.hurt(damageSource, applied);
+            else if (!TrailsTwilight.hurt(target, source, damageSource, applied,
+                    performances.containsKey(source.getUUID()) && performances.get(source.getUUID())[0].startsWith("burst_"))) target.hurt(damageSource, applied);
         });
         float lost = Math.max(0, before - target.getHealth() - target.getAbsorptionAmount());
         boolean confirmed=critical && lost>.001;

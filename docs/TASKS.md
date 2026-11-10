@@ -1,5 +1,18 @@
 # MineTurn 开发任务表
 
+## 说明、个人 BGM、头像与暮色适配（2026-11-10）
+
+- trails.13：H 打开六类游戏内说明，战斗右上角和 O 页也有入口。覆盖玩法、角色、武器、友军、敌军与 Boss，支持分类搜索、分页和滚轮阅读，物种技能和 CP 费用读取现有目录。关闭手册可返回仍在进行的战斗。
+- 按用户最新要求，BGM 仅提供个人配置，不下载或分发空轨/P5/P4 音乐。O → 音乐支持开关、音量、个人曲库、打开文件夹和重读；默认 `custom`，配置位于 `config/mineturn/music.json`。`normal.ogg` / `advantage.ogg` / `boss.ogg` 分别用于普通/先制/Boss，缺少后两类回退普通曲，未导入时保留原版音乐。通过原生流式声音循环、入退战渐变，断开世界停止；同时受原版音乐/总音量控制。操作见[玩法说明](TRAILS_PROTOTYPE.md#说明与个人音乐)。
+- `tools/import_battle_music.py` 通过本机 FFmpeg 转换玩家本地音频。实测输出为 Vorbis 双声道，转换失败保留旧目标，源文件未变，临时目录清理通过；证据在 `build/update-work/import-check/validation.json`。游戏测试仅用自制正弦音，不使用商业原声。
+- 头像修复猪、羊、末影人、恶魂等脸部 UV 和纹理长宽比。读取 PNG 头并按实际比例归一化，适配高分辨率资源包以及 1.21.8/1.21.10 的新版猪、牛纹理；资源重载清理缓存。非方形/未知模型通过原生实体渲染器放入头像框，玩家保留真实皮肤。已核对 1.21.1 与两个新版的代表物种小预览，不代表所有资源包或第三方模型逐项验证。
+- 可选[暮色目录](TRAILS_BESTIARY.md#可选暮色森林适配)含 59 种生物和 8 个 Boss，按实体注册情况启用；普通敌对类别与巫妖分身筛选接入 AT。`TrailsTwilight` 保留巫妖原生盾层和九头蛇原生头部受伤入口，结束巫妖跨回合瞬移无敌。基线为官方 Twilight Forest 1.21.1-4.8.3345，JAR SHA256 `493da16d10210f9f53a3c33b3d8fcb4ae9b14016ee420d753c894562bd9aba35`；只作为本机测试依赖，不打入发行包。
+- 最终服务器回归：NeoForge 1.21.1 **87 项**（`build/update-work/neoforge-tests-final.log`）、Fabric 1.21.1 **93 项**（`build/update-work/fabric-tests-final.log`）全部通过。未将这些数字沿用到其他端口。
+- 六种组合的真实客户端均通过六类说明、H/按钮入口和返回、代表头像、个人 OGG 事件解析/声音引擎播放、开关停止/恢复、音量保存和退战停止：NeoForge `neoforge-client-final.log`，Fabric `fabric-client.log` 与 `fabric-<版本>-client.log`，均位于 `build/update-work/`。1.20.1 实际运行 Java 17，其他 Java 21。1.21.10 个人资源包使用实际 69.0 的 min/max 格式并成功加载。
+- NeoForge + 实际暮色 JAR 的客户端复测八 Boss：娜迦、巫妖、米诺菇、九头蛇、幻影骑士、暮色恶魂、雪怪首领、冰雪女王；日志逐项记录 `TWILIGHT_QA_NATIVE_DAMAGE_AND_S`，覆盖原生伤害、巫妖盾层递减/瞬移保护结束、九头蛇头部命中、金光预告和 S 提交。金光留给玩家移动/防御/抢 S 的规则沿用现有 AT，不宣称暮色全部原生阶段已复刻。
+- 六个 NeoForge/Fabric 正式 JAR 的结构、JSON、Mixin、许可、字节码目标、82/59/8 目录数量、鸡 80 CP、说明/音乐类和无 GameTests/商业音频/暮色文件检查通过；`verification.json` 与文件位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.13/`。协议保留 `31-trails` / `trails-12`，客户端和服务器同时更新。发行链接见 [trails.13](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.13)。
+- 本轮未重做逐端口双客户端、公网延迟、全部物种/武器动画或网易工作台验收；暮色只实测上述 NeoForge 组合，其他暮色版本/加载器需要另验。旧 Forge 国服候选和审核资料保留。开工前检索了 [Patchouli](https://github.com/VazkiiMods/Patchouli)、音乐方案和 [TeamTwilight 官方源码](https://github.com/TeamTwilight/twilightforest)，本轮复用现有原生 GUI、声音引擎与 AT 演出，没有增加通用骨骼/手册框架依赖。
+
 ## 战技 CP、独立角色资源与收纳状态（2026-10-28）
 
 - trails.12：所有普通战技消耗对应角色自己的 CP。鸡的「振翅号令」80；猪 25、羊 40、狼/牛 30、鹦鹉 35、悦灵 60。六类武器为剑 25、斧 30、弓 35、三叉戟 40、弩 45、风弹重锤 60。82 种生物费用写在 `trails_bestiary.json` 的 `skill.cpCost`，完整表见[技能目录](TRAILS_BESTIARY.md)。

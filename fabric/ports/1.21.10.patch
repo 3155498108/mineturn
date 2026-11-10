@@ -1363,7 +1363,7 @@
          if (fast != null) base *= 1 + cfg().speedPotionPerLevel * (fast.getAmplifier() + 1);
          if (slow != null) base *= Math.max(.1, 1 - .15 * (slow.getAmplifier() + 1));
          return Double.isFinite(base) ? Math.clamp(base, 10, 1000) : 100;
-@@ -410,7 +410,7 @@
+@@ -411,7 +411,7 @@
          if (p.operation().equals("select") || p.operation().equals("primary")) {
              if (b.actor != player) throw new IllegalArgumentException("只能在玩家回合切换武器。");
              if (p.slot() < 0 || p.slot() > 8) throw new IllegalArgumentException("无效武器槽。");
@@ -1372,18 +1372,19 @@
              ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
              if (p.operation().equals("primary")) setPrimary(player);
              else if (weapon(player.getMainHandItem())) com.matuvent.mineturn.platform.RuntimePlatform.data(player).putString(PRIMARY, itemId(player.getMainHandItem()));
-@@ -459,8 +459,8 @@
+@@ -460,9 +460,9 @@
          float before=target.getHealth()+target.getAbsorptionAmount();
          BattleManager.authorized(() -> {
              target.invulnerableTime = 0;
 -            if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) dragon.hurt(dragon.head, controller(source)!=null?source.damageSources().playerAttack(controller(source)):damageSource, applied);
--            else target.hurt(damageSource, applied);
 +            if (target instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) com.matuvent.mineturn.compat.Port.hurt(dragon,dragon.head, controller(source)!=null?source.damageSources().playerAttack(controller(source)):damageSource, applied);
-+            else com.matuvent.mineturn.compat.Port.hurt(target,damageSource, applied);
+             else if (!TrailsTwilight.hurt(target, source, damageSource, applied,
+-                    performances.containsKey(source.getUUID()) && performances.get(source.getUUID())[0].startsWith("burst_"))) target.hurt(damageSource, applied);
++                    performances.containsKey(source.getUUID()) && performances.get(source.getUUID())[0].startsWith("burst_"))) com.matuvent.mineturn.compat.Port.hurt(target,damageSource, applied);
          });
          float lost = Math.max(0, before - target.getHealth() - target.getAbsorptionAmount());
          boolean confirmed=critical && lost>.001;
-@@ -475,7 +475,7 @@
+@@ -477,7 +477,7 @@
      }
      double baseDamage(LivingEntity source) {
          if (source.getAttribute(Attributes.ATTACK_DAMAGE) != null) return Math.max(2, source.getAttributeValue(Attributes.ATTACK_DAMAGE));
@@ -1392,7 +1393,7 @@
          return 3 + (strength == null ? 0 : 3 * (strength.getAmplifier() + 1));
      }
      void animate(LivingEntity source, LivingEntity victim, boolean ranged) {
-@@ -551,7 +551,7 @@
+@@ -553,7 +553,7 @@
          int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.WIND_CHARGE) : -2;
          if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "背包内需要 1 支普通箭。" : "背包内需要 1 个风弹。");
          TrailsCp.spend(player, skill || wind ? TrailsWeaponSkills.cpCost(stack) : 0);
@@ -1782,6 +1783,69 @@
              case "accept"->{accept(p);message="已加入队伍；你只控制自己与自己的命名牌友军。";}
              case "leave"->{leave(p);message="已离队；生物的个人归属保留。";}
              case "state"->{}
+--- a/com/matuvent/mineturn/battle/TrailsTwilight.java
++++ b/com/matuvent/mineturn/battle/TrailsTwilight.java
+@@ -61,7 +61,7 @@
+             boolean ranged = item instanceof BowItem || item instanceof CrossbowItem || item instanceof TridentItem
+                     || profile != null && !profile.basic().projectile().isBlank();
+             if (ranged || burst) {
+-                target.hurt(source.damageSources().indirectMagic(source, source), amount);
++                com.matuvent.mineturn.compat.Port.hurt(target,source.damageSources().indirectMagic(source, source), amount);
+                 return true;
+             }
+         }
+--- a/com/matuvent/mineturn/battle/TrailsUpdateScenario.java
++++ b/com/matuvent/mineturn/battle/TrailsUpdateScenario.java
+@@ -33,7 +33,7 @@
+ 
+     public static void setup(MinecraftServer server) {
+         var player = player(server);
+-        var level = player.serverLevel();
++        var level = player.level();
+         ready = verified = false;
+         for (var mob : level.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(80))) mob.discard();
+         level.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBSPAWNING).set(false, server);
+@@ -54,8 +54,8 @@
+         var types = List.of(EntityType.PIG, EntityType.SHEEP, EntityType.CHICKEN, EntityType.COW, EntityType.WOLF,
+                 EntityType.ENDERMAN, EntityType.GHAST, EntityType.FOX, EntityType.RABBIT, EntityType.IRON_GOLEM, EntityType.ZOMBIE);
+         for (int i = 0; i < types.size(); i++) {
+-            var mob = types.get(i).create(level);
+-            mob.moveTo(4 + i % 4 * 3, -59, 3 + i / 4 * 4);
++            var mob = types.get(i).create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
++            mob.snapTo(4 + i % 4 * 3, -59, 3 + i / 4 * 4);
+             mob.setNoAi(true);
+             level.addFreshEntity(mob);
+             portraits.add(mob.getId());
+@@ -73,12 +73,12 @@
+         var player = player(server);
+         var old = BattleManager.ACTIVE.get(player.getUUID());
+         if (old != null) old.close("next QA boss");
+-        for (var mob : player.serverLevel().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(80))) mob.discard();
+-        var type = BuiltInRegistries.ENTITY_TYPE.get(ResourceLocation.fromNamespaceAndPath("twilightforest", BOSSES[index]));
+-        if (!(type.create(player.serverLevel()) instanceof Mob boss)) throw new IllegalStateException("Missing Twilight boss " + BOSSES[index]);
+-        boss.moveTo(10, -59, .5);
++        for (var mob : player.level().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(80))) mob.discard();
++        var type = BuiltInRegistries.ENTITY_TYPE.getValue(ResourceLocation.fromNamespaceAndPath("twilightforest", BOSSES[index]));
++        if (!(type.create(player.level(), net.minecraft.world.entity.EntitySpawnReason.COMMAND) instanceof Mob boss)) throw new IllegalStateException("Missing Twilight boss " + BOSSES[index]);
++        boss.snapTo(10, -59, .5);
+         boss.setNoAi(true);
+-        player.serverLevel().addFreshEntity(boss);
++        player.level().addFreshEntity(boss);
+         // A native tick initializes multipart positions before the battle freezes them.
+         boss.tick();
+         player.setHealth(player.getMaxHealth());
+@@ -102,9 +102,9 @@
+     public static void releaseBoss(MinecraftServer server) {
+         var player = player(server);
+         var battle = BattleManager.ACTIVE.get(player.getUUID());
+-        var boss = (LivingEntity) player.serverLevel().getEntity(bossId);
++        var boss = (LivingEntity) player.level().getEntity(bossId);
+         float health = boss.getHealth();
+-        player.getInventory().selected = 1;
++        player.getInventory().setSelectedSlot(1);
+         int shieldsBefore = 0;
+         if (BuiltInRegistries.ENTITY_TYPE.getKey(boss.getType()).getPath().equals("lich")) {
+             try { shieldsBefore = (int) boss.getClass().getMethod("getShieldStrength").invoke(boss); }
 --- a/com/matuvent/mineturn/client/ActionAnimationData.java
 +++ b/com/matuvent/mineturn/client/ActionAnimationData.java
 @@ -17,7 +17,7 @@
@@ -1995,8 +2059,8 @@
  import net.fabricmc.fabric.api.resource.*;
  import net.minecraft.resources.ResourceLocation;
  import net.minecraft.server.packs.PackType;
-@@ -20,17 +21,19 @@
-         KeyBindingHelper.registerKeyBinding(TrailsClient.PRIMARY);KeyBindingHelper.registerKeyBinding(TrailsClient.CONFIG);
+@@ -21,17 +22,19 @@
+         KeyBindingHelper.registerKeyBinding(TrailsClient.GUIDE);
          EntityRendererRegistry.register(MineTurn.BATTLE_BULLET.get(),BattleBulletRenderer::new);
          EntityRendererRegistry.register(MineTurn.BATTLE_DEVICE.get(),BattleDeviceRenderer::new);
 -        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new IdentifiableResourceReloadListener(){
@@ -2091,7 +2155,7 @@
          if (mc.player != null) point = clear(point, focus, mc.player);
 --- a/com/matuvent/mineturn/client/TrailsClient.java
 +++ b/com/matuvent/mineturn/client/TrailsClient.java
-@@ -13,10 +13,10 @@
+@@ -13,11 +13,11 @@
  import org.lwjgl.glfw.GLFW;
  
  public final class TrailsClient {
@@ -2099,14 +2163,16 @@
 -    public static final KeyMapping BURST = new KeyMapping("key.mineturn.trails_burst", GLFW.GLFW_KEY_V, "key.categories.mineturn");
 -    public static final KeyMapping PRIMARY = new KeyMapping("key.mineturn.trails_primary", GLFW.GLFW_KEY_B, "key.categories.mineturn");
 -    public static final KeyMapping CONFIG = new KeyMapping("key.mineturn.trails_config", GLFW.GLFW_KEY_O, "key.categories.mineturn");
+-    public static final KeyMapping GUIDE = new KeyMapping("key.mineturn.trails_guide", GLFW.GLFW_KEY_H, "key.categories.mineturn");
 +    public static final KeyMapping SWITCH = new KeyMapping("key.mineturn.trails_switch", GLFW.GLFW_KEY_R, com.matuvent.mineturn.client.PortKeys.CATEGORY);
 +    public static final KeyMapping BURST = new KeyMapping("key.mineturn.trails_burst", GLFW.GLFW_KEY_V, com.matuvent.mineturn.client.PortKeys.CATEGORY);
 +    public static final KeyMapping PRIMARY = new KeyMapping("key.mineturn.trails_primary", GLFW.GLFW_KEY_B, com.matuvent.mineturn.client.PortKeys.CATEGORY);
 +    public static final KeyMapping CONFIG = new KeyMapping("key.mineturn.trails_config", GLFW.GLFW_KEY_O, com.matuvent.mineturn.client.PortKeys.CATEGORY);
++    public static final KeyMapping GUIDE = new KeyMapping("key.mineturn.trails_guide", GLFW.GLFW_KEY_H, com.matuvent.mineturn.client.PortKeys.CATEGORY);
      public static TrailsNetwork.Settings settings = new TrailsNetwork.Settings(20, 6, 4,.1,1.5, false, "");
      private static net.minecraft.world.phys.Vec3 previousFocus = net.minecraft.world.phys.Vec3.ZERO;
      private static List<TrailsNetwork.Fighter> introAllies = List.of(), introEnemies = List.of();
-@@ -145,13 +145,13 @@
+@@ -153,13 +153,13 @@
          var buffers = mc.renderBuffers().bufferSource(); var lines = buffers.getBuffer(RenderType.lines());
          if (preview) for (int i = 0; i < 144; i++) {
              double a = i * Math.PI * 2 / 144, x = center.x + Math.cos(a) * radius, z = center.z + Math.sin(a) * radius;
@@ -2122,7 +2188,7 @@
              }
              var shape = screen.previewShape();
              var actor = mc.level.getEntity(screen.preparing().equals("burst") ? mc.player.getId() : view.actor());
-@@ -165,7 +165,7 @@
+@@ -173,7 +173,7 @@
                      boolean friendlySkill = screen.preparing().equals("skill") && profile!=null && profile.skill().friendly();
                      boolean side = friendlySkill ? !fighter.enemy() : fighter.enemy();
                      if (side && (shape.kind() == com.matuvent.mineturn.battle.TrailsArea.Kind.SINGLE ? fighter.id() == screen.selectedTarget() : shape.contains(actor.position(), aim, entity.position())))
@@ -2131,7 +2197,7 @@
                  }
              }
          }
-@@ -174,32 +174,23 @@
+@@ -182,32 +182,23 @@
          if (active() && mc.screen instanceof TrailsScreen screen && screen.previewShape() != null) {
              var actor = mc.level.getEntity(screen.preparing().equals("burst") ? mc.player.getId() : view.actor());
              if (actor != null) {
@@ -2172,7 +2238,7 @@
          int center = h / 2;
          int height = (int) (Math.sin(Math.PI * progress) * Math.min(h * .4, 100));
          for (int y = -height; y < height; y++) {
-@@ -212,7 +203,7 @@
+@@ -220,7 +211,7 @@
              g.drawCenteredString(font, cutText, w / 2, center - 2, 0xffffffff);
              g.drawCenteredString(font, "/// BREAK THE ORDER ///", w / 2, center + 11, 0xffffd7df);
          }
@@ -2181,7 +2247,7 @@
      }
      private static void versus(GuiGraphics g, int w, int h, double p) {
          var font = Minecraft.getInstance().font;
-@@ -227,8 +218,8 @@
+@@ -235,8 +226,8 @@
          introTeam(g, introEnemies, right - 68 - shake, y, size, true);
          if (p > .40) {
              if (p < .47) g.fill(0, 0, w, h, 0x66ffffff);
@@ -2302,6 +2368,17 @@
                      case "wither","vex","phantom"->ParticleTypes.SOUL;
                      case "spell","fangs"->ParticleTypes.WITCH;
                      case "sonic","guardian"->ParticleTypes.ELECTRIC_SPARK;
+--- a/com/matuvent/mineturn/client/TrailsGuideScreen.java
++++ b/com/matuvent/mineturn/client/TrailsGuideScreen.java
+@@ -137,7 +137,7 @@
+                 for (var profile : TrailsBestiary.all()) {
+                     var id = ResourceLocation.parse(profile.id());
+                     if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id)) continue;
+-                    var type = BuiltInRegistries.ENTITY_TYPE.get(id);
++                    var type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
+                     boolean boss = profile.ultimate() != null;
+                     boolean hostile = type.getCategory() == MobCategory.MONSTER;
+                     if (category == 5 ? !boss : boss || (category == 4) != hostile) continue;
 --- a/com/matuvent/mineturn/client/TrailsImpacts.java
 +++ b/com/matuvent/mineturn/client/TrailsImpacts.java
 @@ -62,8 +62,8 @@
@@ -2344,6 +2421,22 @@
              }
              case "coop_wolf"->{if(age==25){check(TrailsClient.view.controllable()==host() && TrailsClient.view.alliedTurn(),"other owner's wolf control");shot();}}
              case "withdraw"->{if(age==12 && !host())TrailsClient.send("toggle",-1,0,0,0);}
+--- a/com/matuvent/mineturn/client/TrailsMusic.java
++++ b/com/matuvent/mineturn/client/TrailsMusic.java
+@@ -119,7 +119,12 @@
+             }
+             var metadata = new JsonObject();
+             var packInfo = new JsonObject();
+-            packInfo.addProperty("pack_format", SharedConstants.getCurrentVersion().getPackVersion(PackType.CLIENT_RESOURCES));
++            var format = SharedConstants.getCurrentVersion().packVersion(PackType.CLIENT_RESOURCES);
++            var supported = new JsonArray();
++            supported.add(format.major());
++            supported.add(format.minor());
++            packInfo.add("min_format", supported);
++            packInfo.add("max_format", supported.deepCopy());
+             packInfo.addProperty("description", "MineTurn personal battle music");
+             metadata.add("pack", packInfo);
+             Path metadataFile = pack.resolve("pack.mcmeta");
 --- a/com/matuvent/mineturn/client/TrailsPartyScreen.java
 +++ b/com/matuvent/mineturn/client/TrailsPartyScreen.java
 @@ -17,9 +17,9 @@
@@ -2379,25 +2472,22 @@
              if(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(candidate.getItem()).toString().equals(TrailsClient.view.primary())) {
 --- a/com/matuvent/mineturn/client/TrailsPortraits.java
 +++ b/com/matuvent/mineturn/client/TrailsPortraits.java
-@@ -17,7 +17,8 @@
-         g.fill(x, y, x + size, y + size, 0xff151725);
-         if (entity instanceof AbstractClientPlayer p) { PlayerFaceRenderer.draw(g, p.getSkin(), x, y, size); return; }
-         if (!(entity instanceof LivingEntity living)) { g.drawCenteredString(mc.font, "?", x + size / 2, y + size / 2 - 4, -1); return; }
--        var texture = mc.getEntityRenderDispatcher().getRenderer(living).getTextureLocation(living);
-+        var renderer=mc.getEntityRenderDispatcher().getRenderer(living);
-+        var texture=renderer instanceof net.minecraft.client.renderer.entity.LivingEntityRenderer raw?raw.getTextureLocation((net.minecraft.client.renderer.entity.state.LivingEntityRenderState)raw.createRenderState(living,0)):ResourceLocation.withDefaultNamespace("textures/entity/enderdragon/dragon.png");
-         String type = BuiltInRegistries.ENTITY_TYPE.getKey(living.getType()).getPath();
-         int u = 8, v = 8, w = 8, h = 8, tw = 64, th = 64;
-         switch (type) {
-@@ -32,21 +33,21 @@
-             case "spider", "cave_spider" -> { u = 40; v = 4; th = 32; }
-             default -> {}
+@@ -29,11 +29,11 @@
+                     0, x + size / 2f, y + size / 2f, living);
+             return;
          }
--        g.blit(texture, x, y, size, size, u, v, w, h, tw, th);
-+        g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,texture,x,y,u,v,size,size,w,h,tw,th);
+-        var texture = mc.getEntityRenderDispatcher().getRenderer(living).getTextureLocation(living);
++        var renderer = mc.getEntityRenderDispatcher().getRenderer(living);
++        var texture = renderer instanceof net.minecraft.client.renderer.entity.LivingEntityRenderer raw ? raw.getTextureLocation((net.minecraft.client.renderer.entity.state.LivingEntityRenderState)raw.createRenderState(living,0)) : ResourceLocation.withDefaultNamespace("textures/entity/enderdragon/dragon.png");
+         int width = Math.max(1, size * face.width / Math.max(face.width, face.height));
+         int height = Math.max(1, size * face.height / Math.max(face.width, face.height));
+-        g.blit(texture, x + (size - width) / 2, y + (size - height) / 2, width, height,
+-                face.u, face.v, face.width, face.height, face.textureWidth, textureHeight(texture, face));
++        g.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, texture, x + (size - width) / 2, y + (size - height) / 2, face.u, face.v, width, height, face.width, face.height, face.textureWidth, textureHeight(texture, face));
      }
  
-     static void effects(GuiGraphics g, TrailsNetwork.Fighter fighter, int x, int y, int max, int mouseX, int mouseY) {
+     /** Read only the PNG header, retaining logical UVs for high-resolution resource packs. */
+@@ -74,14 +74,14 @@
          var mc = Minecraft.getInstance(); int i = 0;
          for (var status : fighter.effects()) {
              if (i >= max) break;
@@ -2436,7 +2526,7 @@
      private Button button(String label, int x, int y, int w, Runnable action, boolean enabled) {
          var b = addRenderableWidget(Button.builder(Component.literal(label), ignored -> action.run()).bounds(x, y, w, 20).build());
          b.active = enabled;
-@@ -172,7 +172,7 @@
+@@ -173,7 +173,7 @@
      private void selectSlot(int slot) {
          if (!playerTurn()) return;
          preparing = "";
@@ -2445,7 +2535,7 @@
          command("select"); rebuild();
      }
      private void movement(boolean forceStop) {
-@@ -221,9 +221,9 @@
+@@ -222,9 +222,9 @@
              var q = queue.get(i); int x = 8 + i * 29;
              var f = TrailsClient.fighters.stream().filter(v -> v.id() == q.id()).findFirst();
              TrailsPortraits.draw(g, q.id(), x, 21, 19, f.map(TrailsNetwork.Fighter::enemy).orElse(false));
@@ -2457,7 +2547,7 @@
          }
          boolean performance=view.busy() && TrailsCinematics.active();
          for (var child : children()) if (child instanceof net.minecraft.client.gui.components.AbstractWidget widget) widget.visible=!performance;
-@@ -249,7 +249,7 @@
+@@ -250,7 +250,7 @@
              int start = (width - 180) / 2;
              for (int i = 0; preparing.isEmpty() && i < 9; i++) {
                  int x = start + i * 20, y = height - 109;
@@ -2466,7 +2556,7 @@
                  g.renderItem(minecraft.player.getInventory().getItem(i), x, y);
                  g.drawString(font, Integer.toString(i + 1), x + 10, y + 9, 0xffeeeeee);
              }
-@@ -280,9 +280,9 @@
+@@ -281,9 +281,9 @@
              TrailsPortraits.draw(g, f.id(), x + 3, y + 3, 21, enemy);
              if(f.threat()!=null){
                  int color=f.threat().golden()?0xffffd23c:0xffff3458;
@@ -2478,7 +2568,7 @@
              }
              g.drawString(font, font.plainSubstrByWidth((f.id() == TrailsClient.view.actor() ? "▶ " : "") + f.name(), column - 30), x + 28, y + 3, -1);
              TrailsPortraits.effects(g, f, x + 28, y + 15, Math.max(1, (column - 45) / 15), mouseX, mouseY);
-@@ -291,24 +291,24 @@
+@@ -292,25 +292,25 @@
                      f.id()==target?0xffb57d28:enemy?0xffa72545:0xff157a61);
              String hp=TrailsImpacts.format(f.hp())+" / "+TrailsImpacts.format(f.maxHp());
              float scale=Math.min(1,(column-10f)/Math.max(1,font.width(hp)));
@@ -2498,7 +2588,9 @@
      }
      public static long renderedCpNumbers;
 -    @Override public boolean keyPressed(int key, int scan, int modifiers) {
+-        if (TrailsClient.GUIDE.matches(key, scan)) { minecraft.setScreen(new TrailsGuideScreen(this)); return true; }
 +    @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event){int key=event.key(), scan=event.scancode(), modifiers=event.modifiers();
++        if (TrailsClient.GUIDE.matches(event)) { minecraft.setScreen(new TrailsGuideScreen(this)); return true; }
          if (movementKey(key)) { movementKeys.add(key); return true; }
 -        if (TrailsClient.SWITCH.matches(key, scan)) { TrailsClient.exitSwitchPressed(); return true; }
 -        if (TrailsClient.CONFIG.matches(key, scan)) { minecraft.setScreen(new TrailsConfigScreen(this)); return true; }
@@ -2513,7 +2605,7 @@
              minecraft.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(minecraft.player)); return true;
          }
          if (key == GLFW.GLFW_KEY_I && TrailsClient.view.alliedTurn() && TrailsClient.view.actor() == minecraft.player.getId()) {
-@@ -321,33 +321,33 @@
+@@ -323,33 +323,33 @@
          if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_SPACE) { if (preparing.isEmpty()) prepare("attack"); else confirm(); return true; }
          if (key == GLFW.GLFW_KEY_F) { prepare(playerTurn() ? "weapon_skill" : "skill"); return true; }
          if (key == GLFW.GLFW_KEY_ESCAPE) { preparing = ""; items = false; rebuild(); return true; }
@@ -2563,7 +2655,7 @@
  }
 --- a/com/matuvent/mineturn/client/TrailsSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsSmoke.java
-@@ -69,16 +69,17 @@
+@@ -70,16 +70,17 @@
          if (stage == 1 && mc.screen != null) return;
          elapsed++;
          if (stage == 1) {
@@ -2583,7 +2675,7 @@
              }
          } else if (stage == 12 && elapsed > 14) {
                  if (!(mc.screen instanceof TrailsScreen screen) || screen.previewShape() == null
-@@ -86,32 +87,32 @@
+@@ -87,32 +88,32 @@
                      throw new IllegalStateException("Sword preview committed an action or failed to show a sector");
                  screenshot("at-qa-09-sector.png");
                  moveStart = mc.player.position();
@@ -2624,7 +2716,7 @@
          } else if (stage == 14) {
              if (elapsed == 10) {
                  if (!(mc.screen instanceof TrailsConfigScreen)) throw new IllegalStateException("Config screen did not open");
-@@ -119,14 +120,14 @@
+@@ -120,14 +121,14 @@
                          .map(c -> (net.minecraft.client.gui.components.EditBox)c).toList();
                  boxes.get(0).setValue("14"); boxes.get(1).setValue("7"); boxes.get(2).setValue("4");
                  mc.screen.children().stream().filter(c -> c instanceof net.minecraft.client.gui.components.Button b && b.getMessage().getString().equals("保存并应用"))
@@ -2641,7 +2733,7 @@
          } else if (stage == 9) {
              if (elapsed == 8) {
                  if (!(mc.screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen)) throw new IllegalStateException("E did not open vanilla inventory");
-@@ -140,15 +141,15 @@
+@@ -141,15 +142,15 @@
              }
          } else if (stage == 10 && elapsed > 10) {
              if (!(mc.screen instanceof TrailsScreen)) throw new IllegalStateException("Battle screen did not resume after inventory");
@@ -2661,7 +2753,7 @@
                  int target = TrailsClient.fighters.stream().filter(f -> f.enemy()).findFirst().orElseThrow().id();
                  TrailsClient.send("burst", target, 0, 0, 0); stage = 4; elapsed = 0;
              }
-@@ -157,7 +158,7 @@
+@@ -158,7 +159,7 @@
              if (elapsed > 45) {
                  if (!TrailsClient.active() || TrailsClient.view.cp() != 50 || !TrailsClient.view.alliedTurn())
                      throw new IllegalStateException("S-Break did not update CP / preserve allied control");
@@ -2670,7 +2762,7 @@
                  TrailsClient.send("toggle", -1, 0, 0, 0); stage = 5; elapsed = 0;
              }
          } else if (stage == 5 && elapsed > 15) {
-@@ -176,7 +177,7 @@
+@@ -177,7 +178,7 @@
      private static void screenshot(String file) {
          var mc = Minecraft.getInstance();
          String versioned = file.replace(".png", "-" + System.getProperty("mineturn.qaTag", "v1") + ".png");
@@ -2679,7 +2771,7 @@
      }
      private static void setup(MinecraftServer server) {
          var level = server.overworld();
-@@ -193,21 +194,21 @@
+@@ -194,21 +195,21 @@
          inv.setItem(4, new ItemStack(Items.ARROW, 32)); inv.setItem(5, new ItemStack(Items.WIND_CHARGE, 16));
          inv.setItem(6, new ItemStack(Items.BREAD, 8));
          var potion = new ItemStack(Items.POTION); potion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SWIFTNESS));
@@ -2709,6 +2801,41 @@
          prepared = true;
      }
  }
+--- a/com/matuvent/mineturn/client/TrailsUpdateSmoke.java
++++ b/com/matuvent/mineturn/client/TrailsUpdateSmoke.java
+@@ -17,12 +17,12 @@
+     private static void server(java.util.function.Consumer<net.minecraft.server.MinecraftServer> work) { Minecraft.getInstance().getSingleplayerServer().execute(() -> work.accept(Minecraft.getInstance().getSingleplayerServer())); }
+     private static void shot(String name) {
+         var minecraft = Minecraft.getInstance();
+-        net.minecraft.client.Screenshot.grab(minecraft.gameDirectory, "update-" + name + ".png", minecraft.getMainRenderTarget(), ignored -> {});
++        net.minecraft.client.Screenshot.grab(minecraft.gameDirectory, "update-" + name + ".png", minecraft.getMainRenderTarget(), 1, ignored -> {});
+     }
+     private static void press(String label) {
+         var screen = Minecraft.getInstance().screen;
+         screen.children().stream().filter(child -> child instanceof Button button && button.getMessage().getString().equals(label))
+-                .map(child -> (Button) child).findFirst().orElseThrow().onPress();
++                .map(child -> (Button) child).findFirst().orElseThrow().onPress(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+     }
+     static void tick() {
+         var minecraft = Minecraft.getInstance();
+@@ -35,7 +35,7 @@
+         if (minecraft.getOverlay() != null) return;
+         age++;
+         minecraft.options.pauseOnLostFocus = false;
+-        minecraft.getToasts().clear();
++        minecraft.getToastManager().clear();
+         if (stage == 0) {
+             twilight = Boolean.getBoolean("mineturn.twilightQa");
+             minecraft.options.guiScale().set(2);
+@@ -57,7 +57,7 @@
+                 check(TrailsGuideScreen.contents(3).stream().anyMatch(article -> article.text().contains("80 CP")), "guide lost chicken CP cost");
+                 minecraft.screen.onClose();
+                 check(minecraft.screen instanceof TrailsScreen, "guide failed to restore battle");
+-                minecraft.screen.keyPressed(GLFW.GLFW_KEY_H, 0, 0);
++                minecraft.screen.keyPressed(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_H, 0, 0));
+                 check(minecraft.screen instanceof TrailsGuideScreen, "battle H did not open guide");
+                 minecraft.screen.onClose();
+                 minecraft.options.guiScale().set(1);
 --- a/com/matuvent/mineturn/client/TrailsWarnings.java
 +++ b/com/matuvent/mineturn/client/TrailsWarnings.java
 @@ -33,12 +33,12 @@

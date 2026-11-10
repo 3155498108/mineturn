@@ -11,5 +11,6 @@
   "item.mineturn.companion_token.named": "友军 · %s",
   "item.mineturn.companion_token.release": "右键方块放出，放出后自动跟随",
   "item.mineturn.companion_token.recall": "蹲下、空手右键自己的友军可再次收纳",
-  "item.mineturn.companion_token.owner": "仅原主人可放出；保留生命、装备和状态"
+  "item.mineturn.companion_token.owner": "仅原主人可放出；保留生命、装备和状态",
+  "key.mineturn.trails_guide": "打开战斗手册"
 }

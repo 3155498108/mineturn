@@ -28,6 +28,7 @@ public final class ForgeClient {
     @SubscribeEvent public static void keys(RegisterKeyMappingsEvent event) {
         event.register(TrailsClient.SWITCH); event.register(TrailsClient.BURST);
         event.register(TrailsClient.PRIMARY); event.register(TrailsClient.CONFIG);
+        event.register(TrailsClient.GUIDE);
     }
     @SubscribeEvent public static void renderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(MineTurn.BATTLE_BULLET.get(), BattleBulletRenderer::new);

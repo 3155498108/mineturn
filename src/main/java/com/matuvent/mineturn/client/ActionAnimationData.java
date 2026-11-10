@@ -78,6 +78,7 @@ public final class ActionAnimationData extends SimpleJsonResourceReloadListener 
 
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager resources, ProfilerFiller profiler) {
+        if (resources != null) TrailsPortraits.clearTextures();
         var parsed = new java.util.HashMap<String, Camera>();
         boolean rejected = false;
         for (var entry : files.entrySet()) {

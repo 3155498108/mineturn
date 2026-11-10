@@ -16,6 +16,8 @@ public final class TrailsConfigScreen extends Screen {
     @Override public boolean isPauseScreen() { return false; }
     @Override public void renderBackground(GuiGraphics g, int x, int y, float partial) {}
     @Override protected void init() {
+        addRenderableWidget(Button.builder(Component.literal("说明"), b -> minecraft.setScreen(new TrailsGuideScreen(this))).bounds(4, 3, 44, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("音乐"), b -> minecraft.setScreen(new TrailsMusicScreen(this))).bounds(52, 3, 44, 20).build());
         addRenderableWidget(Button.builder(Component.literal("队伍"),b->minecraft.setScreen(new TrailsPartyScreen(this))).bounds(width-48,3,44,20).build());
         var settings = values != null ? values : TrailsClient.settings;
         encounter = field(42, settings.encounter()); vertical = field(68, settings.vertical()); movement = field(94, settings.movement());

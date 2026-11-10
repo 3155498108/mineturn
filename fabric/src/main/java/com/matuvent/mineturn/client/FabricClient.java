@@ -18,6 +18,7 @@ public final class FabricClient implements ClientModInitializer {
         new BattleClient();FabricClientPayloads.initialize();
         KeyBindingHelper.registerKeyBinding(TrailsClient.SWITCH);KeyBindingHelper.registerKeyBinding(TrailsClient.BURST);
         KeyBindingHelper.registerKeyBinding(TrailsClient.PRIMARY);KeyBindingHelper.registerKeyBinding(TrailsClient.CONFIG);
+        KeyBindingHelper.registerKeyBinding(TrailsClient.GUIDE);
         EntityRendererRegistry.register(MineTurn.BATTLE_BULLET.get(),BattleBulletRenderer::new);
         EntityRendererRegistry.register(MineTurn.BATTLE_DEVICE.get(),BattleDeviceRenderer::new);
         ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new IdentifiableResourceReloadListener(){

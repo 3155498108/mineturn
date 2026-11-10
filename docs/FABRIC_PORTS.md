@@ -30,6 +30,8 @@
 
 ## 版本边界
 
+trails.13 各端口同步 H 六类说明、个人音乐设置与头像修复。个人音乐包按目标游戏的资源包格式生成；1.21.10 使用 `min_format` / `max_format`，依据 [Minecraft 官方格式说明](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-9)。
+
 从 trails.12 起，各端口同步独立 CP、战技费用、CP/HP 收纳状态和名单 CP 条；武器及生物费用见[分支规则](TRAILS_PROTOTYPE.md)和[技能目录](TRAILS_BESTIARY.md)。客户端与服务器一起更新，不能混用旧 CP 名单协议。旧版文件继续保留。
 
 - 1.20.1 没有原版重锤、风弹、旋风人、沼骸、犰狳或狼铠；安装包不伪造这些原版内容。使用旧物品 NBT 和原生 Fabric 网络传输，保留个人友军收纳、速度 AT 和 R 按键周期。
@@ -39,10 +41,10 @@
 
 ## 安装与验证记录
 
-当前 CP 更新发行包为 [trails.12](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)。下载对应版本的 JAR 与上表 Fabric API，放入 Fabric 实例的 `mods` 文件夹；同一实例只保留一个 MineTurn JAR。
+当前发行包为 [trails.13](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.13)。下载对应版本的 JAR 与上表 Fabric API，放入 Fabric 实例的 `mods` 文件夹；同一实例只保留一个 MineTurn JAR。
 
 此前 trails.11 四个端口分别通过构建、服务端启动/重载、真实客户端友军与 R 周期、完整入战流程；1.21 另通过 86 项服务器测试，两个新版另验证 Boss 金光和 S 技。1.21.10 的武器动作和旧存档收纳数据升级也已实测。本次 CP 更新的测试另记于任务表，不直接沿用这些旧数字。
 
-多人没有对每个端口重新跑双客户端验收，第三方模组兼容不在本轮范围。升级前备份存档，不能向低版本降级世界。
+多人没有对每个端口重新跑双客户端验收。新增暮色目录的实机基线仅为 NeoForge 1.21.1 / Twilight Forest 4.8.3345，不代表上述 Fabric 端口可使用任意暮色 JAR；原生伤害桥接按具体暮色接口核对。升级前备份存档，不能向低版本降级世界。
 
 当前结果统一记录在[任务表](TASKS.md)顶部；编译成功、服务器启动、实际客户端流程分开记录。原 1.21.1 的测试数字不自动沿用到其他版本。

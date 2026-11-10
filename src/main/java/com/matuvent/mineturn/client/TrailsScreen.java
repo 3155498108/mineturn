@@ -126,6 +126,7 @@ public final class TrailsScreen extends Screen {
         var burst = button("S-BREAK / " + view.cp() + " CP", width / 2 - 80, y - 24, 160, () -> prepare("burst"), view.cp() >= view.burstCost());
         burst.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(view.burstName() + " · 消耗 " + view.burstCost() + " CP，可打断行动顺序。")));
         button("设置", width - 42, 3, 38, () -> minecraft.setScreen(new TrailsConfigScreen(this)), true);
+        button("说明", width - 84, 3, 38, () -> minecraft.setScreen(new TrailsGuideScreen(this)), true);
     }
     private void inventory() {
         var slots = new java.util.ArrayList<Integer>();
@@ -303,6 +304,7 @@ public final class TrailsScreen extends Screen {
     }
     public static long renderedCpNumbers;
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
+        if (TrailsClient.GUIDE.matches(key, scan)) { minecraft.setScreen(new TrailsGuideScreen(this)); return true; }
         if (movementKey(key)) { movementKeys.add(key); return true; }
         if (TrailsClient.SWITCH.matches(key, scan)) { TrailsClient.exitSwitchPressed(); return true; }
         if (TrailsClient.CONFIG.matches(key, scan)) { minecraft.setScreen(new TrailsConfigScreen(this)); return true; }

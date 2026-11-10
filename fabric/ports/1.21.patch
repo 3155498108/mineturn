@@ -10,7 +10,7 @@
          var item = new ItemStack(MineTurn.COMPANION_TOKEN.get());
 --- a/com/matuvent/mineturn/client/TrailsSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsSmoke.java
-@@ -69,6 +69,7 @@
+@@ -70,6 +70,7 @@
          if (stage == 1 && mc.screen != null) return;
          elapsed++;
          if (stage == 1) {

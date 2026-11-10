@@ -13,7 +13,7 @@ import net.neoforged.neoforge.client.event.*;
 public final class NeoForgeClient {
     public NeoForgeClient(IEventBus bus){
         new BattleClient();
-        bus.addListener((RegisterKeyMappingsEvent e)->{e.register(TrailsClient.SWITCH);e.register(TrailsClient.BURST);e.register(TrailsClient.PRIMARY);e.register(TrailsClient.CONFIG);});
+        bus.addListener((RegisterKeyMappingsEvent e)->{e.register(TrailsClient.SWITCH);e.register(TrailsClient.BURST);e.register(TrailsClient.PRIMARY);e.register(TrailsClient.CONFIG);e.register(TrailsClient.GUIDE);});
         net.neoforged.fml.ModList.get().getModContainerById(MineTurn.MODID).orElseThrow().registerExtensionPoint(net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,(container,parent)->new TrailsConfigScreen(parent));
         bus.addListener((EntityRenderersEvent.RegisterRenderers e)->{e.registerEntityRenderer(MineTurn.BATTLE_BULLET.get(),BattleBulletRenderer::new);e.registerEntityRenderer(MineTurn.BATTLE_DEVICE.get(),BattleDeviceRenderer::new);});
         bus.addListener((RegisterClientReloadListenersEvent e)->e.registerReloadListener(new ActionAnimationData()));

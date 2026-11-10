@@ -1,5 +1,15 @@
 # 开发工具
 
+## 个人战斗音乐导入（`import_battle_music.py`）
+
+这是显式写入游戏实例的工具：需要本机 FFmpeg，将玩家指定的本地音频转为 OGG Vorbis，保存到 `config/mineturn/music/<曲库>/<场景>.ogg`。默认曲库 `custom`；场景为 `normal` / `advantage` / `boss`，也可选择 `trails` / `p5` / `p4` 曲库。
+
+```powershell
+python tools/import_battle_music.py "D:/Music/battle.mp3" --game-dir "D:/Games/MyInstance" --situation normal
+```
+
+成功后替换该场景的旧曲目，保留源音频；转换失败保留旧目标，并清理本次临时文件。游戏中 O → 音乐 → 重读本地音乐即可生效。仅用 Python 标准库调用 FFmpeg，不下载音频，不上传个人曲目。
+
 ## Fabric 多版本补丁（`fabric_ports.py`）
 
 使用目标版本的共同源码严格生成、捕获补丁与处理生成资源；会写入明确的 `fabric/build/ports/<版本>/` 或 `fabric/ports/<版本>.patch`，不会操作普通游戏存档。命令和版本验证边界见 [Fabric 多版本适配](../docs/FABRIC_PORTS.md)。

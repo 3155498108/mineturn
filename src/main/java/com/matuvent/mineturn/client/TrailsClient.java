@@ -17,6 +17,7 @@ public final class TrailsClient {
     public static final KeyMapping BURST = new KeyMapping("key.mineturn.trails_burst", GLFW.GLFW_KEY_V, "key.categories.mineturn");
     public static final KeyMapping PRIMARY = new KeyMapping("key.mineturn.trails_primary", GLFW.GLFW_KEY_B, "key.categories.mineturn");
     public static final KeyMapping CONFIG = new KeyMapping("key.mineturn.trails_config", GLFW.GLFW_KEY_O, "key.categories.mineturn");
+    public static final KeyMapping GUIDE = new KeyMapping("key.mineturn.trails_guide", GLFW.GLFW_KEY_H, "key.categories.mineturn");
     public static TrailsNetwork.Settings settings = new TrailsNetwork.Settings(20, 6, 4,.1,1.5, false, "");
     private static net.minecraft.world.phys.Vec3 previousFocus = net.minecraft.world.phys.Vec3.ZERO;
     private static List<TrailsNetwork.Fighter> introAllies = List.of(), introEnemies = List.of();
@@ -36,6 +37,7 @@ public final class TrailsClient {
 
     public static void initialize() {
         TrailsPresentationOptions.load();
+        TrailsMusic.initialize();
         TrailsNetwork.receiveParty=TrailsPartyScreen::received;
         TrailsNetwork.receiveImpact = TrailsImpacts::receive;
         TrailsNetwork.receivePerformance = TrailsPerformances::receive;
@@ -62,6 +64,7 @@ public final class TrailsClient {
             radius = p.radius();
             if (p.kind().equals("ready")) readyTicks = p.ticks();
             if (p.kind().equals("enter") || p.kind().equals("burst")) {
+                if (p.kind().equals("enter")) TrailsMusic.entered(p.text().contains("AMBUSH"));
                 cutTicks = cutTotal = p.ticks(); cutText = p.text(); readyTicks = 0;
                 burstCut = p.kind().equals("burst");
                 if (!burstCut) { introAllies = fighters.stream().filter(f -> !f.enemy()).toList(); introEnemies = fighters.stream().filter(TrailsNetwork.Fighter::enemy).toList(); }
@@ -94,6 +97,7 @@ public final class TrailsClient {
         if (readyTicks > 0) readyTicks--;
         if (cutTicks > 0) cutTicks--;
         var mc = Minecraft.getInstance();
+        TrailsMusic.tick();
         if (Boolean.getBoolean("mineturn.clientSmoke") && mc.screen instanceof net.minecraft.client.gui.screens.TitleScreen
                 && mc.getOverlay() == null && ++smokeReadyTicks >= 40) {
             com.matuvent.mineturn.MineTurn.LOGGER.info("TRAILS_CLIENT_SMOKE_READY: real title screen rendered; battle visuals are not covered");
@@ -103,6 +107,10 @@ public final class TrailsClient {
         if (windowWasActive && !mc.isWindowActive()) { switchGesture.reset(); preview = false; }
         windowWasActive = mc.isWindowActive();
         while (CONFIG.consumeClick()) mc.setScreen(new TrailsConfigScreen(mc.screen));
+        while (GUIDE.consumeClick()) {
+            if (mc.screen instanceof TrailsGuideScreen guide) guide.onClose();
+            else mc.setScreen(new TrailsGuideScreen(mc.screen));
+        }
         if (active()) {
             switchGesture.leftBattle(); preview = false;
             if (mc.screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen

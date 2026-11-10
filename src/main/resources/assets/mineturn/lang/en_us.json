@@ -9,5 +9,6 @@
   "item.mineturn.companion_token.named": "Companion · %s",
   "item.mineturn.companion_token.release": "Use on a block to release; follows its owner",
   "item.mineturn.companion_token.recall": "Sneak + empty-hand interact to recall your companion",
-  "item.mineturn.companion_token.owner": "Owner only; health, equipment and effects are retained"
+  "item.mineturn.companion_token.owner": "Owner only; health, equipment and effects are retained",
+  "key.mineturn.trails_guide": "Open combat guide"
 }
