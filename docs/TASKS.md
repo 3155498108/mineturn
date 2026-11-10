@@ -11,6 +11,8 @@
 - 六种组合的真实客户端均通过六类说明、H/按钮入口和返回、代表头像、个人 OGG 事件解析/声音引擎播放、开关停止/恢复、音量保存和退战停止：NeoForge `neoforge-client-final.log`，Fabric `fabric-client.log` 与 `fabric-<版本>-client.log`，均位于 `build/update-work/`。1.20.1 实际运行 Java 17，其他 Java 21。1.21.10 个人资源包使用实际 69.0 的 min/max 格式并成功加载。
 - NeoForge + 实际暮色 JAR 的客户端复测八 Boss：娜迦、巫妖、米诺菇、九头蛇、幻影骑士、暮色恶魂、雪怪首领、冰雪女王；日志逐项记录 `TWILIGHT_QA_NATIVE_DAMAGE_AND_S`，覆盖原生伤害、巫妖盾层递减/瞬移保护结束、九头蛇头部命中、金光预告和 S 提交。金光留给玩家移动/防御/抢 S 的规则沿用现有 AT，不宣称暮色全部原生阶段已复刻。
 - 六个 NeoForge/Fabric 正式 JAR 的结构、JSON、Mixin、许可、字节码目标、82/59/8 目录数量、鸡 80 CP、说明/音乐类和无 GameTests/商业音频/暮色文件检查通过；`verification.json` 与文件位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.13/`。协议保留 `31-trails` / `trails-12`，客户端和服务器同时更新。发行链接见 [trails.13](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.13)。
+- GitHub 已发布 trails.13 原型预发行，源码与标签指向 `fb6f2726a8ab4777e92c4996e6eeabc6391541e5`。11 个附件的服务器摘要、体积和上传状态已核对，并逐个实际下载比较 SHA256，六个 JAR/源码 ZIP 的 CRC 通过；本机回执位于发行目录的 `publication-receipt.json`。
+- 本轮日志、截图、小预览、QA 世界与诊断脚本按原相对路径归档至 `dist/verification-update-trails13-20261110.zip`，2501 个成员逐文件 SHA256 和 ZIP CRC 通过。约 **778 MiB** 的七个任务临时目录已移入 Windows 回收站，未清空回收站；不把目录缩小当作磁盘空间已释放。清单为 `dist/cleanup-update-trails13-20261110.json`。源码、普通存档、`output/` 素材、全部发行文件、既有国服材料和可复用缓存保留；暮色测试 JAR 去重后保留在 `build/compat-libs/`。
 - 本轮未重做逐端口双客户端、公网延迟、全部物种/武器动画或网易工作台验收；暮色只实测上述 NeoForge 组合，其他暮色版本/加载器需要另验。旧 Forge 国服候选和审核资料保留。开工前检索了 [Patchouli](https://github.com/VazkiiMods/Patchouli)、音乐方案和 [TeamTwilight 官方源码](https://github.com/TeamTwilight/twilightforest)，本轮复用现有原生 GUI、声音引擎与 AT 演出，没有增加通用骨骼/手册框架依赖。
 
 ## 战技 CP、独立角色资源与收纳状态（2026-10-28）
