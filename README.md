@@ -19,7 +19,7 @@ Name tags now store friendly mobs as portable companion tokens. Use a token on a
 
 White normal damage, larger red critical numbers, numeric HP bars and configurable critical chance (10%) / multiplier (1.5) in the AT settings.
 
-Version `1.0.0-trails.14` provides separate **Fabric and NeoForge** artifacts. Fabric requires Fabric API; install one loader's artifact on both the client and server. See [installation, architecture and validation](docs/FABRIC.md). Download: [GitHub Release](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.14). The [Modrinth project](https://modrinth.com/mod/mineturn-at-prototype) has earlier builds; this update has not been synced there yet.
+Version `1.0.0-trails.14` provides separate **Fabric and NeoForge** artifacts. Fabric requires Fabric API. Install the matching artifact on both client and server. Six trails.14 Alpha files are uploaded to Modrinth and project review is pending. See [installation and validation](docs/FABRIC.md), [GitHub Release](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.14) and [Modrinth versions](https://modrinth.com/mod/mineturn-at-prototype/versions).
 
 Fabric ports for **1.20.1, 1.21, 1.21.8 and 1.21.10** are built separately as `trails.14`. See [version dependencies, build commands and limitations](docs/FABRIC_PORTS.md). All artifacts retain per-entity CP, technique costs and companion CP/HP persistence.
 

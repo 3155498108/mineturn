@@ -20,7 +20,7 @@ Fabric 支持 **1.20.1、1.21（1.21.0）、1.21.1、1.21.8、1.21.10**，NeoFor
 
 当前分支版本 `1.0.0-trails.14`，提供 **Fabric 与 NeoForge 独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。NeoForge 协议为 `31-trails` / `trails-12`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
 
-当前 trails.14 下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.14)（Modrinth 新版尚待同步） · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。此前 MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
+trails.14 的六个文件已上传 Modrinth，项目仍在审核中。MC 百科原申请 `808408` 已修正排版、补充新版资料并重新提交，目前为“审核中”。[GitHub 发行](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.14) · [Modrinth 版本](https://modrinth.com/mod/mineturn-at-prototype/versions)
 
 [English](README.md) | **中文**
 

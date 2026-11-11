@@ -1,5 +1,12 @@
 # MineTurn 开发任务表
 
+## Modrinth 与 MC 百科审核更新（2026-11-11）
+
+- Modrinth 的原项目 `VQLVKlcs` 已上传 trails.14 六个 Alpha 文件，NeoForge 1.21.1 为 `DHg8qFP4`，Fabric 1.21.1 / 1.20.1 / 1.21 / 1.21.8 / 1.21.10 分别为 `h6AKp1mt` / `7IGOWFHw` / `TmMGkZWQ` / `6Rl8lPfK` / `AZYqE4eG`。五个 Fabric 文件均添加 Fabric API 必需依赖，1.21 的自动识别范围已手动校正为 1.21。版本列表已逐项回读游戏版本、加载器与 Alpha 渠道。[Modrinth 版本](https://modrinth.com/mod/mineturn-at-prototype/versions)
+- 项目仍为 Under review，原审核线程已补充新版功能、六个版本、源码提交 `0710699f0a12a84d5d1cb0f3c13db7c50742b7fb`、95/101 项测试及实际第三方验证范围。项目介绍的保存控件异常，两次编辑均未使网站正文更新，当前旧正文仍显示 trails.9。新版说明已写入六个版本日志和审核留言，完整介绍草稿保存在本机回执目录。[审核线程](https://modrinth.com/mod/mineturn-at-prototype/moderation)
+- MC 百科原申请 `808408` 曾因不支持的 HTML 标题和段落换行退回两次。已将标题改为百科 `[h1=标题]` 语法、补充段落与 trails.14 资料，勾选五个 Fabric 版本及 NeoForge 1.21.1。用户手动完成验证码及提交，已回读到“审核中”。[原申请](https://www.mcmod.cn/class/add/808408/)
+- 本机回执、真实页面截图、上传链接和介绍草稿位于 `dist/site-review-trails14-20261111/`，汇总为 `review-receipt.json`。浏览器下载附件的验证超时，回执保留本地构件 SHA256 与已上传的页面记录，未将其记为远端下载摘要通过。两站的人工审核结果均待网站处理。
+
 ## 其他模组基础自动适配（2026-11-11）
 
 - trails.14 默认对缺少专用目录的生物生成近战、远程、友军自疗与 Boss S。`TrailsAutoProfiles` 读取原生生命、攻击和移动属性；已有原版 82 / 暮色 59 专用配置优先。敌方最大生命至少 100 或 Boss 标签是本轮选定的 S 识别阈值，可用实体标签修正分类、关闭 S 或排除自动参战。规则见[基础自动适配](TRAILS_PROTOTYPE.md#其他模组的基础自动适配)。
