@@ -8,7 +8,9 @@
 - NeoForge 1.21.1 **95 项**服务器测试全部通过（`build/auto-compat-work/neoforge-tests-final.log`）；Fabric 1.21.1 **101 项**全部通过（`fabric-tests-final.log`）。新增 8 项覆盖属性操作与槽位、武器正常入口/CP、同 ID 抢 S、专用档案优先、原生力量/速度修饰、Boss 反应回合与道具筛选。
 - NeoForge / Fabric 1.21.1 实际安装官方 Mutant Monsters 21.1.1 与对应依赖，四种突变 Boss 均完成圈选入战、金光反应回合和 S 提交。突变雪傀儡从 5 HP / 100 CP 经 F 预览确认后变为 21 HP / 65 CP。突变武器完成普通战技 100→75 CP 和 S 200→100 CP。日志为 `native-client-final.log`、`fabric-client-native-final.log`，均在 `build/auto-compat-work/`。依赖仅用于 QA，未进入发布 JAR。
 - NeoForge 及 Fabric 1.21.1、1.20.1、1.21、1.21.8、1.21.10 六种真实客户端均通过属性武器战技与 S 的预览、伤害、扣费和同 ID 属性选择，并复测六类说明、头像及个人音乐。四个端口日志为 `fabric-<版本>-client.log`，1.20.1 实际使用 Java 17。多人双客户端和其他第三方版本未在本轮重测。
-- 六个正式 JAR 构建及结构检查通过，版本为 `1.0.0-trails.14`，协议沿用 `31-trails` / `trails-12`；客户端与服务器一起更新。已核对 JSON、Mixin、许可、Java 17/21 字节码目标、82/59/8 目录、鸡 80 CP、自动适配类与正式元数据，未包含 GameTests、测试依赖或音乐。文件与 SHA256 记录位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.14/`，发行状态将在上传后补记。
+- 六个正式 JAR 构建及结构检查通过，版本为 `1.0.0-trails.14`，协议沿用 `31-trails` / `trails-12`；客户端与服务器一起更新。已核对 JSON、Mixin、许可、Java 17/21 字节码目标、82/59/8 目录、鸡 80 CP、自动适配类与正式元数据，未包含 GameTests、测试依赖或音乐。文件与 SHA256 记录位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.14/`。
+- [GitHub trails.14](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.14) 已发布原型预发行，标签及源码指向 `0710699f0a12a84d5d1cb0f3c13db7c50742b7fb`。11 个附件均已核对上传状态、体积和服务器 SHA256，实际逐个下载比对摘要，六个 JAR 与源码 ZIP 的 CRC 通过；回执为发行目录的 `publication-receipt.json`。本轮未同步 Modrinth 或 MC 百科。
+- 本轮 QA、截图、世界与脚本归档至 `dist/verification-auto-trails14-20261111.zip`，3011 个文件的逐项 SHA256 与 ZIP CRC 通过。七个任务临时目录共约 1.12 GiB 已移入 Windows 回收站，未清空回收站。归档约 141.39 MiB，清单见 `dist/cleanup-auto-trails14-20261111.json`。保留普通存档、`output/`、源码、全部发行文件、Forge 国服材料、已验证测试依赖和可复用缓存。
 - 开工前检索了 [Better Combat](https://github.com/ZsoltMolnarrr/BetterCombat)、[Spell Engine](https://github.com/ZsoltMolnarrr/SpellEngine) 和 [Fuzss 模组](https://github.com/Fuzss)，沿用现有原生属性、标签与 AT 演出入口。正式第三方实机验证限于上述 1.21.1 组合。
 
 ## 说明、个人 BGM、头像与暮色适配（2026-11-10）
