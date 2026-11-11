@@ -114,7 +114,7 @@ public final class TrailsCombat {
     static String id(Entity e) { return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString(); }
     static String itemId(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }
     static boolean hostile(LivingEntity e, ServerPlayer p) {
-        return e instanceof Enemy || TrailsTwilight.hostile(e) || e instanceof Mob m && m.getTarget() == p;
+        return TrailsAutoProfiles.hostile(e) || e instanceof Mob m && m.getTarget() == p;
     }
     static boolean friendly(LivingEntity e, ServerPlayer p) {
         return e != p && !hostile(e,p) && e instanceof Mob;
@@ -263,6 +263,7 @@ public final class TrailsCombat {
         for(var e:nearby){
             if(e instanceof ServerPlayer other){if(multi && players.contains(other))candidates.add(e);continue;}
             if(!(e instanceof Mob) || !TrailsTwilight.canJoin(e))continue;
+            if (TrailsBestiary.get(id(e)) == null && TrailsAutoProfiles.excluded(e)) continue;
             UUID owner=TrailsParties.owner(e);
             if(multi){if(owner!=null?players.stream().anyMatch(q->q.getUUID().equals(owner)):players.stream().anyMatch(q->hostile(e,q)))candidates.add(e);}
             else if(hostile(e,p) || friendly(e,p))candidates.add(e);
@@ -287,23 +288,25 @@ public final class TrailsCombat {
     String primary() { return com.matuvent.mineturn.platform.RuntimePlatform.data(player).getString(PRIMARY); }
     static void setPrimary(ServerPlayer p) {
         var stack = p.getMainHandItem();
-        if (!weapon(stack)) throw new IllegalArgumentException("请手持剑、斧、弓、弩、重锤或三叉戟，再设为主武器。");
+        if (!weapon(stack)) throw new IllegalArgumentException("请手持可识别的武器，再设为主武器。");
         com.matuvent.mineturn.platform.RuntimePlatform.data(p).putString(PRIMARY, itemId(stack));
         p.displayClientMessage(Component.literal("主武器：" + stack.getHoverName().getString() + " · " + burstName(stack)), true);
     }
     static boolean weapon(ItemStack stack) {
-        return stack.is(ItemTags.SWORDS) || stack.is(ItemTags.AXES) || stack.getItem() instanceof BowItem
-                || stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof MaceItem || stack.getItem() instanceof TridentItem;
+        return TrailsWeaponSkills.supported(stack);
     }
     static String burstName(ItemStack s) {
-        if (s.getItem() instanceof CrossbowItem) return "贯界冲击波";
-        if (s.getItem() instanceof BowItem) return "星落箭雨";
-        if (s.getItem() instanceof MaceItem) return "陨星震地";
-        if (s.is(ItemTags.AXES)) return "裂甲断空";
-        if (s.getItem() instanceof TridentItem) return "苍潮奔流";
+        if (TrailsWeaponSkills.kind(s) == TrailsWeaponSkills.Kind.MELEE) return "极限重击";
+        if (TrailsWeaponSkills.kind(s) == TrailsWeaponSkills.Kind.CROSSBOW) return "贯界冲击波";
+        if (TrailsWeaponSkills.kind(s) == TrailsWeaponSkills.Kind.BOW) return "星落箭雨";
+        if (TrailsWeaponSkills.kind(s) == TrailsWeaponSkills.Kind.MACE) return "陨星震地";
+        if (TrailsWeaponSkills.kind(s) == TrailsWeaponSkills.Kind.AXE) return "裂甲断空";
+        if (TrailsWeaponSkills.kind(s) == TrailsWeaponSkills.Kind.TRIDENT) return "苍潮奔流";
         return "终式 · 万刃风暴";
     }
     ItemStack primaryStack() {
+        var held = player.getMainHandItem();
+        if (!held.isEmpty() && itemId(held).equals(primary())) return held;
         for (int i = 0; i < 36; i++) {
             var s = player.getInventory().getItem(i);
             if (!s.isEmpty() && itemId(s).equals(primary())) return s;
@@ -319,6 +322,11 @@ public final class TrailsCombat {
             base += cfg().bootsSpeed.getOrDefault(itemId(e.getItemBySlot(EquipmentSlot.FEET)), 0.);
             if (e.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA)) base += cfg().elytraSpeed;
         }
+        if (e instanceof Mob && TrailsBestiary.get(id(e)) == null) {
+            var movement = e.getAttribute(Attributes.MOVEMENT_SPEED);
+            if (movement != null) base *= Math.clamp(movement.getBaseValue() / .25, .1, 10);
+        }
+        base *= TrailsAutoProfiles.movementMultiplier(e);
         var fast = e.getEffect(MobEffects.MOVEMENT_SPEED);
         var slow = e.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
         if (fast != null) base *= 1 + cfg().speedPotionPerLevel * (fast.getAmplifier() + 1);
@@ -542,13 +550,13 @@ public final class TrailsCombat {
         if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
         var stack = player.getInventory().getItem(slot);
         if (skill && !weapon(stack)) throw new IllegalArgumentException("请先装备武器。");
-        if (wind && !(stack.getItem() instanceof MaceItem)) throw new IllegalArgumentException("风弹组合需要手持重锤。");
+        if (wind && !(TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MACE)) throw new IllegalArgumentException("风弹组合需要手持重锤。");
         var shape = skill ? TrailsWeaponSkills.shape(stack) : TrailsArea.weapon(stack, wind, false);
         if (!shape.validAim(aim)) throw new IllegalArgumentException("攻击方向或落点无效。");
         var victim = shape.kind() == TrailsArea.Kind.SINGLE ? target(targetId, player) : null;
         if (victim != null) requireRange(player, victim, shape.cast());
-        boolean bow = stack.getItem() instanceof BowItem, crossbow = stack.getItem() instanceof CrossbowItem;
-        boolean mace = stack.getItem() instanceof MaceItem, trident = stack.getItem() instanceof TridentItem;
+        boolean bow = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.BOW, crossbow = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.CROSSBOW;
+        boolean mace = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MACE, trident = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.TRIDENT;
         boolean charged = wind || skill && mace;
         int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.WIND_CHARGE) : -2;
         if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "背包内需要 1 支普通箭。" : "背包内需要 1 个风弹。");
@@ -578,14 +586,15 @@ public final class TrailsCombat {
                 if (victim != null && (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || gap(player, victim) > shape.cast() || !player.hasLineOfSight(victim))) {
                     b.message("目标已离场或离开射程，攻击落空。"); recover(player, 1.5); return;
                 }
-                double damage = bow ? (skill ? 14 : 8) : crossbow ? (skill ? 12 : 10) : mace ? Math.max(6, base) * (charged ? 2.3 : 1)
-                        : skill && trident ? Math.max(8, base) * 1.5 : snapshot.is(ItemTags.AXES) ? base * (skill ? 1.8 : 1.15) : base * (skill ? 1.4 : 1);
+                double rangedBonus = Math.max(0, TrailsWeaponSkills.attackDamage(snapshot) - 1);
+                double damage = bow ? (skill ? 14 : 8) + rangedBonus : crossbow ? (skill ? 12 : 10) + rangedBonus : mace ? Math.max(6, base) * (charged ? 2.3 : 1)
+                        : skill && trident ? Math.max(8, base) * 1.5 : TrailsWeaponSkills.kind(snapshot) == TrailsWeaponSkills.Kind.AXE ? base * (skill ? 1.8 : 1.15) : base * (skill ? 1.4 : 1);
                 double delay = bow ? (skill ? 1.6 : 1.1) : crossbow ? (skill ? 1.8 : 1.3) : mace ? (charged ? 2.2 : 1.3)
-                        : snapshot.is(ItemTags.AXES) ? (skill ? 1.7 : 1.2) : skill ? (trident ? 1.6 : 1.5) : 1;
+                        : TrailsWeaponSkills.kind(snapshot) == TrailsWeaponSkills.Kind.AXE ? (skill ? 1.7 : 1.2) : skill ? (trident ? 1.6 : 1.5) : 1;
                 if (victim != null) hit(player, victim, damage); else shaped(player, shape, aim, damage);
-                if (skill && snapshot.is(ItemTags.AXES) && victim != null && victim.isAlive() && b.members.containsKey(victim.getUUID()))
+                if (skill && TrailsWeaponSkills.kind(snapshot) == TrailsWeaponSkills.Kind.AXE && victim != null && victim.isAlive() && b.members.containsKey(victim.getUUID()))
                     b.clock.recovery(victim, b.clock.remaining(victim) + 30 * speed(victim));
-                if (snapshot.is(ItemTags.SWORDS)) {
+                if (TrailsWeaponSkills.kind(snapshot) == TrailsWeaponSkills.Kind.SWORD) {
                     var point = player.position().add(shape.direction(aim).scale(1.5));
                     b.level.sendParticles(ParticleTypes.SWEEP_ATTACK, point.x, point.y + 1, point.z, skill ? 3 : 1, .2, 0, .2, 0);
                     player.playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1, 1);
@@ -614,6 +623,10 @@ public final class TrailsCombat {
         for (int i = 0; i < 36; i++) if (player.getInventory().getItem(i).is(item)) return i;
         return -1;
     }
+    public static boolean consumable(ItemStack stack) {
+        return !stack.isEmpty() && (stack.has(DataComponents.FOOD)
+                || stack.getItem() instanceof PotionItem && !(stack.getItem() instanceof ThrowablePotionItem));
+    }
     void item(int slot) {
         if (b.actor != player) throw new IllegalArgumentException("友军不能使用道具。");
         if (slot < 0 || slot >= 36) throw new IllegalArgumentException("无效物品槽。");
@@ -622,7 +635,7 @@ public final class TrailsCombat {
         var potion = stack.get(DataComponents.POTION_CONTENTS);
         var beforeEffects = new HashMap<net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect>, MobEffectInstance>();
         for (var e : player.getActiveEffects()) beforeEffects.put(e.getEffect(), new MobEffectInstance(e));
-        if (food == null && !stack.is(Items.POTION)) throw new IllegalArgumentException("请选择食物或可饮用药水。");
+        if (!consumable(stack)) throw new IllegalArgumentException("请选择食物或可饮用药水。");
         if (stack.isEmpty()) throw new IllegalArgumentException("物品已用完。");
         double healing = food == null ? 0 : cfg().foodHealing.getOrDefault(itemId(stack), food.nutrition() * cfg().foodHealingPerNutrition);
         String foodId = itemId(stack);
@@ -721,16 +734,7 @@ public final class TrailsCombat {
         inputTicks = 0; direction = Vec3.ZERO;
         int before = cp(); addCp(-cfg().burstCost);
         double multiplier = before == 200 ? 1.5 : 1;
-        double weaponDamage = 1, baseMultiplier = 0, totalMultiplier = 1;
-        for (var entry : stack.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, net.minecraft.world.item.component.ItemAttributeModifiers.EMPTY).modifiers()) {
-            if (!entry.attribute().equals(Attributes.ATTACK_DAMAGE) || !entry.slot().test(EquipmentSlot.MAINHAND)) continue;
-            switch (entry.modifier().operation()) {
-                case ADD_VALUE -> weaponDamage += entry.modifier().amount();
-                case ADD_MULTIPLIED_BASE -> baseMultiplier += entry.modifier().amount();
-                case ADD_MULTIPLIED_TOTAL -> totalMultiplier *= 1 + entry.modifier().amount();
-            }
-        }
-        weaponDamage = (weaponDamage + baseMultiplier) * totalMultiplier;
+        double weaponDamage = TrailsWeaponSkills.attackDamage(stack);
         double damage = Math.max(6, weaponDamage) * 3.2 * multiplier;
         boolean ownTurn = b.actor == player;
         if (!ownTurn) b.clock.recovery(player, b.clock.remaining(player) + Timeline.LAP * 1.5);
@@ -740,20 +744,20 @@ public final class TrailsCombat {
         broadcast(new TrailsNetwork.Cue("burst",player.getScoreboardName()+" · "+title,22,cfg().encounterRadius));
         perform(player, "draw", 26, false, end, style, title);
         burstAction = new Pending(player, turn, 26, () -> {
-            boolean projectile = stack.getItem() instanceof BowItem || stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof TridentItem;
+            boolean projectile = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.BOW || TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.CROSSBOW || TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.TRIDENT;
             perform(player,"strike",projectile?TrailsChoreography.flight(player.getEyePosition().distanceTo(end)):6,false,end,style,title);
             player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
             if (projectile) {
-                Item item = stack.getItem() instanceof TridentItem ? Items.TRIDENT : Items.ARROW;
+                Item item = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.TRIDENT ? Items.TRIDENT : Items.ARROW;
                 for (int lane = -1; lane <= 1; lane++) projectile(player, end.add(lane * .8, 0, 0), item);
             }
             burstAction = new Pending(player, turn, projectile ? TrailsChoreography.flight(player.getEyePosition().distanceTo(end)) : 6, () -> {
                 if (victim != null) {
                     if (victim.isAlive() && b.members.containsKey(victim.getUUID()) && player.hasLineOfSight(victim) && gap(player, victim) <= shape.cast()) hit(player, victim, damage * 1.8);
-                } else shaped(player, shape, aim, damage * (stack.getItem() instanceof MaceItem ? 1.2 : 1));
+                } else shaped(player, shape, aim, damage * (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MACE ? 1.2 : 1));
                 if(b.closed)return;
                 perform(player,"recover",12,false,end,style,title);
-                shockwave(shape.center(player.position(), aim), shape.kind() == TrailsArea.Kind.DISK ? shape.radius() : 4, stack.getItem() instanceof MaceItem);
+                shockwave(shape.center(player.position(), aim), shape.kind() == TrailsArea.Kind.DISK ? shape.radius() : 4, TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MACE);
                 b.level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EXPLODE.value(), net.minecraft.sounds.SoundSource.PLAYERS, .7f, 1.3f);
                 b.message("S-BREAK · " + title);
                 burstAction = new Pending(player, turn, 12, () -> {
@@ -781,8 +785,9 @@ public final class TrailsCombat {
 
     static boolean ranged(LivingEntity actor) {
         String kind = id(actor);
-        return actor.getMainHandItem().getItem() instanceof BowItem || actor.getMainHandItem().getItem() instanceof CrossbowItem
-                || actor.getMainHandItem().getItem() instanceof TridentItem || Set.of("minecraft:skeleton", "minecraft:stray", "minecraft:bogged",
+        var weapon = TrailsWeaponSkills.kind(actor.getMainHandItem());
+        return weapon == TrailsWeaponSkills.Kind.BOW || weapon == TrailsWeaponSkills.Kind.CROSSBOW
+                || weapon == TrailsWeaponSkills.Kind.TRIDENT || Set.of("minecraft:skeleton", "minecraft:stray", "minecraft:bogged",
                 "minecraft:pillager", "minecraft:witch", "minecraft:breeze", "minecraft:blaze", "minecraft:ghast", "minecraft:guardian", "minecraft:elder_guardian").contains(kind);
     }
     void enemyAction() { TrailsBestiaryActions.enemy(this); }

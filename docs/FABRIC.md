@@ -1,16 +1,16 @@
 # Fabric 与 NeoForge
 
-其他 Minecraft 版本的 Fabric 适配、Java 与 API 依赖见 [FABRIC_PORTS.md](FABRIC_PORTS.md)；下表为 1.21.1 / trails.13 的安装组合。
+其他 Minecraft 版本的 Fabric 适配、Java 与 API 依赖见 [FABRIC_PORTS.md](FABRIC_PORTS.md)；下表为 1.21.1 / trails.14 的安装组合。
 
-`trails.13` 使用共同的 AT 规则、数据包、网络消息和客户端界面，加载器分别提供注册、事件和原版注入。Fabric 不是通过兼容层运行 NeoForge JAR。
+`trails.14` 使用共同的 AT 规则、数据包、网络消息和客户端界面，加载器分别提供注册、事件和原版注入。Fabric 不是通过兼容层运行 NeoForge JAR。
 
 ## 安装
 
 | 环境 | 版本 | 安装文件 |
 | --- | --- | --- |
 | Minecraft Java | 1.21.1 | Java 21 |
-| Fabric | Loader 0.16.14，Fabric API 0.116.6+1.21.1 为验证组合 | `mineturn-fabric-1.0.0-trails.13.jar`，另装 Fabric API |
-| NeoForge | 21.1.251 | `mineturn-1.0.0-trails.13.jar` |
+| Fabric | Loader 0.16.14，Fabric API 0.116.6+1.21.1 为验证组合 | `mineturn-fabric-1.0.0-trails.14.jar`，另装 Fabric API |
+| NeoForge | 21.1.251 | `mineturn-1.0.0-trails.14.jar` |
 
 从 [GitHub Releases](https://github.com/3155498108/mineturn/releases) 选择对应加载器的 JAR，放入实例的 `mods` 文件夹。Fabric API 的官方下载在 [Modrinth](https://modrinth.com/mod/fabric-api)。同一实例只安装一个 MineTurn JAR；多人服务器与客户端使用同一加载器、相同版本及依赖。
 
@@ -34,7 +34,7 @@ Fabric 使用原生 Payload API、生命周期和渲染回调；没有 Fabric �
 .\gradlew.bat -p fabric -PfabricQa runGameTest
 ```
 
-Fabric QA 从现有四个 `Trails*GameTests` 源文件生成加载器无关注册，保留原断言；额外原生边界测试位于 `fabric/src/qa/java`。生成内容只用于 QA，发行元数据不声明测试入口，JAR 排除测试类。正常构建通过官方 Maven 获取依赖；本机网络受限时复用的缓存经过官方清单哈希校验，不把本机缓存路径写进发行构建。
+Fabric QA 从现有 `Trails*GameTests` 源文件生成加载器无关注册，保留原断言；额外原生边界测试位于 `fabric/src/qa/java`。生成内容只用于 QA，发行元数据不声明测试入口，JAR 排除测试类。正常构建通过官方 Maven 获取依赖；本机网络受限时复用的缓存经过官方清单哈希校验，不把本机缓存路径写进发行构建。
 
 ## 本轮验证
 
@@ -44,7 +44,7 @@ Fabric QA 从现有四个 `Trails*GameTests` 源文件生成加载器无关注�
 
 ## 投稿
 
-trails.13 增加六类说明、个人 BGM、头像修复与可选暮色目录；下载见 [GitHub trails.13](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.13)。暮色实际测试范围见[技能目录](TRAILS_BESTIARY.md#可选暮色森林适配)。
+trails.14 增加生物与武器基础自动适配，实测突变生物的 NeoForge / Fabric 1.21.1 组合；下载见 [GitHub trails.14](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.14)。暮色实际测试范围见[技能目录](TRAILS_BESTIARY.md#可选暮色森林适配)。
 
 trails.12 增加独立 CP、战技费用与收纳 CP/HP 持久化，下载见 [GitHub trails.12](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.12)。下方保留旧版本的投稿记录。
 

@@ -1078,6 +1078,28 @@
          if (highest >= y + 2) break;
          for (int x = (int) Math.floor(column.minX); x <= (int) Math.floor(column.maxX); x++)
          for (int z = (int) Math.floor(column.minZ); z <= (int) Math.floor(column.maxZ); z++) {
+--- a/com/matuvent/mineturn/battle/TrailsAutoProfiles.java
++++ b/com/matuvent/mineturn/battle/TrailsAutoProfiles.java
+@@ -89,7 +89,7 @@
+         double damage;
+         if (entity.getAttribute(Attributes.ATTACK_DAMAGE) != null) damage = entity.getAttributeValue(Attributes.ATTACK_DAMAGE);
+         else {
+-            var strength = entity.getEffect(MobEffects.DAMAGE_BOOST);
++            var strength = entity.getEffect(MobEffects.STRENGTH);
+             var weakness = entity.getEffect(MobEffects.WEAKNESS);
+             damage = 3 + (strength == null ? 0 : 3 * (strength.getAmplifier() + 1))
+                     - (weakness == null ? 0 : 4 * (weakness.getAmplifier() + 1));
+@@ -102,8 +102,8 @@
+         var attribute = entity.getAttribute(Attributes.MOVEMENT_SPEED);
+         if (attribute == null || attribute.getBaseValue() <= 0) return 1;
+         double vanilla = 1;
+-        var fast = entity.getEffect(MobEffects.MOVEMENT_SPEED);
+-        var slow = entity.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
++        var fast = entity.getEffect(MobEffects.SPEED);
++        var slow = entity.getEffect(MobEffects.SLOWNESS);
+         if (fast != null) vanilla *= 1 + .2 * (fast.getAmplifier() + 1);
+         if (slow != null) vanilla *= Math.max(0, 1 - .15 * (slow.getAmplifier() + 1));
+         if (vanilla <= 0) return 1;
 --- a/com/matuvent/mineturn/battle/TrailsBestiaryActions.java
 +++ b/com/matuvent/mineturn/battle/TrailsBestiaryActions.java
 @@ -84,7 +84,7 @@
@@ -1096,9 +1118,9 @@
 -                    var strength=source.getEffect(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST);
 +                    var strength=source.getEffect(net.minecraft.world.effect.MobEffects.STRENGTH);
                      var weakness=source.getEffect(net.minecraft.world.effect.MobEffects.WEAKNESS);
-                     double power=Math.max(0,move.power()+(strength==null?0:3*(strength.getAmplifier()+1))-(weakness==null?0:4*(weakness.getAmplifier()+1)));
-                     if(move.animation().equals("sonic"))c.damage(source,e,move.power(),source.damageSources().sonicBoom(source));else c.hit(source,e,power);
-@@ -139,11 +139,11 @@
+                     double power = move.kind().equals("ATTRIBUTE") ? move.power() * TrailsAutoProfiles.attackDamage(source)
+                             : Math.max(0,move.power()+(strength==null?0:3*(strength.getAmplifier()+1))-(weakness==null?0:4*(weakness.getAmplifier()+1)));
+@@ -140,11 +140,11 @@
          }
          if(move.kind().equals("READY"))c.b.clock.readyFirst(recipients);
          if(TrailsBestiary.get(source)!=null && TrailsBestiary.get(source).id().equals("minecraft:witch") && move==TrailsBestiary.get(source).skill())source.heal(6);
@@ -1193,7 +1215,7 @@
          var candidates=new ArrayList<LivingEntity>();
          for(var e:nearby){
              if(e instanceof ServerPlayer other){if(multi && players.contains(other))candidates.add(e);continue;}
-@@ -270,9 +270,9 @@
+@@ -271,9 +271,9 @@
          if(candidates.stream().noneMatch(e->{if(e instanceof ServerPlayer other)return !TrailsParties.teammates(p,other);UUID owner=TrailsParties.owner(e);return multi && owner!=null?players.stream().anyMatch(q->q.getUUID().equals(owner) && !TrailsParties.teammates(p,q)):hostile(e,p);}))
              throw new IllegalArgumentException("圈内没有可参战对手；多人友军需先由主人使用命名牌登记。");
          long now = p.level().getGameTime();
@@ -1206,7 +1228,7 @@
              com.matuvent.mineturn.platform.RuntimePlatform.data(e).remove(AMBUSH); com.matuvent.mineturn.platform.RuntimePlatform.data(e).remove(OWNER);
          }
          var battle = new BattleSession(p, candidates, advantage,multi);
-@@ -284,7 +284,7 @@
+@@ -285,7 +285,7 @@
      int cp() { return TrailsCp.get(player); }
      void addCp(int amount){addCp(player,amount);}
      void addCp(LivingEntity source,int amount){TrailsCp.add(source,amount);}
@@ -1214,11 +1236,11 @@
 +    String primary() { return com.matuvent.mineturn.platform.RuntimePlatform.data(player).getStringOr(PRIMARY,""); }
      static void setPrimary(ServerPlayer p) {
          var stack = p.getMainHandItem();
-         if (!weapon(stack)) throw new IllegalArgumentException("请手持剑、斧、弓、弩、重锤或三叉戟，再设为主武器。");
-@@ -319,8 +319,8 @@
-             base += cfg().bootsSpeed.getOrDefault(itemId(e.getItemBySlot(EquipmentSlot.FEET)), 0.);
-             if (e.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA)) base += cfg().elytraSpeed;
+         if (!weapon(stack)) throw new IllegalArgumentException("请手持可识别的武器，再设为主武器。");
+@@ -327,8 +327,8 @@
+             if (movement != null) base *= Math.clamp(movement.getBaseValue() / .25, .1, 10);
          }
+         base *= TrailsAutoProfiles.movementMultiplier(e);
 -        var fast = e.getEffect(MobEffects.MOVEMENT_SPEED);
 -        var slow = e.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
 +        var fast = e.getEffect(MobEffects.SPEED);
@@ -1226,7 +1248,7 @@
          if (fast != null) base *= 1 + cfg().speedPotionPerLevel * (fast.getAmplifier() + 1);
          if (slow != null) base *= Math.max(.1, 1 - .15 * (slow.getAmplifier() + 1));
          return Double.isFinite(base) ? Math.clamp(base, 10, 1000) : 100;
-@@ -411,7 +411,7 @@
+@@ -419,7 +419,7 @@
          if (p.operation().equals("select") || p.operation().equals("primary")) {
              if (b.actor != player) throw new IllegalArgumentException("只能在玩家回合切换武器。");
              if (p.slot() < 0 || p.slot() > 8) throw new IllegalArgumentException("无效武器槽。");
@@ -1235,7 +1257,7 @@
              ((com.matuvent.mineturn.mixin.StatusAccess) player).mineturn$equipment();
              if (p.operation().equals("primary")) setPrimary(player);
              else if (weapon(player.getMainHandItem())) com.matuvent.mineturn.platform.RuntimePlatform.data(player).putString(PRIMARY, itemId(player.getMainHandItem()));
-@@ -460,9 +460,9 @@
+@@ -468,9 +468,9 @@
          float before=target.getHealth()+target.getAbsorptionAmount();
          BattleManager.authorized(() -> {
              target.invulnerableTime = 0;
@@ -1247,7 +1269,7 @@
          });
          float lost = Math.max(0, before - target.getHealth() - target.getAbsorptionAmount());
          boolean confirmed=critical && lost>.001;
-@@ -477,7 +477,7 @@
+@@ -485,7 +485,7 @@
      }
      double baseDamage(LivingEntity source) {
          if (source.getAttribute(Attributes.ATTACK_DAMAGE) != null) return Math.max(2, source.getAttributeValue(Attributes.ATTACK_DAMAGE));
@@ -1256,7 +1278,7 @@
          return 3 + (strength == null ? 0 : 3 * (strength.getAmplifier() + 1));
      }
      void animate(LivingEntity source, LivingEntity victim, boolean ranged) {
-@@ -553,7 +553,7 @@
+@@ -561,7 +561,7 @@
          int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.WIND_CHARGE) : -2;
          if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "背包内需要 1 支普通箭。" : "背包内需要 1 个风弹。");
          TrailsCp.spend(player, skill || wind ? TrailsWeaponSkills.cpCost(stack) : 0);
@@ -1384,6 +1406,110 @@
          TrailsCp.initialize(mob);
          RuntimePlatform.data(mob).putBoolean(FOLLOW, true);
          mob.setPersistenceRequired(); mob.setDeltaMovement(Vec3.ZERO); mob.fallDistance = 0;
+--- a/com/matuvent/mineturn/battle/TrailsCompatibilityScenario.java
++++ b/com/matuvent/mineturn/battle/TrailsCompatibilityScenario.java
+@@ -21,7 +21,7 @@
+     private static ServerPlayer prepare(MinecraftServer server) {
+         var player = TrailsUpdateScenario.player(server);
+         TrailsUpdateScenario.stop(server);
+-        for (var mob : player.serverLevel().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(80))) mob.discard();
++        for (var mob : player.level().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(80))) mob.discard();
+         player.teleportTo(.5, -59, .5);
+         player.setHealth(player.getMaxHealth());
+         ready = verified = false;
+@@ -34,20 +34,20 @@
+         if (Boolean.getBoolean("mineturn.nativeAutoQa")) {
+             var item = ResourceLocation.fromNamespaceAndPath("mutantmonsters", "hulk_hammer");
+             if (!BuiltInRegistries.ITEM.containsKey(item)) throw new IllegalStateException("Native compatibility weapon missing");
+-            weapon = BuiltInRegistries.ITEM.get(item).getDefaultInstance();
++            weapon = BuiltInRegistries.ITEM.getValue(item).getDefaultInstance();
+         }
+         if (TrailsWeaponSkills.kind(weapon) != TrailsWeaponSkills.Kind.MELEE) throw new IllegalStateException("Attribute weapon was not adapted");
+         player.getInventory().clearContent();
+         player.getInventory().setItem(0, weapon);
+-        player.getInventory().selected = 0;
+-        player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket(0));
++        player.getInventory().setSelectedSlot(0);
++        player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket(0));
+         TrailsCp.set(player, 100);
+-        var target = EntityType.ZOMBIE.create(player.serverLevel());
+-        target.moveTo(3, -59, .5);
++        var target = EntityType.ZOMBIE.create(player.level(), net.minecraft.world.entity.EntitySpawnReason.COMMAND);
++        target.snapTo(3, -59, .5);
+         target.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200);
+         target.setHealth(200);
+         target.setNoAi(true);
+-        player.serverLevel().addFreshEntity(target);
++        player.level().addFreshEntity(target);
+         TrailsCombat.start(player);
+         var battle = BattleManager.ACTIVE.get(player.getUUID());
+         battle.actor = player;
+@@ -68,8 +68,8 @@
+         weapon(server);
+         var player = TrailsUpdateScenario.player(server);
+         player.getInventory().setItem(1, player.getMainHandItem().copy());
+-        player.getInventory().selected = 1;
+-        player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket(1));
++        player.getInventory().setSelectedSlot(1);
++        player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket(1));
+         TrailsCombat.setPrimary(player);
+         TrailsCp.set(player, 200);
+         BattleManager.ACTIVE.get(player.getUUID()).syncAll();
+@@ -95,11 +95,11 @@
+         var player = prepare(server);
+         var id = ResourceLocation.fromNamespaceAndPath("mutantmonsters", BOSSES[index]);
+         if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id) || TrailsBestiary.get(id.toString()) != null) throw new IllegalStateException("QA needs an unconfigured external entity");
+-        var entity = BuiltInRegistries.ENTITY_TYPE.get(id).create(player.serverLevel());
++        var entity = BuiltInRegistries.ENTITY_TYPE.getValue(id).create(player.level(), net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+         if (!(entity instanceof Mob boss)) throw new IllegalStateException("External mob missing");
+-        boss.moveTo(5, -59, .5);
++        boss.snapTo(5, -59, .5);
+         boss.setNoAi(true);
+-        player.serverLevel().addFreshEntity(boss);
++        player.level().addFreshEntity(boss);
+         var profile = TrailsBestiary.get(boss);
+         if (profile == null || profile.ultimate() == null) throw new IllegalStateException("External boss did not generate an S skill");
+         if (index == 1 && profile.basic().range() != 24) throw new IllegalStateException("Skeleton tag did not generate a ranged profile");
+@@ -122,7 +122,7 @@
+     public static void releaseBoss(MinecraftServer server) {
+         var player = TrailsUpdateScenario.player(server);
+         var battle = BattleManager.ACTIVE.get(player.getUUID());
+-        var boss = (Mob) player.serverLevel().getEntity(targetId);
++        var boss = (Mob) player.level().getEntity(targetId);
+         battle.actor = boss;
+         battle.trails.onTurn();
+         battle.trails.enemyAction();
+@@ -134,15 +134,15 @@
+     public static void friendly(MinecraftServer server) {
+         var player = prepare(server);
+         var id = ResourceLocation.fromNamespaceAndPath("mutantmonsters", "mutant_snow_golem");
+-        var ally = (Mob) BuiltInRegistries.ENTITY_TYPE.get(id).create(player.serverLevel());
+-        ally.moveTo(2, -59, .5);
++        var ally = (Mob) BuiltInRegistries.ENTITY_TYPE.getValue(id).create(player.level(), net.minecraft.world.entity.EntitySpawnReason.COMMAND);
++        ally.snapTo(2, -59, .5);
+         ally.setNoAi(true);
+         ally.setHealth(5);
+-        player.serverLevel().addFreshEntity(ally);
+-        var enemy = EntityType.ZOMBIE.create(player.serverLevel());
+-        enemy.moveTo(10, -59, .5);
++        player.level().addFreshEntity(ally);
++        var enemy = EntityType.ZOMBIE.create(player.level(), net.minecraft.world.entity.EntitySpawnReason.COMMAND);
++        enemy.snapTo(10, -59, .5);
+         enemy.setNoAi(true);
+-        player.serverLevel().addFreshEntity(enemy);
++        player.level().addFreshEntity(enemy);
+         TrailsCombat.start(player);
+         var battle = BattleManager.ACTIVE.get(player.getUUID());
+         if (!battle.trails.allied(ally) || !TrailsBestiary.get(ally).skill().friendly()) throw new IllegalStateException("External friendly has no support skill");
+@@ -155,7 +155,7 @@
+ 
+     public static void inspectFriendly(MinecraftServer server) {
+         var player = TrailsUpdateScenario.player(server);
+-        var ally = (Mob) player.serverLevel().getEntity(targetId);
++        var ally = (Mob) player.level().getEntity(targetId);
+         if (ally.getHealth() > 5 && TrailsCp.get(ally) == 65) {
+             verified = true;
+             MineTurn.LOGGER.info("AUTO_QA_EXTERNAL_ALLY hp={} cp={}", ally.getHealth(), TrailsCp.get(ally));
 --- a/com/matuvent/mineturn/battle/TrailsCp.java
 +++ b/com/matuvent/mineturn/battle/TrailsCp.java
 @@ -12,7 +12,7 @@
@@ -1690,6 +1816,17 @@
          int shieldsBefore = 0;
          if (BuiltInRegistries.ENTITY_TYPE.getKey(boss.getType()).getPath().equals("lich")) {
              try { shieldsBefore = (int) boss.getClass().getMethod("getShieldStrength").invoke(boss); }
+--- a/com/matuvent/mineturn/battle/TrailsWeaponSkills.java
++++ b/com/matuvent/mineturn/battle/TrailsWeaponSkills.java
+@@ -19,7 +19,7 @@
+         if (item instanceof TridentItem) return Kind.TRIDENT;
+         if (item instanceof MaceItem) return Kind.MACE;
+         if (item instanceof AxeItem || stack.is(ItemTags.AXES)) return Kind.AXE;
+-        if (item instanceof SwordItem || stack.is(ItemTags.SWORDS)) return Kind.SWORD;
++        if (stack.is(ItemTags.SWORDS)) return Kind.SWORD;
+         if (tagged(stack, "c:tools/crossbow", "c:crossbows", "forge:tools/crossbows")) return Kind.CROSSBOW;
+         if (tagged(stack, "c:tools/bow", "c:bows", "forge:tools/bows")) return Kind.BOW;
+         if (tagged(stack, "c:tools/trident", "c:tridents", "forge:tools/tridents")) return Kind.TRIDENT;
 --- a/com/matuvent/mineturn/client/ActionAnimationData.java
 +++ b/com/matuvent/mineturn/client/ActionAnimationData.java
 @@ -17,7 +17,7 @@
@@ -1995,6 +2132,17 @@
              case 6->{if(mc.player.getMainHandItem().is(MineTurn.COMPANION_TOKEN.get()) && pig(mc)==null){
                  if(reload){mc.getSingleplayerServer().execute(()->TrailsCompanionScenario.verify(mc.getSingleplayerServer()));next(12);}
                  else{mc.getSingleplayerServer().execute(()->TrailsCompanionScenario.battle(mc.getSingleplayerServer()));next(7);}}}
+--- a/com/matuvent/mineturn/client/TrailsCompatibilitySmoke.java
++++ b/com/matuvent/mineturn/client/TrailsCompatibilitySmoke.java
+@@ -20,7 +20,7 @@
+     }
+     private static void shot(String name) {
+         var minecraft = Minecraft.getInstance();
+-        net.minecraft.client.Screenshot.grab(minecraft.gameDirectory, "auto-" + name + ".png", minecraft.getMainRenderTarget(), ignored -> {});
++        net.minecraft.client.Screenshot.grab(minecraft.gameDirectory, "auto-" + name + ".png", minecraft.getMainRenderTarget(), 1, ignored -> {});
+     }
+     private static void press(String text) {
+         Minecraft.getInstance().screen.children().stream().filter(child -> child instanceof Button button && button.getMessage().getString().equals(text))
 --- a/com/matuvent/mineturn/client/TrailsCpSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsCpSmoke.java
 @@ -14,14 +14,14 @@
@@ -2036,15 +2184,15 @@
  }
 --- a/com/matuvent/mineturn/client/TrailsGuideScreen.java
 +++ b/com/matuvent/mineturn/client/TrailsGuideScreen.java
-@@ -137,7 +137,7 @@
-                 for (var profile : TrailsBestiary.all()) {
+@@ -151,7 +151,7 @@
+                 for (var profile : profiles.values()) {
                      var id = ResourceLocation.parse(profile.id());
                      if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id)) continue;
 -                    var type = BuiltInRegistries.ENTITY_TYPE.get(id);
 +                    var type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
                      boolean boss = profile.ultimate() != null;
-                     boolean hostile = type.getCategory() == MobCategory.MONSTER;
-                     if (category == 5 ? !boss : boss || (category == 4) != hostile) continue;
+                     boolean automatic = TrailsBestiary.get(profile.id()) == null;
+                     boolean hostile = type.getCategory() == MobCategory.MONSTER || automatic && !profile.skill().friendly();
 --- a/com/matuvent/mineturn/client/TrailsImpacts.java
 +++ b/com/matuvent/mineturn/client/TrailsImpacts.java
 @@ -62,8 +62,8 @@
@@ -2101,9 +2249,9 @@
              var id=net.minecraft.resources.ResourceLocation.tryParse(state.packet.weapon());if(id==null)return original;
 -            var item=net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);visualWeaponFrames++;return new net.minecraft.world.item.ItemStack(item);}
 +            var item=net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(id);visualWeaponFrames++;return new net.minecraft.world.item.ItemStack(item);}
-         for(int i=0;i<36;i++) {
-             var candidate=mc.player.getInventory().getItem(i);
-             if(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(candidate.getItem()).toString().equals(TrailsClient.view.primary())) {
+         var held = mc.player.getMainHandItem();
+         if (!held.isEmpty() && net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem()).toString().equals(TrailsClient.view.primary())) {
+             visualWeaponFrames++;
 --- a/com/matuvent/mineturn/client/TrailsPortraits.java
 +++ b/com/matuvent/mineturn/client/TrailsPortraits.java
 @@ -29,11 +29,11 @@
@@ -2226,7 +2374,7 @@
  }
 --- a/com/matuvent/mineturn/client/TrailsSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsSmoke.java
-@@ -70,9 +70,10 @@
+@@ -71,9 +71,10 @@
          if (stage == 1 && mc.screen != null) return;
          elapsed++;
          if (stage == 1) {
@@ -2238,7 +2386,7 @@
          } else if (stage == 2 && TrailsClient.active()) {
              if (elapsed == 16) screenshot("at-qa-02-cut-in.png");
              if (elapsed > 42) {
-@@ -177,7 +178,7 @@
+@@ -178,7 +179,7 @@
      private static void screenshot(String file) {
          var mc = Minecraft.getInstance();
          String versioned = file.replace(".png", "-" + System.getProperty("mineturn.qaTag", "v1") + ".png");
@@ -2247,7 +2395,7 @@
      }
      private static void setup(MinecraftServer server) {
          var level = server.overworld();
-@@ -194,21 +195,21 @@
+@@ -195,21 +196,21 @@
          inv.setItem(4, new ItemStack(Items.ARROW, 32)); inv.setItem(5, new ItemStack(Items.WIND_CHARGE, 16));
          inv.setItem(6, new ItemStack(Items.BREAD, 8));
          var potion = new ItemStack(Items.POTION); potion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SWIFTNESS));
@@ -2279,7 +2427,7 @@
  }
 --- a/com/matuvent/mineturn/client/TrailsUpdateSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsUpdateSmoke.java
-@@ -17,7 +17,7 @@
+@@ -18,7 +18,7 @@
      private static void server(java.util.function.Consumer<net.minecraft.server.MinecraftServer> work) { Minecraft.getInstance().getSingleplayerServer().execute(() -> work.accept(Minecraft.getInstance().getSingleplayerServer())); }
      private static void shot(String name) {
          var minecraft = Minecraft.getInstance();
@@ -2288,7 +2436,7 @@
      }
      private static void press(String label) {
          var screen = Minecraft.getInstance().screen;
-@@ -35,7 +35,7 @@
+@@ -47,7 +47,7 @@
          if (minecraft.getOverlay() != null) return;
          age++;
          minecraft.options.pauseOnLostFocus = false;

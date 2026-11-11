@@ -44,7 +44,10 @@ public final class TrailsBestiary {
         }catch(IOException e){throw new UncheckedIOException(e);}
     }
     public static Profile get(String id){return PROFILES.containsKey(id)?PROFILES.get(id):TWILIGHT.get(id);}
-    public static Profile get(LivingEntity e){return get(TrailsCombat.id(e));}
+    public static Profile get(LivingEntity entity) {
+        var explicit = get(TrailsCombat.id(entity));
+        return explicit != null ? explicit : TrailsAutoProfiles.get(entity);
+    }
     public static Collection<Profile> all(){
         var profiles=new ArrayList<>(PROFILES.values());
         for(var profile:TWILIGHT.values())if(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.containsKey(net.minecraft.resources.ResourceLocation.parse(profile.id())))profiles.add(profile);

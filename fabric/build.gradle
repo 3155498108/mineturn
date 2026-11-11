@@ -150,7 +150,7 @@ if (providers.gradleProperty('fabricQa').isPresent()) {
         doLast {
             def metadata = destinationDir.toPath().resolve('fabric.mod.json').toFile()
             def json = new groovy.json.JsonSlurper().parse(metadata)
-            json.entrypoints['fabric-gametest'] = ['TrailsGameTests','TrailsCriticalGameTests','TrailsBestiaryGameTests','TrailsMultiplayerGameTests','TrailsCompanionGameTests','TrailsCpGameTests'].collect { "com.matuvent.mineturn.battle.${it}" }
+            json.entrypoints['fabric-gametest'] = ['TrailsGameTests','TrailsCriticalGameTests','TrailsBestiaryGameTests','TrailsMultiplayerGameTests','TrailsCompanionGameTests','TrailsCpGameTests','TrailsCompatibilityGameTests'].collect { "com.matuvent.mineturn.battle.${it}" }
             json.entrypoints['fabric-gametest'].add('com.matuvent.mineturn.battle.FabricBoundaryGameTests')
             metadata.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)),'UTF-8')
         }

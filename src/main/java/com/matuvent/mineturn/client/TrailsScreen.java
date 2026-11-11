@@ -39,7 +39,7 @@ public final class TrailsScreen extends Screen {
         if (preparing.isEmpty() || !TrailsClient.active()) return null;
         if (preparing.equals("skill")) {
             var actor = minecraft.level.getEntity(TrailsClient.view.actor());
-            return actor == null ? null : TrailsArea.skill(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(actor.getType()).toString());
+            return actor instanceof net.minecraft.world.entity.LivingEntity living ? TrailsArea.skill(living) : null;
         }
         if (preparing.equals("attack") && TrailsClient.view.actor() != minecraft.player.getId()) {
             var actor = minecraft.level.getEntity(TrailsClient.view.actor());
@@ -132,7 +132,7 @@ public final class TrailsScreen extends Screen {
         var slots = new java.util.ArrayList<Integer>();
         for (int i = 0; i < 36; i++) {
             var stack = minecraft.player.getInventory().getItem(i);
-            if (!stack.isEmpty() && (stack.has(net.minecraft.core.component.DataComponents.FOOD) || stack.is(net.minecraft.world.item.Items.POTION))) slots.add(i);
+            if (com.matuvent.mineturn.battle.TrailsCombat.consumable(stack)) slots.add(i);
         }
         int pages = Math.max(1, (slots.size() + 5) / 6);
         inventoryPage = Math.clamp(inventoryPage, 0, pages - 1);

@@ -1,5 +1,16 @@
 # MineTurn 开发任务表
 
+## 其他模组基础自动适配（2026-11-11）
+
+- trails.14 默认对缺少专用目录的生物生成近战、远程、友军自疗与 Boss S。`TrailsAutoProfiles` 读取原生生命、攻击和移动属性；已有原版 82 / 暮色 59 专用配置优先。敌方最大生命至少 100 或 Boss 标签是本轮选定的 S 识别阈值，可用实体标签修正分类、关闭 S 或排除自动参战。规则见[基础自动适配](TRAILS_PROTOTYPE.md#其他模组的基础自动适配)。
+- `TrailsWeaponSkills` 统一物品类型、常用标签、主手攻击属性识别，接入普攻、战技、范围、演出、CP 和抢 S。属性物品的通用战技 25 CP；原有六类费用保留。修正 S 使用同 ID 手持物品的实际属性、原生三种属性运算和演出物品选择。可饮用药水子类进入道具菜单，投掷药水沿现有范围流程。
+- H 的武器说明包含可识别模组物品，生物说明读取当前加载实体的自动档案。基础模板复用现有红光、金光、模型与动作镜头；第三方自定义法力、法术、弹药、复杂原生动画与 Boss 阶段需要专门适配。
+- NeoForge 1.21.1 **95 项**服务器测试全部通过（`build/auto-compat-work/neoforge-tests-final.log`）；Fabric 1.21.1 **101 项**全部通过（`fabric-tests-final.log`）。新增 8 项覆盖属性操作与槽位、武器正常入口/CP、同 ID 抢 S、专用档案优先、原生力量/速度修饰、Boss 反应回合与道具筛选。
+- NeoForge / Fabric 1.21.1 实际安装官方 Mutant Monsters 21.1.1 与对应依赖，四种突变 Boss 均完成圈选入战、金光反应回合和 S 提交。突变雪傀儡从 5 HP / 100 CP 经 F 预览确认后变为 21 HP / 65 CP。突变武器完成普通战技 100→75 CP 和 S 200→100 CP。日志为 `native-client-final.log`、`fabric-client-native-final.log`，均在 `build/auto-compat-work/`。依赖仅用于 QA，未进入发布 JAR。
+- NeoForge 及 Fabric 1.21.1、1.20.1、1.21、1.21.8、1.21.10 六种真实客户端均通过属性武器战技与 S 的预览、伤害、扣费和同 ID 属性选择，并复测六类说明、头像及个人音乐。四个端口日志为 `fabric-<版本>-client.log`，1.20.1 实际使用 Java 17。多人双客户端和其他第三方版本未在本轮重测。
+- 六个正式 JAR 构建及结构检查通过，版本为 `1.0.0-trails.14`，协议沿用 `31-trails` / `trails-12`；客户端与服务器一起更新。已核对 JSON、Mixin、许可、Java 17/21 字节码目标、82/59/8 目录、鸡 80 CP、自动适配类与正式元数据，未包含 GameTests、测试依赖或音乐。文件与 SHA256 记录位于 `dist/MineTurn-AT-Prototype-1.0.0-trails.14/`，发行状态将在上传后补记。
+- 开工前检索了 [Better Combat](https://github.com/ZsoltMolnarrr/BetterCombat)、[Spell Engine](https://github.com/ZsoltMolnarrr/SpellEngine) 和 [Fuzss 模组](https://github.com/Fuzss)，沿用现有原生属性、标签与 AT 演出入口。正式第三方实机验证限于上述 1.21.1 组合。
+
 ## 说明、个人 BGM、头像与暮色适配（2026-11-10）
 
 - trails.13：H 打开六类游戏内说明，战斗右上角和 O 页也有入口。覆盖玩法、角色、武器、友军、敌军与 Boss，支持分类搜索、分页和滚轮阅读，物种技能和 CP 费用读取现有目录。关闭手册可返回仍在进行的战斗。

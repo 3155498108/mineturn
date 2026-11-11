@@ -46,6 +46,7 @@ final class TrailsSmoke {
     }
     static void tick() {
         if (com.matuvent.mineturn.platform.RuntimePlatform.production()) return;
+        if (System.getProperty("mineturn.qaTag", "").startsWith("update-auto")) { TrailsCompatibilitySmoke.tick(); return; }
         if (System.getProperty("mineturn.qaTag", "").startsWith("update")) { TrailsUpdateSmoke.tick(); return; }
         if (System.getProperty("mineturn.qaTag", "").startsWith("cp")) { TrailsCpSmoke.tick(); return; }
         if (System.getProperty("mineturn.qaTag", "").startsWith("companions")) { TrailsCompanionSmoke.tick(); return; }

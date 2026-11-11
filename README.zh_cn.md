@@ -1,8 +1,10 @@
 # MineTurn：AT 战术切换原型分支
 
-**trails.13：H 打开六类玩法说明；O → 音乐可配置自己的战斗 BGM，修复生物头像裁切，并加入可选的暮色森林 AT 技能适配。** [下载](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.13)，客户端与服务器一起更新。
+**trails.14 加入其他模组的基础自动适配。新增生物按原生属性生成普攻、战技与 Boss S，模组武器按类型、标签和攻击属性接入战技与抢 S。** [下载](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.14)，客户端与服务器一起更新。
 
-Fabric 支持 **1.20.1、1.21（1.21.0）、1.21.1、1.21.8、1.21.10**，NeoForge 支持 **1.21.1**；此次统一更新为 `trails.13`。依赖和构建见[多版本说明](docs/FABRIC_PORTS.md)。
+Fabric 支持 **1.20.1、1.21（1.21.0）、1.21.1、1.21.8、1.21.10**，NeoForge 支持 **1.21.1**；此次统一更新为 `trails.14`。依赖和构建见[多版本说明](docs/FABRIC_PORTS.md)。
+
+已在 NeoForge / Fabric 1.21.1 上实测突变生物的四个 Boss 和友军。默认最大生命至少 100 或有 Boss 标签的敌军生成金光 S 预告，可用数据包标签调整。特殊法术与原生 Boss 阶段需要专门桥接，详见[自动适配规则](docs/TRAILS_PROTOTYPE.md#其他模组的基础自动适配)。
 
 音乐使用玩家本地文件：设置里点击“打开音乐文件夹”，在 `custom` 中放入 `normal.ogg`（普通）、`advantage.ogg`（先制）、`boss.ogg`（Boss），然后点击“重读本地音乐”。只放普通曲也可以；音乐不随模组分发。说明见[自定义音乐](docs/TRAILS_PROTOTYPE.md#说明与个人音乐)。
 
@@ -16,9 +18,9 @@ Fabric 支持 **1.20.1、1.21（1.21.0）、1.21.1、1.21.8、1.21.10**，NeoFor
 
 新增白色伤害跳字、红色大字暴击和数字血条；默认暴击率 10%、倍率 1.5，O 页可调整。
 
-当前分支版本 `1.0.0-trails.13`，提供 **Fabric 与 NeoForge 独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。NeoForge 协议为 `31-trails` / `trails-12`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
+当前分支版本 `1.0.0-trails.14`，提供 **Fabric 与 NeoForge 独立 JAR**，安装方法和验证记录见 [Fabric 移植](docs/FABRIC.md)。NeoForge 协议为 `31-trails` / `trails-12`；默认 20 格入战圈、六类武器战技，以及 [82 种原版生物技能与动画](docs/TRAILS_BESTIARY.md)。凋灵、末影龙和监守者等 Boss 的 S 技提前一回合发金光并锁定危险范围。
 
-当前 trails.13 下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.13)（Modrinth 新版尚待同步） · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。此前 MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
+当前 trails.14 下载：[GitHub 发行](https://github.com/3155498108/mineturn/releases/tag/v1.0.0-trails.14)（Modrinth 新版尚待同步） · [Modrinth 项目](https://modrinth.com/mod/mineturn-at-prototype)。此前 MC 百科收录申请已提交，审核编号 `808408`；提交不代表审核通过。
 
 [English](README.md) | **中文**
 

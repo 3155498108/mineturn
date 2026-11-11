@@ -10,12 +10,12 @@ public final class TrailsChoreography {
         public static final Pose IDLE = new Pose(0, 0, 0, 0, 0, 0, false);
     }
     public static String style(LivingEntity e, ItemStack item) {
-        if (item.is(ItemTags.SWORDS)) return "sword";
-        if (item.is(ItemTags.AXES)) return "axe";
-        if (item.getItem() instanceof BowItem) return "bow";
-        if (item.getItem() instanceof CrossbowItem) return "crossbow";
-        if (item.getItem() instanceof MaceItem) return "mace";
-        if (item.getItem() instanceof TridentItem) return "trident";
+        if (TrailsWeaponSkills.kind(item) == TrailsWeaponSkills.Kind.SWORD) return "sword";
+        if (TrailsWeaponSkills.kind(item) == TrailsWeaponSkills.Kind.AXE) return "axe";
+        if (TrailsWeaponSkills.kind(item) == TrailsWeaponSkills.Kind.BOW) return "bow";
+        if (TrailsWeaponSkills.kind(item) == TrailsWeaponSkills.Kind.CROSSBOW) return "crossbow";
+        if (TrailsWeaponSkills.kind(item) == TrailsWeaponSkills.Kind.MACE) return "mace";
+        if (TrailsWeaponSkills.kind(item) == TrailsWeaponSkills.Kind.TRIDENT) return "trident";
         String id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath();
         return switch (id) {
             case "breeze", "iron_golem", "ravager", "creeper", "slime", "magma_cube", "snow_golem" -> id;

@@ -1543,27 +1543,48 @@
                      // Interpolation at large world coordinates can differ by one ULP at a corner.
                      // Such stationary duplicates hide the following drop from execution support checks.
                      if(checked.distanceToSqr(recorded)>EPS*EPS)segment.add(checked);
---- a/com/matuvent/mineturn/battle/TrailsArea.java
-+++ b/com/matuvent/mineturn/battle/TrailsArea.java
-@@ -12,12 +12,12 @@
-             if (stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof TridentItem) return new TrailsArea(Kind.RECTANGLE, 0, 24, 6);
-             if (stack.is(ItemTags.AXES)) return new TrailsArea(Kind.SINGLE, 24, 0, 0);
-             if (stack.getItem() instanceof BowItem) return new TrailsArea(Kind.DISK, 24, 5, 0);
--            if (stack.getItem() instanceof MaceItem) return new TrailsArea(Kind.DISK, 24, 6, 0);
-+            if (stack.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return new TrailsArea(Kind.DISK, 24, 6, 0);
-             return new TrailsArea(Kind.DISK, 0, 10, 0);
-         }
-         if (stack.is(ItemTags.SWORDS)) return new TrailsArea(Kind.SECTOR, 0, 3, 90);
-         if (stack.getItem() instanceof CrossbowItem) return new TrailsArea(Kind.RECTANGLE, 0, 24, 3);
--        if (stack.getItem() instanceof MaceItem) return new TrailsArea(Kind.DISK, 3, wind ? 5 : 2, 0);
-+        if (stack.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return new TrailsArea(Kind.DISK, 3, wind ? 5 : 2, 0);
-         return new TrailsArea(Kind.SINGLE, stack.getItem() instanceof BowItem ? 24 : stack.getItem() instanceof TridentItem ? 3.5 : 3, 0, 0);
+--- a/com/matuvent/mineturn/battle/TrailsAutoProfiles.java
++++ b/com/matuvent/mineturn/battle/TrailsAutoProfiles.java
+@@ -22,7 +22,7 @@
+     private static final Map<LivingEntity, Cached> CACHE = Collections.synchronizedMap(new WeakHashMap<>());
+ 
+     public static boolean excluded(LivingEntity entity) {
+-        return entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, ResourceLocation.fromNamespaceAndPath("mineturn", "at_auto_excluded")));
++        return entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation("mineturn", "at_auto_excluded")));
      }
-     public static TrailsArea skill(String entity) {
+ 
+     public static boolean hostile(LivingEntity entity) {
+@@ -36,13 +36,13 @@
+         if (id.getNamespace().equals("mineturn")) return null;
+         var weapon = TrailsWeaponSkills.kind(entity.getMainHandItem());
+         boolean hostile = hostile(entity);
+-        boolean ranged = entity instanceof RangedAttackMob || entity.getType().is(net.minecraft.tags.EntityTypeTags.SKELETONS)
+-                || entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, ResourceLocation.fromNamespaceAndPath("mineturn", "at_ranged")))
++        boolean ranged = entity instanceof RangedAttackMob || entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation("minecraft:skeletons")))
++                || entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation("mineturn", "at_ranged")))
+                 || weapon == TrailsWeaponSkills.Kind.BOW || weapon == TrailsWeaponSkills.Kind.CROSSBOW;
+         double health = entity.getMaxHealth();
+         boolean boss = hostile && (health >= 100 || bossTag(entity, "mineturn") || bossTag(entity, "c") || bossTag(entity, "forge"))
+-                && !entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, ResourceLocation.fromNamespaceAndPath("mineturn", "at_no_ultimate")));
+-        double reach = Math.clamp(entity.getBbWidth() + 1.5, 2.4, 8);
++                && !entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation("mineturn", "at_no_ultimate")));
++        double reach = com.matuvent.mineturn.compat.Legacy.clamp(entity.getBbWidth() + 1.5, 2.4, 8);
+         String animation = "melee";
+         if (ranged) animation = weapon == TrailsWeaponSkills.Kind.CROSSBOW ? "crossbow" : "bow";
+         else if (weapon == TrailsWeaponSkills.Kind.AXE) animation = "axe";
+@@ -57,7 +57,7 @@
+ 
+     private static boolean bossTag(LivingEntity entity, String namespace) {
+         String path = namespace.equals("mineturn") ? "at_bosses" : "bosses";
+-        return entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, ResourceLocation.fromNamespaceAndPath(namespace, path)));
++        return entity.getType().is(TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(namespace, path)));
+     }
+ 
+     private static TrailsBestiary.Profile create(String id, Traits traits) {
 --- a/com/matuvent/mineturn/battle/TrailsBestiary.java
 +++ b/com/matuvent/mineturn/battle/TrailsBestiary.java
-@@ -47,7 +47,7 @@
-     public static Profile get(LivingEntity e){return get(TrailsCombat.id(e));}
+@@ -50,7 +50,7 @@
+     }
      public static Collection<Profile> all(){
          var profiles=new ArrayList<>(PROFILES.values());
 -        for(var profile:TWILIGHT.values())if(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.containsKey(net.minecraft.resources.ResourceLocation.parse(profile.id())))profiles.add(profile);
@@ -1591,8 +1612,8 @@
                  case "ADVANCE" -> c.b.clock.recovery(e,Math.max(0,c.b.clock.remaining(e)-20*c.speed(e)));
                  case "READY" -> {}
                  default -> {
-@@ -131,7 +131,7 @@
-                     double power=Math.max(0,move.power()+(strength==null?0:3*(strength.getAmplifier()+1))-(weakness==null?0:4*(weakness.getAmplifier()+1)));
+@@ -132,7 +132,7 @@
+                             : Math.max(0,move.power()+(strength==null?0:3*(strength.getAmplifier()+1))-(weakness==null?0:4*(weakness.getAmplifier()+1)));
                      if(move.animation().equals("sonic"))c.damage(source,e,move.power(),source.damageSources().sonicBoom(source));else c.hit(source,e,power);
                      if(e.isAlive() && !move.buff().isBlank())buff(e,move);
 -                    if(move.kind().equals("FIRE"))BattleManager.authorized(()->e.igniteForSeconds(3));
@@ -1600,7 +1621,7 @@
                      if(move.kind().equals("STAGGER") && c.b.members.containsKey(e.getUUID()))c.b.clock.recovery(e,c.b.clock.remaining(e)+30*c.speed(e));
                      if(move.kind().equals("DRAIN"))source.heal((float)move.power()*.3f);
                  }
-@@ -143,7 +143,7 @@
+@@ -144,7 +144,7 @@
      }
      static void buff(LivingEntity e,TrailsBestiary.Move move){
          if(move.buff().isBlank())return;
@@ -1611,15 +1632,6 @@
      static void blink(TrailsCombat c,LivingEntity source,LivingEntity target){
 --- a/com/matuvent/mineturn/battle/TrailsChoreography.java
 +++ b/com/matuvent/mineturn/battle/TrailsChoreography.java
-@@ -14,7 +14,7 @@
-         if (item.is(ItemTags.AXES)) return "axe";
-         if (item.getItem() instanceof BowItem) return "bow";
-         if (item.getItem() instanceof CrossbowItem) return "crossbow";
--        if (item.getItem() instanceof MaceItem) return "mace";
-+        if (item.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return "mace";
-         if (item.getItem() instanceof TridentItem) return "trident";
-         String id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath();
-         return switch (id) {
 @@ -28,9 +28,9 @@
      public static int windup(String style, boolean skill) {
          return switch (style) { case "bow", "crossbow", "trident" -> skill ? 24 : 18; case "axe", "mace" -> skill ? 20 : 14; default -> skill ? 16 : 10; };
@@ -1661,22 +1673,15 @@
          com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putLong(AMBUSH, now + ticks);
          com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putLong("mineturn.trails.ambushCooldown", now + 1200);
          com.matuvent.mineturn.platform.RuntimePlatform.data(victim).putUUID(OWNER, p.getUUID());
-@@ -293,12 +293,12 @@
-     }
-     static boolean weapon(ItemStack stack) {
-         return stack.is(ItemTags.SWORDS) || stack.is(ItemTags.AXES) || stack.getItem() instanceof BowItem
--                || stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof MaceItem || stack.getItem() instanceof TridentItem;
-+                || stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace || stack.getItem() instanceof TridentItem;
-     }
-     static String burstName(ItemStack s) {
-         if (s.getItem() instanceof CrossbowItem) return "贯界冲击波";
-         if (s.getItem() instanceof BowItem) return "星落箭雨";
--        if (s.getItem() instanceof MaceItem) return "陨星震地";
-+        if (s.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return "陨星震地";
-         if (s.is(ItemTags.AXES)) return "裂甲断空";
-         if (s.getItem() instanceof TridentItem) return "苍潮奔流";
-         return "终式 · 万刃风暴";
-@@ -323,7 +323,7 @@
+@@ -324,14 +324,14 @@
+         }
+         if (e instanceof Mob && TrailsBestiary.get(id(e)) == null) {
+             var movement = e.getAttribute(Attributes.MOVEMENT_SPEED);
+-            if (movement != null) base *= Math.clamp(movement.getBaseValue() / .25, .1, 10);
++            if (movement != null) base *= com.matuvent.mineturn.compat.Legacy.clamp(movement.getBaseValue() / .25, .1, 10);
+         }
+         base *= TrailsAutoProfiles.movementMultiplier(e);
+         var fast = e.getEffect(MobEffects.MOVEMENT_SPEED);
          var slow = e.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
          if (fast != null) base *= 1 + cfg().speedPotionPerLevel * (fast.getAmplifier() + 1);
          if (slow != null) base *= Math.max(.1, 1 - .15 * (slow.getAmplifier() + 1));
@@ -1685,7 +1690,7 @@
      }
  
      void sync(ServerPlayer recipient){var previous=player;player=recipient;try{syncView(recipient);}finally{player=previous;}}
-@@ -342,7 +342,7 @@
+@@ -350,7 +350,7 @@
          var roster = b.members.values().stream().map(m -> new TrailsNetwork.Fighter(m.entity.getId(), b.displayName(m.entity)+(multiplayer && !(m.entity instanceof ServerPlayer) && controller(m.entity)!=null?" ["+controller(m.entity).getScoreboardName()+"]":""),
                  !allied(m.entity), m.entity.getHealth(), m.entity.getMaxHealth(), speed(m.entity),
                  b.clock.until(m.entity, this::speed), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.name(p.getMainHandItem()) : skillName(m.entity), TrailsCp.get(m.entity), m.entity instanceof ServerPlayer p ? TrailsWeaponSkills.cpCost(p.getMainHandItem()) : TrailsBestiary.get(m.entity)==null?0:TrailsBestiary.get(m.entity).skill().cpCost(), m.entity.getActiveEffects().stream().limit(64)
@@ -1694,7 +1699,7 @@
          for (int from = 0, page = 0; from < roster.size(); from += 48, page++)
              BattleNetwork.send(recipient, new TrailsNetwork.Roster(b.id, b.revision, page, from + 48 >= roster.size(),
                      roster.subList(from, Math.min(from + 48, roster.size()))));
-@@ -484,7 +484,7 @@
+@@ -492,7 +492,7 @@
          perform(source, "strike", 12, !allied(source), victim.position());
          source.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
          var animation = new BattleNetwork.ActionAnimation(b.id, ++b.actionSequence,
@@ -1703,7 +1708,7 @@
                  source.getId(), victim.getId(), victim.position(), true);
          broadcast(animation);
      }
-@@ -492,7 +492,7 @@
+@@ -500,7 +500,7 @@
      void attack(int targetId, int slot, boolean wind) {
          var victim = b.level.getEntity(targetId);
          Vec3 aim = victim == null ? b.actor.getLookAngle().multiply(1, 0, 1) : victim.position().subtract(b.actor.position()).multiply(1, 0, 1);
@@ -1712,26 +1717,16 @@
          if (shape.kind() == TrailsArea.Kind.DISK && aim.length() > shape.cast()) aim = aim.normalize().scale(shape.cast());
          attack(targetId, slot, wind, aim);
      }
-@@ -542,15 +542,15 @@
-         if (slot < 0 || slot > 8) throw new IllegalArgumentException("无效武器槽。");
-         var stack = player.getInventory().getItem(slot);
-         if (skill && !weapon(stack)) throw new IllegalArgumentException("请先装备武器。");
--        if (wind && !(stack.getItem() instanceof MaceItem)) throw new IllegalArgumentException("风弹组合需要手持重锤。");
-+        if (wind && !(stack.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace)) throw new IllegalArgumentException("风弹组合需要手持重锤。");
-         var shape = skill ? TrailsWeaponSkills.shape(stack) : TrailsArea.weapon(stack, wind, false);
-         if (!shape.validAim(aim)) throw new IllegalArgumentException("攻击方向或落点无效。");
-         var victim = shape.kind() == TrailsArea.Kind.SINGLE ? target(targetId, player) : null;
-         if (victim != null) requireRange(player, victim, shape.cast());
-         boolean bow = stack.getItem() instanceof BowItem, crossbow = stack.getItem() instanceof CrossbowItem;
--        boolean mace = stack.getItem() instanceof MaceItem, trident = stack.getItem() instanceof TridentItem;
-+        boolean mace = stack.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace, trident = stack.getItem() instanceof TridentItem;
+@@ -558,7 +558,7 @@
+         boolean bow = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.BOW, crossbow = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.CROSSBOW;
+         boolean mace = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MACE, trident = TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.TRIDENT;
          boolean charged = wind || skill && mace;
 -        int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.WIND_CHARGE) : -2;
 +        int resource = bow || crossbow ? find(Items.ARROW) : charged ? find(Items.AIR) : -2;
          if (resource == -1) throw new IllegalArgumentException(bow || crossbow ? "背包内需要 1 支普通箭。" : "背包内需要 1 个风弹。");
          TrailsCp.spend(player, skill || wind ? TrailsWeaponSkills.cpCost(stack) : 0);
          player.getInventory().selected = slot;
-@@ -572,7 +572,7 @@
+@@ -580,7 +580,7 @@
                      var forward = shape.direction(aim); var across = new Vec3(forward.z, 0, -forward.x);
                      for (int lane : new int[]{-1, 1}) projectile(player, end.add(across.scale(lane * 3)), Items.ARROW);
                  }
@@ -1740,7 +1735,7 @@
              }
              pending = new Pending(player, turn, bow || crossbow || skill && trident ? TrailsChoreography.flight(player.getEyePosition().distanceTo(end)) : 4, () -> {
                  if (victim != null && (!victim.isAlive() || !b.members.containsKey(victim.getUUID()) || gap(player, victim) > shape.cast() || !player.hasLineOfSight(victim))) {
-@@ -592,9 +592,9 @@
+@@ -601,9 +601,9 @@
                  }
                  if (mace) {
                      shockwave(shape.center(player.position(), aim), shape.radius(), charged);
@@ -1752,7 +1747,7 @@
                  b.message(title); if(!skill && !wind)addCp(player,cfg().cpPerAction); recover(player, delay);
              }, false);
          });
-@@ -602,7 +602,7 @@
+@@ -611,7 +611,7 @@
      void shockwave(Vec3 center, double radius, boolean wind) {
          for (int i = 0; i < 24; i++) {
              double angle = i * Math.PI / 12;
@@ -1761,7 +1756,15 @@
                      center.z + Math.sin(angle) * radius, 1, 0, .05, 0, .02);
          }
      }
-@@ -618,9 +618,9 @@
+@@ -624,16 +624,16 @@
+         return -1;
+     }
+     public static boolean consumable(ItemStack stack) {
+-        return !stack.isEmpty() && (stack.has(DataComponents.FOOD)
++        return !stack.isEmpty() && (stack.isEdible()
+                 || stack.getItem() instanceof PotionItem && !(stack.getItem() instanceof ThrowablePotionItem));
+     }
+     void item(int slot) {
          if (b.actor != player) throw new IllegalArgumentException("友军不能使用道具。");
          if (slot < 0 || slot >= 36) throw new IllegalArgumentException("无效物品槽。");
          var stack = player.getInventory().getItem(slot);
@@ -1772,9 +1775,9 @@
 +        var potion = com.matuvent.mineturn.compat.Components.get(stack,DataComponents.POTION_CONTENTS);
 +        var beforeEffects = new HashMap<net.minecraft.world.effect.MobEffect, MobEffectInstance>();
          for (var e : player.getActiveEffects()) beforeEffects.put(e.getEffect(), new MobEffectInstance(e));
-         if (food == null && !stack.is(Items.POTION)) throw new IllegalArgumentException("请选择食物或可饮用药水。");
+         if (!consumable(stack)) throw new IllegalArgumentException("请选择食物或可饮用药水。");
          if (stack.isEmpty()) throw new IllegalArgumentException("物品已用完。");
-@@ -633,16 +633,16 @@
+@@ -646,16 +646,16 @@
              player.getInventory().setItem(slot, remaining);
              if (potion != null) for (var e : potion.getAllEffects()) {
                  var previous = beforeEffects.get(e.getEffect());
@@ -1795,7 +1798,7 @@
              }
          });
          player.containerMenu.broadcastChanges(); addCp(5); finish(.6);
-@@ -691,10 +691,10 @@
+@@ -704,10 +704,10 @@
          else if(b.level.getEntity(targetId) instanceof LivingEntity living && enemy(source,living))victim=living;
          TrailsBestiaryActions.cast(this,source,victim,move,aim,false,source.position());
      }
@@ -1809,35 +1812,11 @@
              ticks = Math.max(ticks, previous.getDuration());
          }
          var effect = new MobEffectInstance(type, ticks, amplifier);
-@@ -722,12 +722,12 @@
-         int before = cp(); addCp(-cfg().burstCost);
-         double multiplier = before == 200 ? 1.5 : 1;
-         double weaponDamage = 1, baseMultiplier = 0, totalMultiplier = 1;
--        for (var entry : stack.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, net.minecraft.world.item.component.ItemAttributeModifiers.EMPTY).modifiers()) {
-+        for (var entry : com.matuvent.mineturn.compat.Components.getOrDefault(stack,DataComponents.ATTRIBUTE_MODIFIERS, com.matuvent.mineturn.compat.ItemAttributeModifiers.EMPTY).modifiers()) {
-             if (!entry.attribute().equals(Attributes.ATTACK_DAMAGE) || !entry.slot().test(EquipmentSlot.MAINHAND)) continue;
--            switch (entry.modifier().operation()) {
--                case ADD_VALUE -> weaponDamage += entry.modifier().amount();
--                case ADD_MULTIPLIED_BASE -> baseMultiplier += entry.modifier().amount();
--                case ADD_MULTIPLIED_TOTAL -> totalMultiplier *= 1 + entry.modifier().amount();
-+            switch (entry.modifier().getOperation()) {
-+                case ADDITION -> weaponDamage += entry.modifier().getAmount();
-+                case MULTIPLY_BASE -> baseMultiplier += entry.modifier().getAmount();
-+                case MULTIPLY_TOTAL -> totalMultiplier *= 1 + entry.modifier().getAmount();
-             }
-         }
-         weaponDamage = (weaponDamage + baseMultiplier) * totalMultiplier;
-@@ -750,11 +750,11 @@
-             burstAction = new Pending(player, turn, projectile ? TrailsChoreography.flight(player.getEyePosition().distanceTo(end)) : 6, () -> {
-                 if (victim != null) {
-                     if (victim.isAlive() && b.members.containsKey(victim.getUUID()) && player.hasLineOfSight(victim) && gap(player, victim) <= shape.cast()) hit(player, victim, damage * 1.8);
--                } else shaped(player, shape, aim, damage * (stack.getItem() instanceof MaceItem ? 1.2 : 1));
-+                } else shaped(player, shape, aim, damage * (stack.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace ? 1.2 : 1));
+@@ -758,7 +758,7 @@
                  if(b.closed)return;
                  perform(player,"recover",12,false,end,style,title);
--                shockwave(shape.center(player.position(), aim), shape.kind() == TrailsArea.Kind.DISK ? shape.radius() : 4, stack.getItem() instanceof MaceItem);
+                 shockwave(shape.center(player.position(), aim), shape.kind() == TrailsArea.Kind.DISK ? shape.radius() : 4, TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MACE);
 -                b.level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EXPLODE.value(), net.minecraft.sounds.SoundSource.PLAYERS, .7f, 1.3f);
-+                shockwave(shape.center(player.position(), aim), shape.kind() == TrailsArea.Kind.DISK ? shape.radius() : 4, stack.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace);
 +                b.level.playSound(null, player.blockPosition(), SoundEvents.GENERIC_EXPLODE, net.minecraft.sounds.SoundSource.PLAYERS, .7f, 1.3f);
                  b.message("S-BREAK · " + title);
                  burstAction = new Pending(player, turn, 12, () -> {
@@ -1915,6 +1894,35 @@
          var storage = CompanionStorage.get(player.server);
          storage.put(ticket, player.getUUID(), entity);
          player.getInventory().setItem(slot, item);
+--- a/com/matuvent/mineturn/battle/TrailsCompatibilityScenario.java
++++ b/com/matuvent/mineturn/battle/TrailsCompatibilityScenario.java
+@@ -32,7 +32,7 @@
+         var player = prepare(server);
+         ItemStack weapon = Items.IRON_PICKAXE.getDefaultInstance();
+         if (Boolean.getBoolean("mineturn.nativeAutoQa")) {
+-            var item = ResourceLocation.fromNamespaceAndPath("mutantmonsters", "hulk_hammer");
++            var item = new ResourceLocation("mutantmonsters", "hulk_hammer");
+             if (!BuiltInRegistries.ITEM.containsKey(item)) throw new IllegalStateException("Native compatibility weapon missing");
+             weapon = BuiltInRegistries.ITEM.get(item).getDefaultInstance();
+         }
+@@ -93,7 +93,7 @@
+ 
+     public static void boss(MinecraftServer server, int index) {
+         var player = prepare(server);
+-        var id = ResourceLocation.fromNamespaceAndPath("mutantmonsters", BOSSES[index]);
++        var id = new ResourceLocation("mutantmonsters", BOSSES[index]);
+         if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id) || TrailsBestiary.get(id.toString()) != null) throw new IllegalStateException("QA needs an unconfigured external entity");
+         var entity = BuiltInRegistries.ENTITY_TYPE.get(id).create(player.serverLevel());
+         if (!(entity instanceof Mob boss)) throw new IllegalStateException("External mob missing");
+@@ -133,7 +133,7 @@
+ 
+     public static void friendly(MinecraftServer server) {
+         var player = prepare(server);
+-        var id = ResourceLocation.fromNamespaceAndPath("mutantmonsters", "mutant_snow_golem");
++        var id = new ResourceLocation("mutantmonsters", "mutant_snow_golem");
+         var ally = (Mob) BuiltInRegistries.ENTITY_TYPE.get(id).create(player.serverLevel());
+         ally.moveTo(2, -59, .5);
+         ally.setNoAi(true);
 --- a/com/matuvent/mineturn/battle/TrailsCpScenario.java
 +++ b/com/matuvent/mineturn/battle/TrailsCpScenario.java
 @@ -3,7 +3,7 @@
@@ -2054,41 +2062,48 @@
          boss.setNoAi(true);
 --- a/com/matuvent/mineturn/battle/TrailsWeaponSkills.java
 +++ b/com/matuvent/mineturn/battle/TrailsWeaponSkills.java
-@@ -10,7 +10,7 @@
-         if (s.is(ItemTags.AXES)) return "破势重斩";
-         if (s.getItem() instanceof BowItem) return "满弦狙击";
-         if (s.getItem() instanceof CrossbowItem) return "多重齐射";
--        if (s.getItem() instanceof MaceItem) return "风弹震地";
-+        if (s.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return "风弹震地";
-         if (s.getItem() instanceof TridentItem) return "贯穿投掷";
-         return "请装备武器";
-     }
-@@ -20,14 +20,14 @@
-         if (s.is(ItemTags.AXES)) return 30;
-         if (s.getItem() instanceof BowItem) return 35;
-         if (s.getItem() instanceof CrossbowItem) return 45;
--        if (s.getItem() instanceof MaceItem) return 60;
-+        if (s.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return 60;
-         if (s.getItem() instanceof TridentItem) return 40;
-         return 0;
-     }
-     public static TrailsArea shape(ItemStack s) {
-         if (s.is(ItemTags.SWORDS)) return new TrailsArea(TrailsArea.Kind.SECTOR, 0, 4, 140);
-         if (s.getItem() instanceof CrossbowItem) return new TrailsArea(TrailsArea.Kind.RECTANGLE, 0, 24, 7);
--        if (s.getItem() instanceof MaceItem) return TrailsArea.weapon(s, true, false);
-+        if (s.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return TrailsArea.weapon(s, true, false);
-         if (s.getItem() instanceof TridentItem) return new TrailsArea(TrailsArea.Kind.RECTANGLE, 0, 20, 2);
-         return new TrailsArea(TrailsArea.Kind.SINGLE, s.getItem() instanceof BowItem ? 28 : 3, 0, 0);
-     }
-@@ -36,7 +36,7 @@
-         if (s.is(ItemTags.AXES)) return "单体 1.8 倍伤害，目标 AT 增加 30；AT ×1.7。";
-         if (s.getItem() instanceof BowItem) return "蓄力拉弓，单体 14 点基础伤害；消耗 1 支箭；AT ×1.6。";
-         if (s.getItem() instanceof CrossbowItem) return "三箭齐射，24×7 格长方形，每个敌人最多受伤一次；消耗 1 支箭；AT ×1.8。";
--        if (s.getItem() instanceof MaceItem) return "消耗 1 个风弹，落点半径 5 格、2.3 倍伤害；AT ×2.2。";
-+        if (s.getItem() instanceof com.matuvent.mineturn.compat.AbsentMace) return "消耗 1 个风弹，落点半径 5 格、2.3 倍伤害；AT ×2.2。";
-         if (s.getItem() instanceof TridentItem) return "三叉戟投掷，20×2 格贯穿，1.5 倍伤害；武器保留，AT ×1.6。";
-         return "装备剑、斧、弓、弩、重锤或三叉戟后可使用战技。";
-     }
+@@ -11,13 +11,12 @@
+     public static Kind kind(ItemStack stack) {
+         if (stack.isEmpty() || tagged(stack, "mineturn:at_weapons/excluded")) return Kind.NONE;
+         for (Kind kind : Kind.values()) {
+-            if (kind != Kind.NONE && tagged(stack, "mineturn:at_weapons/" + kind.name().toLowerCase(java.util.Locale.ROOT))) return kind;
++            if (kind != Kind.NONE && tagged(stack, "mineturn:at_weapons/" + kind.name().toLowerCase(java.util.Locale.ROOT))) return kind == Kind.MACE ? Kind.MELEE : kind;
+         }
+         Item item = stack.getItem();
+         if (item instanceof CrossbowItem) return Kind.CROSSBOW;
+         if (item instanceof BowItem) return Kind.BOW;
+         if (item instanceof TridentItem) return Kind.TRIDENT;
+-        if (item instanceof MaceItem) return Kind.MACE;
+         if (item instanceof AxeItem || stack.is(ItemTags.AXES)) return Kind.AXE;
+         if (item instanceof SwordItem || stack.is(ItemTags.SWORDS)) return Kind.SWORD;
+         if (tagged(stack, "c:tools/crossbow", "c:crossbows", "forge:tools/crossbows")) return Kind.CROSSBOW;
+@@ -31,7 +30,7 @@
+ 
+     private static boolean tagged(ItemStack stack, String... tags) {
+         for (String id : tags) {
+-            var tag = TAGS.computeIfAbsent(id, key -> net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, net.minecraft.resources.ResourceLocation.parse(key)));
++            var tag = TAGS.computeIfAbsent(id, key -> net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, new net.minecraft.resources.ResourceLocation(key)));
+             if (stack.is(tag)) return true;
+         }
+         return false;
+@@ -42,12 +41,12 @@
+         double[] additive = {1};
+         double[] baseMultiplier = {0};
+         double[] totalMultiplier = {1};
+-        stack.forEachModifier(net.minecraft.world.entity.EquipmentSlot.MAINHAND, (attribute, modifier) -> {
++        stack.getAttributeModifiers(net.minecraft.world.entity.EquipmentSlot.MAINHAND).forEach((attribute, modifier) -> {
+             if (!attribute.equals(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE)) return;
+-            switch (modifier.operation()) {
+-                case ADD_VALUE -> additive[0] += modifier.amount();
+-                case ADD_MULTIPLIED_BASE -> baseMultiplier[0] += modifier.amount();
+-                case ADD_MULTIPLIED_TOTAL -> totalMultiplier[0] *= 1 + modifier.amount();
++            switch (modifier.getOperation()) {
++                case ADDITION -> additive[0] += modifier.getAmount();
++                case MULTIPLY_BASE -> baseMultiplier[0] += modifier.getAmount();
++                case MULTIPLY_TOTAL -> totalMultiplier[0] *= 1 + modifier.getAmount();
+             }
+         });
+         double damage = additive[0] * (1 + baseMultiplier[0]) * totalMultiplier[0];
 --- a/com/matuvent/mineturn/client/ActionAnimations.java
 +++ b/com/matuvent/mineturn/client/ActionAnimations.java
 @@ -169,7 +169,7 @@
@@ -2467,25 +2482,25 @@
              if (focused) setFocused(search);
          }
      }
-@@ -127,7 +127,7 @@
+@@ -128,7 +128,7 @@
                  entries.add(new Article("队伍与归属", "多人默认互为对手，可在设置的队伍页创建队伍并邀请玩家加入。每人控制自己与自己用命名牌登记的友军。\n\n多人只有已登记的友军会参战，敌对怪物可直接入战。同队玩家的生物仍由其主人控制。"));
              }
              case 2 -> {
--                for (var item : List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.TRIDENT, Items.MACE)) {
-+                for (var item : List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.TRIDENT)) {
-                     var stack = item.getDefaultInstance();
-                     if (!BuiltInRegistries.ITEM.containsKey(BuiltInRegistries.ITEM.getKey(item))) continue;
-                     entries.add(new Article(stack.getHoverName().getString(), "战技「" + TrailsWeaponSkills.name(stack) + "」\n消耗 " + TrailsWeaponSkills.cpCost(stack) + " CP\n\n" + TrailsWeaponSkills.description(stack) + "\n\n剑普通攻击为扇形，弩为长方形，弓和斧选择单体，重锤为圆形。方向范围按镜头瞄准。\n\n玩家自己回合可切换武器并更新主武器，抢 S 使用已设定的主武器。"));
-@@ -135,7 +135,7 @@
-             }
-             default -> {
-                 for (var profile : TrailsBestiary.all()) {
+-                var weapons = new ArrayList<>(List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.TRIDENT, Items.MACE));
++                var weapons = new ArrayList<>(List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.TRIDENT));
+                 for (var item : BuiltInRegistries.ITEM) {
+                     if (!BuiltInRegistries.ITEM.getKey(item).getNamespace().equals("minecraft") && TrailsWeaponSkills.supported(item.getDefaultInstance())) weapons.add(item);
+                 }
+@@ -149,7 +149,7 @@
+                     }
+                 }
+                 for (var profile : profiles.values()) {
 -                    var id = ResourceLocation.parse(profile.id());
 +                    var id = new ResourceLocation(profile.id());
                      if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id)) continue;
                      var type = BuiltInRegistries.ENTITY_TYPE.get(id);
                      boolean boss = profile.ultimate() != null;
-@@ -195,7 +195,7 @@
+@@ -210,7 +210,7 @@
          super.render(graphics, x, y, partial);
      }
  
@@ -2558,7 +2573,7 @@
  
  /** Temporary vanilla model states, kept separate from authoritative damage and AI. */
  public final class TrailsPerformances {
-@@ -50,7 +50,7 @@
+@@ -55,7 +55,7 @@
              if (entity instanceof Blaze b) ((com.matuvent.mineturn.mixin.BlazeBattleAccess)b).mineturn$charged(blaze);
              if (entity instanceof Guardian g) ((com.matuvent.mineturn.api.GuardianBeamAccess)g).mineturn$beam(beam, -1);
              if (entity instanceof Creeper c) c.setSwellDir(swell);
@@ -2567,7 +2582,7 @@
          }
      }
      static boolean bursting() {
-@@ -116,8 +116,8 @@
+@@ -121,8 +121,8 @@
                      candidate -> candidate != e && candidate.position().distanceToSqr(p.aim()) < 1).stream().findFirst();
              target.ifPresent(t -> ((com.matuvent.mineturn.api.GuardianBeamAccess)guardian).mineturn$beam(t.getId(), 30));
          }
@@ -2656,12 +2671,8 @@
          int column = Math.min(154, width / 3 - 8);
          roster(false, 8, 69, column);
          roster(true, width - column - 8, 69, column);
-@@ -132,10 +132,10 @@
-         var slots = new java.util.ArrayList<Integer>();
-         for (int i = 0; i < 36; i++) {
-             var stack = minecraft.player.getInventory().getItem(i);
--            if (!stack.isEmpty() && (stack.has(net.minecraft.core.component.DataComponents.FOOD) || stack.is(net.minecraft.world.item.Items.POTION))) slots.add(i);
-+            if (!stack.isEmpty() && (com.matuvent.mineturn.compat.Components.has(stack,com.matuvent.mineturn.compat.DataComponents.FOOD) || stack.is(net.minecraft.world.item.Items.POTION))) slots.add(i);
+@@ -135,7 +135,7 @@
+             if (com.matuvent.mineturn.battle.TrailsCombat.consumable(stack)) slots.add(i);
          }
          int pages = Math.max(1, (slots.size() + 5) / 6);
 -        inventoryPage = Math.clamp(inventoryPage, 0, pages - 1);
@@ -2746,7 +2757,7 @@
  import net.minecraft.world.item.alchemy.Potions;
  import net.minecraft.world.level.GameType;
  import net.minecraft.world.level.block.Blocks;
-@@ -70,6 +70,7 @@
+@@ -71,6 +71,7 @@
          if (stage == 1 && mc.screen != null) return;
          elapsed++;
          if (stage == 1) {
@@ -2754,7 +2765,7 @@
              TrailsClient.preview = true;
              if (elapsed == 16) screenshot("at-qa-01-circle.png");
              if (elapsed > 24) { mc.getToasts().clear(); TrailsClient.preview = false; TrailsClient.send("toggle", -1, 0, 0, 0); stage = 2; elapsed = 0; }
-@@ -181,7 +182,7 @@
+@@ -182,7 +183,7 @@
      }
      private static void setup(MinecraftServer server) {
          var level = server.overworld();
@@ -2763,7 +2774,7 @@
          p.setGameMode(GameType.SURVIVAL);
          for (int x = -16; x <= 16; x++) for (int z = -16; z <= 16; z++) {
              level.setBlock(new BlockPos(x, -60, z), Blocks.GRASS_BLOCK.defaultBlockState(), 3);
-@@ -190,10 +191,10 @@
+@@ -191,10 +192,10 @@
          p.teleportTo(.5, -59, .5); p.setYRot(0); p.setHealth(20);
          var inv = p.getInventory();
          inv.setItem(0, new ItemStack(Items.IRON_SWORD)); inv.setItem(1, new ItemStack(Items.BOW));
@@ -2789,7 +2800,7 @@
          if(e instanceof WitherBoss wither){int[] targets={wither.getAlternativeTarget(0),wither.getAlternativeTarget(1),wither.getAlternativeTarget(2)};restores.add(()->{for(int i=0;i<3;i++)wither.setAlternativeTarget(i,targets[i]);});}
 --- a/com/matuvent/mineturn/client/TrailsUpdateSmoke.java
 +++ b/com/matuvent/mineturn/client/TrailsUpdateSmoke.java
-@@ -122,7 +122,7 @@
+@@ -135,7 +135,7 @@
      private static final class PortraitSheet extends Screen {
          PortraitSheet() { super(Component.literal("Portrait regression")); }
          @Override public boolean isPauseScreen() { return false; }

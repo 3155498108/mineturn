@@ -115,6 +115,7 @@ public final class TrailsGuideScreen extends Screen {
         var entries = new ArrayList<Article>();
         switch (category) {
             case 0 -> {
+                entries.add(new Article("其他模组自动适配", "新生物可按原生攻击、生命、护甲、速度和远程类型生成 AT 普攻与战技。生命至少 100 或带 Boss 标签的敌军会生成金光预告 S 技。\n\n武器按类型、标签和攻击属性识别，使用对应的范围、CP 和 S 技。标准食物、可饮用药水及状态效果进入战斗的道具与 AT 时钟。\n\n靠近新生物后可在手册对应分类查看自动技能，武器分类也会显示可识别的模组武器。专有法术、独立资源和 Boss 阶段通过专门接口接入。"));
                 entries.add(new Article("快速开始", "按住切换键 " + key(TrailsClient.SWITCH) + " 查看入战圈，松开后拉入圈内的敌人与友军，在原地切入第三人称 AT 战斗。默认半径 20 格，可在设置中修改。\n\n在自己控制的玩家或友军回合，按下并松开同一键即可退出。敌人行动和动作演出期间需等待。\n\n用 " + key(TrailsClient.GUIDE) + " 或战斗右上角的说明按钮重新打开本手册。"));
                 entries.add(new Article("移动与攻击", "轮到你控制的角色后，用 WASD 按镜头方向在绿色移动圈内自由移动。按住鼠标右键拖动视角。\n\nEnter 或空格预览普通攻击，F 预览战技，再按 Enter 确认。Esc 取消预览。点击右侧敌军选择单体目标。\n\n扇形、长方形攻击沿镜头朝向，圆形技能用滚轮调整落点。先确认橙色生效区域再出手。"));
                 entries.add(new Article("速度与 AT", "AT 越小越先行动，速度越高，同样行动后的等待越短。不同攻击和战技有不同的恢复时间。\n\n迅捷、缓慢、装备和物种速度会影响行动顺序。头像队列显示当前与后续行动者。\n\n防御可减伤，待机可较快让出回合。范围攻击应同时考虑敌人站位和自己的下一次行动。"));
@@ -127,21 +128,35 @@ public final class TrailsGuideScreen extends Screen {
                 entries.add(new Article("队伍与归属", "多人默认互为对手，可在设置的队伍页创建队伍并邀请玩家加入。每人控制自己与自己用命名牌登记的友军。\n\n多人只有已登记的友军会参战，敌对怪物可直接入战。同队玩家的生物仍由其主人控制。"));
             }
             case 2 -> {
-                for (var item : List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.TRIDENT, Items.MACE)) {
+                var weapons = new ArrayList<>(List.of(Items.IRON_SWORD, Items.IRON_AXE, Items.BOW, Items.CROSSBOW, Items.TRIDENT, Items.MACE));
+                for (var item : BuiltInRegistries.ITEM) {
+                    if (!BuiltInRegistries.ITEM.getKey(item).getNamespace().equals("minecraft") && TrailsWeaponSkills.supported(item.getDefaultInstance())) weapons.add(item);
+                }
+                for (var item : weapons) {
                     var stack = item.getDefaultInstance();
                     if (!BuiltInRegistries.ITEM.containsKey(BuiltInRegistries.ITEM.getKey(item))) continue;
                     entries.add(new Article(stack.getHoverName().getString(), "战技「" + TrailsWeaponSkills.name(stack) + "」\n消耗 " + TrailsWeaponSkills.cpCost(stack) + " CP\n\n" + TrailsWeaponSkills.description(stack) + "\n\n剑普通攻击为扇形，弩为长方形，弓和斧选择单体，重锤为圆形。方向范围按镜头瞄准。\n\n玩家自己回合可切换武器并更新主武器，抢 S 使用已设定的主武器。"));
                 }
             }
             default -> {
-                for (var profile : TrailsBestiary.all()) {
+                var profiles = new java.util.LinkedHashMap<String, TrailsBestiary.Profile>();
+                for (var profile : TrailsBestiary.all()) profiles.put(profile.id(), profile);
+                var level = net.minecraft.client.Minecraft.getInstance().level;
+                if (level != null) for (var entity : level.entitiesForRendering()) {
+                    if (entity instanceof net.minecraft.world.entity.Mob mob) {
+                        var profile = TrailsBestiary.get(mob);
+                        if (profile != null) profiles.put(profile.id(), profile);
+                    }
+                }
+                for (var profile : profiles.values()) {
                     var id = ResourceLocation.parse(profile.id());
                     if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id)) continue;
                     var type = BuiltInRegistries.ENTITY_TYPE.get(id);
                     boolean boss = profile.ultimate() != null;
-                    boolean hostile = type.getCategory() == MobCategory.MONSTER;
+                    boolean automatic = TrailsBestiary.get(profile.id()) == null;
+                    boolean hostile = type.getCategory() == MobCategory.MONSTER || automatic && !profile.skill().friendly();
                     if (category == 5 ? !boss : boss || (category == 4) != hostile) continue;
-                    String body = profile.id() + "\n\n" + describe("普通攻击", profile.basic()) + "\n\n" + describe("战技", profile.skill());
+                    String body = profile.id() + (automatic ? "\n自动适配 · 读取原生属性" : "") + "\n\n" + describe("普通攻击", profile.basic()) + "\n\n" + describe("战技", profile.skill());
                     if (boss) body += "\n\n" + describe("S 技", profile.ultimate()) + "\n\n金光蓄力后，下次自身回合释放，留意地面危险区域。";
                     else if (!hostile) body += "\n\n用命名牌登记并收纳，右键方块放出，蹲下空手右键再次收回。放出后跟随主人，保留当前生命和 CP。";
                     else body += "\n\n敌方战技会发红光，CP 不足时改用普攻。";
@@ -177,7 +192,7 @@ public final class TrailsGuideScreen extends Screen {
             default -> "造成伤害";
         };
         return label + "「" + move.name() + "」" + (move.cpCost() > 0 ? " · " + move.cpCost() + " CP" : "")
-                + "\n" + shape + "\n" + effect + "，基础数值 " + move.power()
+                + "\n" + shape + "\n" + effect + (move.kind().equals("ATTRIBUTE") ? "，当前攻击属性 × " : "，基础数值 ") + move.power()
                 + (move.buff().isBlank() ? "" : "\n附加 " + Component.translatable("effect.minecraft." + move.buff()).getString() + " " + (move.amplifier() + 1) + " 级");
     }
 

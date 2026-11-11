@@ -22,7 +22,7 @@ public final class TrailsUpdateScenario {
     public static final String[] BOSSES = {"naga", "lich", "minoshroom", "hydra", "knight_phantom", "ur_ghast", "alpha_yeti", "snow_queen"};
     public static volatile int bossId;
 
-    private static ServerPlayer player(MinecraftServer server) {
+    static ServerPlayer player(MinecraftServer server) {
         String world = System.getProperty("mineturn.qaWorld", "");
         if (com.matuvent.mineturn.platform.RuntimePlatform.production() || !Boolean.getBoolean("mineturn.encounterSmoke")
                 || !System.getProperty("mineturn.qaTag", "").startsWith("update") || !world.matches("AT-QA-[A-Za-z0-9-]+")

@@ -76,7 +76,7 @@ final class TrailsBestiaryActions {
         if(ultimate && move.area().kind()!=TrailsArea.Kind.SINGLE)point=(move.area().kind()==TrailsArea.Kind.DISK
                 ?move.area().center(origin,aim):origin.add(move.area().direction(aim).scale(move.area().radius()))).add(0,1,0);
         final Vec3 impactPoint=point;
-        boolean red=!c.allied(source) && !ultimate && TrailsBestiary.get(source)!=null && move==TrailsBestiary.get(source).skill();
+        boolean red=!c.allied(source) && !ultimate && TrailsBestiary.get(source)!=null && move.equals(TrailsBestiary.get(source).skill());
         c.b.message((ultimate?"S 技 · ":"")+source.getName().getString()+" · "+move.name());
         if(source.getType()==EntityType.WARDEN && move.animation().equals("sonic"))source.playSound(SoundEvents.WARDEN_SONIC_CHARGE,1,1);
         c.windupAt(source,impactPoint,move.animation().equals("sonic")?34:ultimate?28:move.friendly()?12:move.projectile().isBlank()?14:20,red,()->{
@@ -128,7 +128,8 @@ final class TrailsBestiaryActions {
                     if(move.kind().equals("STAGGER"))c.guarding.remove(e.getUUID());
                     var strength=source.getEffect(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST);
                     var weakness=source.getEffect(net.minecraft.world.effect.MobEffects.WEAKNESS);
-                    double power=Math.max(0,move.power()+(strength==null?0:3*(strength.getAmplifier()+1))-(weakness==null?0:4*(weakness.getAmplifier()+1)));
+                    double power = move.kind().equals("ATTRIBUTE") ? move.power() * TrailsAutoProfiles.attackDamage(source)
+                            : Math.max(0,move.power()+(strength==null?0:3*(strength.getAmplifier()+1))-(weakness==null?0:4*(weakness.getAmplifier()+1)));
                     if(move.animation().equals("sonic"))c.damage(source,e,move.power(),source.damageSources().sonicBoom(source));else c.hit(source,e,power);
                     if(e.isAlive() && !move.buff().isBlank())buff(e,move);
                     if(move.kind().equals("FIRE"))BattleManager.authorized(()->e.igniteForSeconds(3));

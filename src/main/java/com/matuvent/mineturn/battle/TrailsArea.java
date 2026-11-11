@@ -9,20 +9,25 @@ public record TrailsArea(Kind kind, double cast, double radius, double width) {
     public enum Kind { SINGLE, SECTOR, RECTANGLE, DISK }
     public static TrailsArea weapon(ItemStack stack, boolean wind, boolean burst) {
         if (burst) {
-            if (stack.getItem() instanceof CrossbowItem || stack.getItem() instanceof TridentItem) return new TrailsArea(Kind.RECTANGLE, 0, 24, 6);
-            if (stack.is(ItemTags.AXES)) return new TrailsArea(Kind.SINGLE, 24, 0, 0);
-            if (stack.getItem() instanceof BowItem) return new TrailsArea(Kind.DISK, 24, 5, 0);
-            if (stack.getItem() instanceof MaceItem) return new TrailsArea(Kind.DISK, 24, 6, 0);
+            if (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MELEE) return new TrailsArea(Kind.SINGLE, 24, 0, 0);
+            if (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.CROSSBOW || TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.TRIDENT) return new TrailsArea(Kind.RECTANGLE, 0, 24, 6);
+            if (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.AXE) return new TrailsArea(Kind.SINGLE, 24, 0, 0);
+            if (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.BOW) return new TrailsArea(Kind.DISK, 24, 5, 0);
+            if (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MACE) return new TrailsArea(Kind.DISK, 24, 6, 0);
             return new TrailsArea(Kind.DISK, 0, 10, 0);
         }
-        if (stack.is(ItemTags.SWORDS)) return new TrailsArea(Kind.SECTOR, 0, 3, 90);
-        if (stack.getItem() instanceof CrossbowItem) return new TrailsArea(Kind.RECTANGLE, 0, 24, 3);
-        if (stack.getItem() instanceof MaceItem) return new TrailsArea(Kind.DISK, 3, wind ? 5 : 2, 0);
-        return new TrailsArea(Kind.SINGLE, stack.getItem() instanceof BowItem ? 24 : stack.getItem() instanceof TridentItem ? 3.5 : 3, 0, 0);
+        if (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.SWORD) return new TrailsArea(Kind.SECTOR, 0, 3, 90);
+        if (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.CROSSBOW) return new TrailsArea(Kind.RECTANGLE, 0, 24, 3);
+        if (TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.MACE) return new TrailsArea(Kind.DISK, 3, wind ? 5 : 2, 0);
+        return new TrailsArea(Kind.SINGLE, TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.BOW ? 24 : TrailsWeaponSkills.kind(stack) == TrailsWeaponSkills.Kind.TRIDENT ? 3.5 : 3, 0, 0);
     }
     public static TrailsArea skill(String entity) {
         var profile=TrailsBestiary.get(entity);
         return profile==null?new TrailsArea(Kind.DISK,0,6,0):profile.skill().area();
+    }
+    public static TrailsArea skill(net.minecraft.world.entity.LivingEntity entity) {
+        var profile = TrailsBestiary.get(entity);
+        return profile == null ? new TrailsArea(Kind.DISK, 0, 6, 0) : profile.skill().area();
     }
 
     public Vec3 direction(Vec3 aim) { return aim.horizontalDistanceSqr() < 1e-8 ? new Vec3(0, 0, 1) : aim.multiply(1, 0, 1).normalize(); }

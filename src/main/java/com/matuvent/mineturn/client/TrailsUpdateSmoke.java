@@ -10,6 +10,7 @@ import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 final class TrailsUpdateSmoke {
+    static boolean complete;
     private static int stage, age, total, category, boss;
     private static boolean twilight;
     private static void next(int value) { stage = value; age = 0; }
@@ -28,6 +29,17 @@ final class TrailsUpdateSmoke {
         var minecraft = Minecraft.getInstance();
         if (++total > 6000) throw new IllegalStateException("Update QA timeout stage=" + stage);
         if (minecraft.player == null || minecraft.getSingleplayerServer() == null) {
+            if (System.getProperty("mineturn.qaTag", "").startsWith("update-auto")
+                    && minecraft.screen instanceof net.minecraft.client.gui.screens.BackupConfirmScreen) {
+                String world = System.getProperty("mineturn.qaWorld", "");
+                var run = minecraft.gameDirectory.toPath().toAbsolutePath().normalize();
+                check(run.getFileName().toString().startsWith("auto-client-") && world.matches("AT-QA-Auto-[A-Za-z0-9-]+")
+                        && java.nio.file.Files.isDirectory(run.resolve("saves").resolve(world)), "backup prompt outside owned QA instance");
+                String label = Component.translatable("selectWorld.backupJoinConfirmButton").getString();
+                MineTurn.LOGGER.info("AUTO_QA_BACKUP_AND_LOAD {}", world);
+                press(label);
+                return;
+            }
             if (total % 200 == 0) MineTurn.LOGGER.info("UPDATE_QA_WAIT screen={}", minecraft.screen == null ? "none" : minecraft.screen.getClass().getName());
             if (total == 200) shot("boot-prompt");
             return;
@@ -117,7 +129,8 @@ final class TrailsUpdateSmoke {
     }
     private static void finish() {
         MineTurn.LOGGER.info("TRAILS_UPDATE_CLIENT_PASSED guide six categories, H/button return, portraits, music lifecycle, twilight={}", twilight);
-        Minecraft.getInstance().stop();
+        complete = true;
+        if (!System.getProperty("mineturn.qaTag", "").startsWith("update-auto")) Minecraft.getInstance().stop();
     }
     private static final class PortraitSheet extends Screen {
         PortraitSheet() { super(Component.literal("Portrait regression")); }

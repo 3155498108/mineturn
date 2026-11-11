@@ -28,6 +28,11 @@ public final class TrailsPerformances {
         if(e!=mc.player){var state=ACTIVE.get(e.getId());if(state==null || state.packet.weapon().isBlank())return original;
             var id=net.minecraft.resources.ResourceLocation.tryParse(state.packet.weapon());if(id==null)return original;
             var item=net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);visualWeaponFrames++;return new net.minecraft.world.item.ItemStack(item);}
+        var held = mc.player.getMainHandItem();
+        if (!held.isEmpty() && net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem()).toString().equals(TrailsClient.view.primary())) {
+            visualWeaponFrames++;
+            return held;
+        }
         for(int i=0;i<36;i++) {
             var candidate=mc.player.getInventory().getItem(i);
             if(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(candidate.getItem()).toString().equals(TrailsClient.view.primary())) {
